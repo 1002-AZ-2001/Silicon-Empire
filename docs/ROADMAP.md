@@ -23,6 +23,8 @@ Exclus : multijoueur, semi-conducteurs, histoire, employés autonomes, IA concur
 | 1.0 | CPU/GPU, recherche avancée, concurrence, IT et multisite. |
 La roadmap est indicative et révisable selon les tests de gameplay.
 
+La phase 0 et la v0.1 couvrent le socle de développement et la construction jouable. Les machines sont des équipements à implanter. Le prochain jalon, v0.2, introduit les inventaires, les ports et la circulation des ressources.
+
 ## 22. Tests et critères d’acceptation
 - Placement sur tuile libre ; refus collision, limites ou fonds insuffisants ; rotation correcte.
 - Transfert valide entre ports/convoyeurs, saturation et conservation des ressources.

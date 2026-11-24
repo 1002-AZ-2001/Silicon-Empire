@@ -1,5 +1,7 @@
 # Déploiement
 
-Le dépôt initial est documentaire ; le jeu et le Dockerfile ne sont pas encore implémentés. Objectif v0.5 : démarrage par `docker compose up -d --build`, puis accès via `http://localhost:8080` (port configurable). Le frontend doit fonctionner sans service externe. Les sauvegardes locales résident dans le navigateur, pas dans le conteneur : utiliser l’export JSON pour les transférer ou les sauvegarder. Plus tard, persistance serveur dans `/data`, sauvegarde SQLite cohérente, reverse proxy HTTPS et API de même origine.
+La v0.1 est un site statique. `pnpm build` produit les fichiers dans `dist/`. Pour tester cette version sur la machine de développement, lancer `pnpm preview` et ouvrir l’adresse affichée. Les fichiers de `dist/` peuvent être servis par un hébergeur statique ou derrière un reverse proxy HTTPS. Les notices des dépendances distribuées accompagnent le site dans `LICENCES-TIERCE-PARTIE.txt`.
 
-Compatible en cible avec TrueNAS SCALE et hôtes Linux/Proxmox. Ne pas coder en dur un domaine, une adresse IP, des identifiants ni des secrets.
+IndexedDB rattache les sauvegardes à l’origine du site et au profil du navigateur. Conserver le même schéma, le même hôte et le même port pour retrouver les ateliers. La v0.1 enregistre dans IndexedDB à la demande du joueur. L’export JSON est prévu pour transférer les sauvegardes entre origines ou profils.
+
+Objectif v0.5 pour l’auto-hébergement sur TrueNAS SCALE ou VM Linux/Proxmox. Construire une image statique et lancer `docker compose up -d --build` sur un port hôte configurable. Plus tard, le backend ajoutera la persistance dans `/data`, les sauvegardes SQLite et une API de même origine.

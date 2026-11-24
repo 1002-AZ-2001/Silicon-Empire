@@ -1,0 +1,7 @@
+{
+  "name": "@silicon-empire/game-data",
+  "private": true,
+  "type": "module",
+  "exports": "./src/construction.ts",
+  "dependencies": { "zod": "4.6.7" }
+}

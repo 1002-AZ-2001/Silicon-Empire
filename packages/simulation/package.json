@@ -1,0 +1,7 @@
+{
+  "name": "@silicon-empire/simulation",
+  "private": true,
+  "type": "module",
+  "exports": "./src/world.ts",
+  "dependencies": { "@silicon-empire/game-data": "workspace:*" }
+}

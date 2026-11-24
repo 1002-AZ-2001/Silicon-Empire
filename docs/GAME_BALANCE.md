@@ -10,4 +10,17 @@
 | Assemblage initial | 30 s simulées par PC |
 | Prix exemple Gaming X1 | 899 € |
 
-Valeurs de conception fictives, à tester. Définir les coûts d’achat, prix de construction, capacités, délais et marges dans des catalogues configurables. Le scénario initial doit rester solvable avec le capital de départ. Documenter le calcul de la marge, la politique de remboursement de démolition et les pertes explicites. Aucun modèle économique réel n’est revendiqué.
+## Catalogue de construction v0.1
+
+| Équipement | Emprise au nord | Coût |
+|---|---:|---:|
+| Casier de stockage | 1 × 1 | 600 € |
+| Établi d’assemblage | 2 × 2 | 1 800 € |
+| Banc de test | 2 × 1 | 2 400 € |
+| Quai de réception | 3 × 2 | 4 200 € |
+
+Les coûts sont fictifs et réglables dans `packages/game-data/src/construction.ts`. Un exemplaire de chaque équipement coûte 9 000 €, laissant 16 000 € de capital. Un placement refusé ou une rotation laisse le solde intact.
+
+Le remboursement de démolition vaut 50 % du prix effectivement payé, arrondi au centime inférieur. La différence reste une dépense de l’atelier. Pour un casier acheté à 600 €, le remboursement est de 300 € et la dépense définitive de 300 €.
+
+Les capacités, les délais et le calcul des marges relèvent des jalons d’inventaire, de production et de vente.
