@@ -1,0 +1,59 @@
+name: Publish Silicon Empire v0.1.0
+
+on:
+  push:
+    branches: [release/v0.1.0]
+
+concurrency: silicon-empire-v0.1.0
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.repository == '1002-AZ-2001/Silicon-Empire'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: 87c0ec8f2ffbfdbeabca1f1dd7c3342cc8d849b1
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version-file: .node-version
+      - name: Build and package
+        shell: bash
+        run: |
+          npm install --global pnpm@11.25.0
+          pnpm install --frozen-lockfile
+          pnpm lint
+          pnpm test
+          pnpm build
+          (
+            cd dist
+            zip -Xrq ../Silicon-Empire-v0.1.0.zip .
+          )
+          unzip -tq Silicon-Empire-v0.1.0.zip
+          sha256sum Silicon-Empire-v0.1.0.zip > Silicon-Empire-v0.1.0.sha256
+      - name: Publish the release and its files
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cat > release-notes.md <<'NOTES'
+          ## Silicon Empire v0.1.0
+
+          Première version jouable de l’atelier de construction.
+
+          - Grille de 64 × 64 tuiles, caméra et zoom.
+          - Quatre équipements avec aperçu, rotation, inspection et démolition confirmée.
+          - Capital de départ de 25 000 € et remboursement de 50 % du prix payé à la démolition.
+          - Sauvegarde et reprise locales par atelier dans IndexedDB.
+
+          Décompressez `Silicon-Empire-v0.1.0.zip` et servez son contenu avec un serveur HTTP statique. Avec Python 3, lancez `python3 -m http.server 8000` depuis le dossier extrait, puis ouvrez `http://localhost:8000`. Conservez la même adresse pour retrouver vos sauvegardes.
+          NOTES
+          gh release create v0.1.0 Silicon-Empire-v0.1.0.zip Silicon-Empire-v0.1.0.sha256 \
+            --target "$(git rev-parse HEAD)" --title 'Silicon Empire v0.1.0' \
+            --notes-file release-notes.md --latest
