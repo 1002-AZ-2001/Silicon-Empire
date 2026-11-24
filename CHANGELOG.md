@@ -14,6 +14,7 @@
 - Numéro de version affiché dans le menu, tiré de `package.json`.
 - Workflow de publication : à chaque version non taguée sur `main`, tests, construction des paquets Windows et Linux, test de lancement de l’application Linux, puis release avec empreintes SHA-256.
 - Tutoriel d’installation et de mise à jour (`docs/INSTALLATION.md`).
+- Licence du projet : GNU AGPL v3 (`LICENSE`).
 
 ## 0.1.0 — Construction de l’atelier
 

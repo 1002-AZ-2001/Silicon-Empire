@@ -61,4 +61,4 @@ Les tests Playwright construisent et servent la version de production sur le por
 - [Mission Codex](CODEX_TASK.md)
 - [Dossier PDF de conception initiale](docs/Silicon_Empire_Handoff.pdf)
 
-Le nom est provisoire. Sa disponibilité commerciale n’a pas été vérifiée. Aucune licence définitive n’a été choisie.
+Le nom est provisoire. Sa disponibilité commerciale n’a pas été vérifiée. Le code est distribué sous licence [GNU Affero General Public License v3](LICENSE). Les dépendances tierces gardent leurs propres licences (`apps/web/public/LICENCES-TIERCE-PARTIE.txt`).
