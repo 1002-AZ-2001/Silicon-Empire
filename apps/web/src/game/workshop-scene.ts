@@ -1,10 +1,11 @@
-import { MACHINE_TYPES, WORKSHOP } from '@silicon-empire/game-data';
-import { checkBuild, fitsMap, footprintOf, machineAt } from '@silicon-empire/simulation';
+import { CONVEYOR, ITEM_TYPES, MACHINE_TYPES, WORKSHOP } from '@silicon-empire/game-data';
+import { checkBuild, fitsMap, footprintOf, machineAt, neighbour, portsOf } from '@silicon-empire/simulation';
 import Phaser from 'phaser';
+import { ITEM_ART } from '../art/items';
 import { MACHINE_ART } from '../art/machines';
 import { isBuildTool } from './controls';
 import { createFloor } from './floor';
-import type { Footprint, Placement, Simulation, Tile, World } from '@silicon-empire/simulation';
+import type { Footprint, Machine, Placement, Simulation, Tile, World, WorldPort } from '@silicon-empire/simulation';
 import type { WorkshopControls } from './controls';
 
 export const MIN_ZOOM = 0.38;
@@ -19,6 +20,28 @@ const RIGHT = ['d', 'arrowright'];
 const MOVE_KEYS = new Set([...UP, ...LEFT, ...DOWN, ...RIGHT, ' ']);
 
 interface Point { x: number; y: number }
+
+const PORT_COLORS = { input: 0xbde778, output: 0xf0b24a } as const;
+const itemKey = (item: string) => `item:${item}`;
+
+/** Screen position of every unit on a belt, by unit id. */
+function unitPositions(world: World): Map<number, Point> {
+  const positions = new Map<number, Point>();
+  const conveyors = new Map(world.machines.map(machine => [String(machine.id), machine]));
+  for (const [id, belt] of Object.entries(world.belts)) {
+    const conveyor = conveyors.get(id);
+    if (!conveyor) continue;
+    const direction = neighbour({ x: 0, y: 0 }, conveyor.rotation);
+    for (const unit of belt) {
+      const along = unit.position / CONVEYOR.lengthUnits - 0.5;
+      positions.set(unit.id, {
+        x: (conveyor.x + 0.5 + direction.x * along) * TILE,
+        y: (conveyor.y + 0.5 + direction.y * along) * TILE,
+      });
+    }
+  }
+  return positions;
+}
 
 interface PointerGesture {
   id: number;
@@ -37,8 +60,13 @@ export class WorkshopScene extends Phaser.Scene {
   private gesture: PointerGesture | null = null;
   private ready = false;
   private equipment!: Phaser.GameObjects.Container;
+  private ports!: Phaser.GameObjects.Graphics;
+  private units!: Phaser.GameObjects.Container;
   private outline!: Phaser.GameObjects.Graphics;
   private ghost!: Phaser.GameObjects.Image;
+  private drawnMachines: readonly Machine[] | null = null;
+  private readonly unitSprites = new Map<number, Phaser.GameObjects.Image>();
+  private positionCache = new WeakMap<World, Map<number, Point>>();
 
   constructor(
     private readonly simulation: Simulation,
@@ -50,12 +78,15 @@ export class WorkshopScene extends Phaser.Scene {
 
   preload() {
     for (const type of MACHINE_TYPES) this.load.image(type, MACHINE_ART[type]);
+    for (const item of ITEM_TYPES) this.load.image(itemKey(item), ITEM_ART[item]);
   }
 
   create() {
     const world = this.simulation.getSnapshot();
     createFloor(this, world.columns, world.rows);
     this.equipment = this.add.container(0, 0).setDepth(1);
+    this.units = this.add.container(0, 0).setDepth(1.5);
+    this.ports = this.add.graphics().setDepth(1.8);
     this.ghost = this.add.image(0, 0, MACHINE_TYPES[0]).setDepth(2).setAlpha(0.55);
     this.outline = this.add.graphics().setDepth(3);
     this.ready = true;
@@ -63,7 +94,8 @@ export class WorkshopScene extends Phaser.Scene {
     this.drawEquipment(world);
     this.drawPreview();
 
-    const unsubscribeWorld = this.simulation.subscribe(() => {
+    const unsubscribeWorld = this.simulation.subscribe(cause => {
+      if (cause !== 'command') return;
       this.drawEquipment(this.simulation.getSnapshot());
       this.drawPreview();
     });
@@ -87,6 +119,7 @@ export class WorkshopScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number) {
+    this.drawUnits();
     const hasKey = (keys: string[]) => Number(keys.some(key => this.keys.has(key)));
     const x = hasKey(RIGHT) - hasKey(LEFT);
     const y = hasKey(DOWN) - hasKey(UP);
@@ -259,11 +292,73 @@ export class WorkshopScene extends Phaser.Scene {
   }
 
   private drawEquipment(world: World) {
+    if (world.machines === this.drawnMachines) return;
+    this.drawnMachines = world.machines;
     this.equipment.removeAll(true);
+    this.ports.clear();
     for (const machine of world.machines) {
       const sprite = this.add.image(0, 0, machine.type);
       this.positionSprite(sprite, machine);
       this.equipment.add(sprite);
+      for (const port of portsOf(machine)) this.drawPort(this.ports, port);
+    }
+  }
+
+  /** Outward amber arrow for an output, inward green arrow for an input, on the edge of the port tile. */
+  private drawPort(graphics: Phaser.GameObjects.Graphics, port: WorldPort) {
+    const direction = neighbour({ x: 0, y: 0 }, port.side);
+    const across = { x: -direction.y, y: direction.x };
+    const edge = {
+      x: (port.tile.x + 0.5 + direction.x / 2) * TILE,
+      y: (port.tile.y + 0.5 + direction.y / 2) * TILE,
+    };
+    const sign = port.kind === 'output' ? 1 : -1;
+    const tip = { x: edge.x + direction.x * 4 * sign, y: edge.y + direction.y * 4 * sign };
+    const base = { x: edge.x - direction.x * 3 * sign, y: edge.y - direction.y * 3 * sign };
+    graphics.fillStyle(0x101615, 0.85).fillCircle(edge.x, edge.y, 6);
+    graphics.fillStyle(PORT_COLORS[port.kind], 1).fillTriangle(
+      tip.x, tip.y,
+      base.x + across.x * 4, base.y + across.y * 4,
+      base.x - across.x * 4, base.y - across.y * 4,
+    );
+  }
+
+  private positionsOf(world: World): Map<number, Point> {
+    let positions = this.positionCache.get(world);
+    if (!positions) {
+      positions = unitPositions(world);
+      this.positionCache.set(world, positions);
+    }
+    return positions;
+  }
+
+  /** Units are drawn between their previous and current tick positions. */
+  private drawUnits() {
+    const world = this.simulation.getSnapshot();
+    const current = this.positionsOf(world);
+    const previous = this.positionsOf(this.simulation.getPrevious());
+    const progress = this.controls.clock.progress;
+    const belts = Object.values(world.belts);
+
+    for (const [id, sprite] of this.unitSprites) {
+      if (!current.has(id)) {
+        sprite.destroy();
+        this.unitSprites.delete(id);
+      }
+    }
+    for (const belt of belts) {
+      for (const unit of belt) {
+        const target = current.get(unit.id);
+        if (!target) continue;
+        const from = previous.get(unit.id) ?? target;
+        let sprite = this.unitSprites.get(unit.id);
+        if (!sprite) {
+          sprite = this.add.image(0, 0, itemKey(unit.item));
+          this.units.add(sprite);
+          this.unitSprites.set(unit.id, sprite);
+        }
+        sprite.setPosition(from.x + (target.x - from.x) * progress, from.y + (target.y - from.y) * progress);
+      }
     }
   }
 
@@ -290,6 +385,7 @@ export class WorkshopScene extends Phaser.Scene {
       this.positionSprite(this.ghost, placement);
       const error = checkBuild(world, placement);
       this.markFootprint(footprintOf(placement), error ? 0xff8267 : 0xbde778, 0.2);
+      for (const port of portsOf(placement)) this.drawPort(this.outline, port);
       return;
     }
 

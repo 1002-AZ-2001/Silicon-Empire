@@ -388,6 +388,32 @@ kbd {
   gap: 8px;
 }
 
+.metric strong.game-time { font: 500 1.3rem/1.2 var(--mono); }
+
+.speed-control {
+  display: flex;
+  flex: none;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #121c19;
+}
+
+.speed-button {
+  min-width: 44px;
+  height: 32px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted);
+  font: 500 .76rem var(--mono);
+  cursor: pointer;
+}
+
+.speed-button:hover { color: var(--ink); background: #1f2d28; }
+.speed-button[aria-pressed="true"] { background: var(--lime); color: #12200f; }
+
 .save-status {
   max-width: 160px;
   margin-right: 5px;
@@ -627,6 +653,54 @@ kbd {
 .machine-stats dd { margin: 0; font: 500 .76rem var(--mono); }
 
 .rotate-button { justify-content: flex-start; width: 100%; }
+
+.logistics-stats { margin-bottom: 9px; }
+
+.stock-list {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  font-size: .78rem;
+}
+
+.stock-list li {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 6px;
+  border-radius: 3px;
+  background: #121c19;
+}
+
+.stock-list img { width: 16px; height: 16px; image-rendering: pixelated; }
+.stock-list strong { font: 500 .76rem var(--mono); }
+
+.order-form {
+  display: grid;
+  gap: 8px;
+  padding-top: 11px;
+  border-top: 1px solid #364940;
+}
+
+.order-form h4 { font: 600 1.05rem var(--heading); letter-spacing: .04em; text-transform: uppercase; }
+.order-form label { display: grid; gap: 4px; color: var(--muted); font-size: .76rem; }
+
+.order-form select {
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #121c19;
+  color: var(--ink);
+  font: inherit;
+  font-size: .8rem;
+}
+
+.order-form .button { justify-content: center; width: 100%; }
+.order-hint { font-size: .76rem; }
 .rotate-button kbd { margin-left: auto; }
 
 .placement-status, .workshop-feedback {
@@ -665,7 +739,7 @@ kbd {
 
 .tool-list {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 7px;
 }
 
@@ -776,6 +850,7 @@ kbd {
   .camera-help { display: none; }
   .tool-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .tool-card { min-height: 58px; }
+  .speed-control { order: 2; }
 }
 
 @media (max-width: 410px) {

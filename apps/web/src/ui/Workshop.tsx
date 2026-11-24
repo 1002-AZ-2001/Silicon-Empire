@@ -1,13 +1,14 @@
-import { demolitionRefund, Simulation } from '@silicon-empire/simulation';
-import { MACHINES } from '@silicon-empire/game-data';
-import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { contentsOf, demolitionRefund, inventoryTotal, sameContents, Simulation } from '@silicon-empire/simulation';
+import { MACHINES, TIME } from '@silicon-empire/game-data';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import { createWorkshopControls } from '../game/controls';
 import { writeSave } from '../persistence/indexed-saves';
 import { SAVE_VERSION } from '../persistence/save-data';
 import { ConstructionBar, getShortcut } from './ConstructionBar';
 import { Inspector } from './Inspector';
-import { Dialog, Icon, money } from './shared';
+import { Dialog, Icon, gameTime, money } from './shared';
+import { useWorld } from './use-world';
 import type { World } from '@silicon-empire/simulation';
 
 const WorkshopViewport = lazy(() => import('../game/WorkshopViewport'));
@@ -22,17 +23,32 @@ export interface WorkshopSession {
 
 export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu: () => void }) {
   const [simulation] = useState(() => new Simulation(session.world));
-  const [controls] = useState(() => createWorkshopControls(simulation));
-  const world = useSyncExternalStore(simulation.subscribe, simulation.getSnapshot);
+  // A resumed workshop starts paused so the player can look around first.
+  const [controls] = useState(() => createWorkshopControls(simulation, session.savedAt === null ? 1 : 0));
+  const world = useWorld(simulation);
   const demolitionId = useStore(controls.store, state => state.demolitionId);
+  const speed = useStore(controls.store, state => state.speed);
   const [savedWorld, setSavedWorld] = useState<World | null>(session.savedAt === null ? null : session.world);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [leaveDialog, setLeaveDialog] = useState(false);
   const saveInProgress = useRef(false);
   const lastSavedAt = useRef(session.savedAt ?? session.createdAt);
-  const dirty = savedWorld !== world;
+  const dirty = !savedWorld || !sameContents(savedWorld, world);
   const toDemolish = world.machines.find(machine => machine.id === demolitionId);
+  const unitsLost = toDemolish ? inventoryTotal(contentsOf(world, toDemolish.id)) : 0;
+
+  useEffect(() => {
+    let frame = 0;
+    let last = performance.now();
+    const loop = (now: number) => {
+      simulation.advance(controls.clock.advance(now - last));
+      last = now;
+      frame = requestAnimationFrame(loop);
+    };
+    frame = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(frame);
+  }, [simulation, controls]);
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
@@ -45,6 +61,9 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
       } else if (key === 'r') {
         event.preventDefault();
         controls.rotate();
+      } else if (key === 'p') {
+        event.preventDefault();
+        controls.togglePause();
       } else if (tool) {
         event.preventDefault();
         controls.selectTool(tool);
@@ -83,7 +102,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
 
   function openMenu() {
     if (saveInProgress.current) return;
-    if (simulation.getSnapshot() === savedWorld) {
+    if (savedWorld && sameContents(simulation.getSnapshot(), savedWorld)) {
       onMenu();
     } else {
       setLeaveDialog(true);
@@ -103,6 +122,22 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
             <span className="metric-label">Équipements</span>
             <strong aria-label="Équipements installés">{world.machines.length}</strong>
           </div>
+          <div className="metric">
+            <span className="metric-label">Temps simulé</span>
+            <strong className="game-time" aria-label="Temps simulé">{gameTime(world.tick)}</strong>
+          </div>
+        </div>
+        <div className="speed-control" role="group" aria-label="Vitesse de simulation">
+          {TIME.speeds.map(option => (
+            <button
+              type="button"
+              key={option}
+              className="speed-button"
+              aria-pressed={speed === option}
+              aria-keyshortcuts={option === 0 ? 'P' : undefined}
+              onClick={() => controls.setSpeed(option)}
+            >{option === 0 ? 'Pause' : `×${option}`}</button>
+          ))}
         </div>
         <div className="workshop-actions">
           <span className={`save-status${saveError ? ' text-error' : ''}`} role="status">
@@ -136,6 +171,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
           </>}
         >
           <p>{MACHINES[toDemolish.type].name} sera retiré. Le remboursement de <strong>{money(demolitionRefund(toDemolish))}</strong> sera crédité à votre atelier.</p>
+          {unitsLost > 0 && <p className="text-error">{unitsLost} {unitsLost > 1 ? 'composants présents seront mis' : 'composant présent sera mis'} au rebut.</p>}
         </Dialog>
       )}
 

@@ -2,8 +2,8 @@ import { MACHINES, WORKSHOP } from '@silicon-empire/game-data';
 import { describe, expect, it, vi } from 'vitest';
 import {
   Simulation, applyCommand, checkBuild, createWorld, demolitionRefund, footprintOf, machineAt,
-} from '../src/world';
-import type { Command, World } from '../src/world';
+} from '../src';
+import type { Command, World } from '../src';
 
 function run(world: World, command: Command): World {
   const result = applyCommand(world, command);
@@ -16,7 +16,8 @@ const tester = { kind: 'build', type: 'tester', x: 10, y: 10, rotation: 0 } as c
 describe('construction', () => {
   it('démarre avec une grille 64 × 64 vide et 25 000 €', () => {
     expect(createWorld()).toEqual({
-      columns: 64, rows: 64, capitalCents: 2_500_000, nextMachineId: 1, machines: [],
+      columns: 64, rows: 64, tick: 0, capitalCents: 2_500_000, nextMachineId: 1, nextItemId: 1,
+      machines: [], stocks: {}, belts: {}, ledger: { purchased: {}, discarded: {}, purchaseSpentCents: 0 },
     });
   });
 
@@ -121,6 +122,7 @@ describe('rotation et démolition', () => {
     expect(simulation.getSnapshot()).toBe(built);
     expect(initial.machines).toEqual([]);
     expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledWith('command');
     unsubscribe();
     simulation.dispatch({ kind: 'demolish', id: 1 });
     expect(listener).toHaveBeenCalledTimes(1);

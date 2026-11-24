@@ -2,7 +2,7 @@
 
 *From components to an industrial empire.*
 
-Jeu de gestion industrielle informatique en 2D, solo et jouable dans un navigateur. La v0.1 permet de construire et d’aménager un atelier de 64 × 64 tuiles avec un capital initial de 25 000 €.
+Jeu de gestion industrielle informatique en 2D, solo et jouable dans un navigateur. On construit un atelier de 64 × 64 tuiles avec un capital initial de 25 000 €, on commande des composants au quai de réception et on les achemine par convoyeurs jusqu’aux casiers de stockage.
 
 ## Jouer en local
 
@@ -17,7 +17,10 @@ Ouvrir l’adresse affichée par Vite, puis choisir **Nouvelle partie**. Les ate
 
 | Action | Commande |
 |---|---|
-| Construire | Choisir un équipement dans la barre basse ou avec les touches 1 à 4, puis cliquer sur la grille |
+| Construire | Choisir un équipement dans la barre basse ou avec les touches 1 à 5, puis cliquer sur la grille |
+| Poser un convoyeur | **Convoyeur** ou **5** ; **R** change son sens avant la pose |
+| Commander des composants | Inspecter un quai de réception, choisir un composant, puis **Commander 10 unités** |
+| Régler le temps | **Pause**, **×1**, **×2**, **×5** dans la barre haute ; **P** met en pause ou reprend |
 | Inspecter | **Inspecter** ou **I**, puis cliquer sur l’équipement |
 | Pivoter de 90° | **R** ou **Pivoter**, sur l’aperçu ou sur l’équipement inspecté |
 | Démolir | **Démolir** ou **X**, cliquer sur l’équipement, puis confirmer |
@@ -25,7 +28,7 @@ Ouvrir l’adresse affichée par Vite, puis choisir **Nouvelle partie**. Les ate
 | Déplacer la vue | **ZQSD**, **WASD**, flèches sur la grille, ou glisser avec le bouton droit ou central |
 | Zoomer | Molette sur la grille ou boutons de caméra |
 
-Les constructions sont facturées au placement. La démolition rembourse 50 % du prix payé. Utiliser **Enregistrer** pour conserver les modifications ou **Enregistrer et quitter** pour revenir au menu avec l’état sauvegardé.
+Les constructions sont facturées au placement. La démolition rembourse 50 % du prix payé ; les composants qu’elle contient sont mis au rebut. Sur la grille, une flèche orange marque une sortie et une flèche verte une entrée. Le quai sort par sa flèche ; le casier reçoit par l’arrière et ressort par sa flèche. Un atelier repris démarre en pause. Utiliser **Enregistrer** pour conserver les modifications ou **Enregistrer et quitter** pour revenir au menu avec l’état sauvegardé.
 
 ## Vérifier le projet
 
