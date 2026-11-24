@@ -23,7 +23,14 @@ Exclus : multijoueur, semi-conducteurs, histoire, employés autonomes, IA concur
 | 1.0 | CPU/GPU, recherche avancée, concurrence, IT et multisite. |
 La roadmap est indicative et révisable selon les tests de gameplay.
 
-La phase 0 et la v0.1 couvrent le socle de développement et la construction jouable. Les machines sont des équipements à implanter. Le prochain jalon, v0.2, introduit les inventaires, les ports et la circulation des ressources.
+La phase 0 et la v0.1 couvrent le socle de développement et la construction jouable.
+
+La v0.2 est livrée en deux tranches :
+
+- **Tranche 1 (réalisée)** : horloge à pas fixe avec pause, ×1, ×2 et ×5 ; catalogue de composants ; commande d’un lot au quai ; inventaires ; ports ; convoyeurs droits orientés, virages par enchaînement, saturation et remontée des blocages ; unités animées par interpolation ; mise au rebut comptabilisée ; sauvegarde v2 et migration v1.
+- **Tranche 2 (à faire)** : répartiteurs et fusionneurs à alternance stable, filtrage, sprites de virage, prévisualisation du flux pendant la pose et signalement des raccordements invalides, insertion latérale au bon endroit de la bande.
+
+L’assembleur et le banc de test restent sans ports ni inventaire jusqu’à la v0.3.
 
 ## 22. Tests et critères d’acceptation
 - Placement sur tuile libre ; refus collision, limites ou fonds insuffisants ; rotation correcte.

@@ -1,7 +1,9 @@
-import { MACHINES, WORKSHOP } from '@silicon-empire/game-data';
-import type { MachineType } from '@silicon-empire/game-data';
+import { ITEMS, MACHINES, PURCHASE, WORKSHOP } from '@silicon-empire/game-data';
+import type { Direction, ItemType, MachineType } from '@silicon-empire/game-data';
+import { addItems, inventoryTotal, mergeInventories } from './inventory';
+import type { Inventory } from './inventory';
 
-export const ROTATIONS = [0, 1, 2, 3] as const;
+export const ROTATIONS = [0, 1, 2, 3] as const satisfies readonly Direction[];
 export type Rotation = (typeof ROTATIONS)[number];
 
 export interface Tile {
@@ -24,24 +26,48 @@ export interface Footprint extends Tile {
   readonly height: number;
 }
 
+/** A unit travelling on a conveyor. Position runs from 0 (entry edge) to the belt length minus 1. */
+export interface BeltItem {
+  readonly id: number;
+  readonly item: ItemType;
+  readonly position: number;
+}
+
+/** Every unit bought is either in a stock, on a belt or explicitly discarded. */
+export interface Ledger {
+  readonly purchased: Inventory;
+  readonly discarded: Inventory;
+  readonly purchaseSpentCents: number;
+}
+
 export interface World {
   readonly columns: number;
   readonly rows: number;
+  readonly tick: number;
   readonly capitalCents: number;
   readonly nextMachineId: number;
+  readonly nextItemId: number;
+  /** Building layout, in ascending id order. Unchanged by ticks. */
   readonly machines: readonly Machine[];
+  /** Machine inventories by machine id. Empty inventories are absent. */
+  readonly stocks: Readonly<Record<string, Inventory>>;
+  /** Units on each conveyor by conveyor id, front unit first. Empty belts are absent. */
+  readonly belts: Readonly<Record<string, readonly BeltItem[]>>;
+  readonly ledger: Ledger;
 }
 
 export type Command =
   | ({ readonly kind: 'build' } & Placement)
   | { readonly kind: 'rotate'; readonly id: number }
-  | { readonly kind: 'demolish'; readonly id: number };
+  | { readonly kind: 'demolish'; readonly id: number }
+  | { readonly kind: 'order'; readonly id: number; readonly item: ItemType };
 
 type FootprintError = 'out-of-bounds' | 'occupied';
 type BuildError = FootprintError | 'insufficient-funds' | 'id-limit';
-export type CommandError = BuildError | 'missing-machine';
+type OrderError = 'not-a-dock' | 'insufficient-funds' | 'dock-full' | 'id-limit';
+export type CommandError = BuildError | OrderError | 'missing-machine';
 
-type CommandResult =
+export type CommandResult =
   | { readonly ok: true; readonly world: World; readonly machine: Machine }
   | { readonly ok: false; readonly reason: CommandError };
 
@@ -49,9 +75,14 @@ export function createWorld(): World {
   return {
     columns: WORKSHOP.columns,
     rows: WORKSHOP.rows,
+    tick: 0,
     capitalCents: WORKSHOP.initialCapitalCents,
     nextMachineId: 1,
+    nextItemId: 1,
     machines: [],
+    stocks: {},
+    belts: {},
+    ledger: { purchased: {}, discarded: {}, purchaseSpentCents: 0 },
   };
 }
 
@@ -83,7 +114,7 @@ function footprintsIntersect(a: Footprint, b: Footprint): boolean {
     a.y < b.y + b.height && b.y < a.y + a.height;
 }
 
-export function machineAt(world: World, tile: Tile): Machine | undefined {
+export function machineAt(world: Pick<World, 'machines'>, tile: Tile): Machine | undefined {
   return world.machines.find(machine => containsTile(footprintOf(machine), tile));
 }
 
@@ -106,6 +137,32 @@ export function checkBuild(world: World, placement: Placement): BuildError | nul
 
 export function demolitionRefund(machine: Machine): number {
   return Math.floor(machine.paidCents * WORKSHOP.demolitionRefundPercent / 100);
+}
+
+/** Units held by a machine: its inventory and, for a conveyor, the units on its belt. */
+export function contentsOf(world: World, id: number): Inventory {
+  const belt = world.belts[id] ?? [];
+  return belt.reduce((inventory, unit) => addItems(inventory, unit.item, 1), world.stocks[id] ?? {});
+}
+
+export function orderCost(item: ItemType): number {
+  return ITEMS[item].unitCostCents * PURCHASE.lotSize;
+}
+
+export function checkOrder(world: World, id: number, item: ItemType): CommandError | null {
+  const dock = world.machines.find(machine => machine.id === id);
+  if (!dock) return 'missing-machine';
+  if (dock.type !== 'receiving') return 'not-a-dock';
+  if (world.capitalCents < orderCost(item)) return 'insufficient-funds';
+  if (inventoryTotal(world.stocks[id] ?? {}) + PURCHASE.lotSize > MACHINES.receiving.capacity) return 'dock-full';
+  return null;
+}
+
+function withoutKey<T>(record: Readonly<Record<string, T>>, key: number): Readonly<Record<string, T>> {
+  if (!(key in record)) return record;
+  const copy = { ...record };
+  delete copy[key];
+  return copy;
 }
 
 export function applyCommand(world: World, command: Command): CommandResult {
@@ -131,13 +188,39 @@ export function applyCommand(world: World, command: Command): CommandResult {
   const machine = world.machines.find(candidate => candidate.id === command.id);
   if (!machine) return { ok: false, reason: 'missing-machine' };
 
+  if (command.kind === 'order') {
+    const reason = checkOrder(world, machine.id, command.item);
+    if (reason) return { ok: false, reason };
+    const cost = orderCost(command.item);
+    return {
+      ok: true,
+      world: {
+        ...world,
+        capitalCents: world.capitalCents - cost,
+        stocks: { ...world.stocks, [machine.id]: addItems(world.stocks[machine.id] ?? {}, command.item, PURCHASE.lotSize) },
+        ledger: {
+          ...world.ledger,
+          purchased: addItems(world.ledger.purchased, command.item, PURCHASE.lotSize),
+          purchaseSpentCents: world.ledger.purchaseSpentCents + cost,
+        },
+      },
+      machine,
+    };
+  }
+
   if (command.kind === 'demolish') {
+    const lost = contentsOf(world, machine.id);
     return {
       ok: true,
       world: {
         ...world,
         machines: world.machines.filter(candidate => candidate.id !== machine.id),
         capitalCents: world.capitalCents + demolitionRefund(machine),
+        stocks: withoutKey(world.stocks, machine.id),
+        belts: withoutKey(world.belts, machine.id),
+        ledger: inventoryTotal(lost) === 0
+          ? world.ledger
+          : { ...world.ledger, discarded: mergeInventories(world.ledger.discarded, lost) },
       },
       machine,
     };
@@ -157,24 +240,8 @@ export function applyCommand(world: World, command: Command): CommandResult {
   };
 }
 
-export class Simulation {
-  private readonly listeners = new Set<() => void>();
-
-  constructor(private world: World) {}
-
-  getSnapshot = (): World => this.world;
-
-  subscribe = (listener: () => void): (() => void) => {
-    this.listeners.add(listener);
-    return () => { this.listeners.delete(listener); };
-  };
-
-  dispatch(command: Command): CommandResult {
-    const result = applyCommand(this.world, command);
-    if (result.ok) {
-      this.world = result.world;
-      this.listeners.forEach(listener => listener());
-    }
-    return result;
-  }
+/** True when both worlds hold the same layout, money and units, whatever their tick. */
+export function sameContents(a: World, b: World): boolean {
+  return a.machines === b.machines && a.stocks === b.stocks && a.belts === b.belts &&
+    a.ledger === b.ledger && a.capitalCents === b.capitalCents;
 }

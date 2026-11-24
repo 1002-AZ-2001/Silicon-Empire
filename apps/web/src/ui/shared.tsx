@@ -1,3 +1,4 @@
+import { TIME } from '@silicon-empire/game-data';
 import { useEffect, useId, useRef } from 'react';
 import arrow from '../art/icons/arrow.png';
 import back from '../art/icons/back.png';
@@ -31,6 +32,13 @@ export function money(cents: number): string {
 }
 
 export const DIRECTIONS = ['Nord', 'Est', 'Sud', 'Ouest'] as const;
+
+/** Simulated time as h:mm:ss. */
+export function gameTime(tick: number): string {
+  const seconds = Math.floor(tick / TIME.ticksPerSecond);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${Math.floor(seconds / 3600)}:${pad(Math.floor(seconds / 60) % 60)}:${pad(seconds % 60)}`;
+}
 
 export function Dialog({ title, children, actions, onDismiss }: {
   title: string;

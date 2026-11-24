@@ -231,3 +231,68 @@ test('reste dans l’atelier si IndexedDB annule la transaction d’écriture', 
   await dialog.getByRole('button', { name: 'Quitter sans sauvegarder' }).click();
   await expect(page.getByText('Aucun atelier enregistré')).toBeVisible();
 });
+
+test('achemine un lot du quai au casier et restaure les unités en transit', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  const speed = (label: string) => page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: label });
+  const stock = () => inspector(page).getByLabel('Stock', { exact: true });
+  const time = () => page.getByLabel('Temps simulé', { exact: true });
+  await page.goto('/');
+  await startWorkshop(page, 'Atelier logistique');
+  await page.keyboard.press('p');
+  await expect(speed('Pause')).toHaveAttribute('aria-pressed', 'true');
+
+  await page.getByRole('button', { name: /^Réception/ }).click();
+  await clickTile(page, 30, 34);
+  await page.getByRole('button', { name: /^Convoyeur/ }).click();
+  await clickTile(page, 31, 33);
+  await clickTile(page, 31, 32);
+  await page.getByRole('button', { name: /^Stockage/ }).click();
+  await clickTile(page, 31, 31);
+  await expect(capital(page)).toHaveText(euros(25_000 - 4_200 - 80 - 600));
+
+  await page.keyboard.press('Escape');
+  await clickTile(page, 31, 35);
+  await expect(inspector(page).getByText('Nord · raccordée')).toBeVisible();
+  await inspector(page).getByLabel('Composant').selectOption('ram-16g');
+  await inspector(page).getByRole('button', { name: /^Commander 10 unités/ }).click();
+  await expect(capital(page)).toHaveText(euros(25_000 - 4_200 - 80 - 600 - 400));
+  await expect(stock()).toHaveText('10 / 100');
+  await expect(time()).toHaveText('0:00:00');
+
+  await clickTile(page, 31, 31);
+  await expect(inspector(page).getByText('Sud · raccordée')).toBeVisible();
+  await speed('×5').click();
+  await expect(stock()).toHaveText('10 / 40', { timeout: 10_000 });
+  await expect(inspector(page).getByRole('list', { name: 'Contenu du stock' })).toContainText('Barrette 16 Go');
+
+  await clickTile(page, 31, 35);
+  await expect(inspector(page).getByLabel('Composant')).toHaveValue('cpu-8c');
+  await inspector(page).getByRole('button', { name: /^Commander 10 unités/ }).click();
+  await speed('×1').click();
+  await clickTile(page, 31, 31);
+  await expect(stock()).toHaveText(/^1[1-9] \/ 40$/, { timeout: 10_000 });
+  await page.keyboard.press('p');
+  // Panels refresh in groups while time passes; wait for the last refresh after the pause.
+  await expect.poll(async () => {
+    const before = await time().textContent();
+    await page.waitForTimeout(300);
+    return before === await time().textContent();
+  }).toBe(true);
+  const pausedAt = await time().textContent();
+  const storedThen = await stock().textContent();
+  await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+  await expect(page.getByText('Atelier enregistré', { exact: true })).toBeVisible();
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Reprendre Atelier logistique' }).click();
+  await expect(speed('Pause')).toHaveAttribute('aria-pressed', 'true');
+  await expect(time()).toHaveText(pausedAt ?? '');
+  await clickTile(page, 31, 31);
+  await expect(stock()).toHaveText(storedThen ?? '');
+  await speed('×5').click();
+  await expect(stock()).toHaveText('20 / 40', { timeout: 10_000 });
+  await expect(capital(page)).toHaveText(euros(25_000 - 4_200 - 80 - 600 - 400 - 1_800));
+  expect(pageErrors).toEqual([]);
+});
