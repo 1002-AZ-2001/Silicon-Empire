@@ -1,0 +1,120 @@
+name: Release
+
+# On every push to main: when the version in package.json has no vX.Y.Z tag yet,
+# build and test that exact commit, then tag it and publish the release.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    if: github.repository == '1002-AZ-2001/Silicon-Empire'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check whether this version is already tagged
+        id: version
+        shell: bash
+        run: |
+          version="$(jq -r .version package.json)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version invalide dans package.json : $version"
+            exit 1
+          fi
+          tag="v$version"
+          tags="$(gh api "repos/$GITHUB_REPOSITORY/tags" --paginate --jq '.[].name')"
+          if grep -qxF "$tag" <<< "$tags"; then
+            echo "Le tag $tag existe déjà : rien à publier."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Extract the release notes from CHANGELOG.md
+        if: steps.version.outputs.publish == 'true'
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          awk -v heading="## $VERSION" 'index($0, heading) == 1 { found = 1; next } found && /^## / { exit } found' \
+            CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          if [[ ! -s "$RUNNER_TEMP/notes.md" ]]; then
+            echo "::error::CHANGELOG.md n'a pas de section « ## $VERSION »."
+            exit 1
+          fi
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        if: steps.version.outputs.publish == 'true'
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.version.outputs.publish == 'true'
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install, lint, typecheck, unit tests and build
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+
+      - name: Browser tests on the built site
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          pnpm exec playwright install --with-deps chromium
+          pnpm exec playwright test --trace off
+
+      - name: Package the tested build
+        if: steps.version.outputs.publish == 'true'
+        shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          archive="Silicon-Empire-$TAG.zip"
+          (cd dist && zip -qrX "../$archive" .)
+          sha256sum "$archive" > "Silicon-Empire-$TAG.sha256"
+          cat "Silicon-Empire-$TAG.sha256"
+
+      - name: Tag the tested commit and publish the release
+        if: steps.version.outputs.publish == 'true'
+        shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          gh release create "$TAG" "Silicon-Empire-$TAG.zip" "Silicon-Empire-$TAG.sha256" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Silicon Empire $TAG" --notes-file "$RUNNER_TEMP/notes.md" --latest
+
+      - name: Verify the published files
+        if: steps.version.outputs.publish == 'true'
+        shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq .sha)" = "$GITHUB_SHA"
+          mkdir "$RUNNER_TEMP/published"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/published"
+          cd "$RUNNER_TEMP/published"
+          sha256sum -c "Silicon-Empire-$TAG.sha256"
+          unzip -tq "Silicon-Empire-$TAG.zip"
