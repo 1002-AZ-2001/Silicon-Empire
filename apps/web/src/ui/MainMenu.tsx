@@ -4,6 +4,7 @@ import workshopArt from '../art/workshop-menu.webp';
 import { listSaves, loadSave, removeSave } from '../persistence/indexed-saves';
 import { MAX_WORKSHOP_NAME } from '../persistence/save-data';
 import { Dialog, Icon, money } from './shared';
+import { UpdatePanel } from './UpdatePanel';
 import type { SaveRecord } from '../persistence/save-data';
 
 const dateFormat = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' });
@@ -74,7 +75,7 @@ export function MainMenu({ onNewGame, onResume }: {
 
       <header className="menu-header menu-frame">
         <span className="menu-identity"><span className="brand-mark"><Icon name="chip" /></span> Jeu de gestion industrielle</span>
-        <span className="version">Version 0.1</span>
+        <span className="version">Version {__APP_VERSION__.split('.').slice(0, 2).join('.')}</span>
       </header>
 
       <main className="menu-main menu-frame">
@@ -139,6 +140,7 @@ export function MainMenu({ onNewGame, onResume }: {
       <footer className="menu-footer menu-frame">
         <span><Icon name="grid" /> {WORKSHOP.columns} × {WORKSHOP.rows} tuiles</span>
         <span>Capital de départ <strong>{money(WORKSHOP.initialCapitalCents)}</strong></span>
+        <UpdatePanel />
       </footer>
 
       {deleteTarget && (

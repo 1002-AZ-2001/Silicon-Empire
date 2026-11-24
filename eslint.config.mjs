@@ -3,9 +3,9 @@ import { defineConfig, globalIgnores } from 'eslint/config';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig(
-  globalIgnores(['dist/', 'coverage/', 'playwright-report/', 'test-results/']),
+  globalIgnores(['dist/', 'build/', 'release/', 'coverage/', 'playwright-report/', 'test-results/']),
   {
-    files: ['**/*.ts', '**/*.tsx'],
+    files: ['**/*.ts', '**/*.cts', '**/*.tsx'],
     extends: [js.configs.recommended, tseslint.configs.recommended],
   },
 );

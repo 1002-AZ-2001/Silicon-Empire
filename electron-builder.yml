@@ -1,0 +1,54 @@
+# Desktop packages for Windows (NSIS installer) and Linux (AppImage, Debian .deb, Arch pacman).
+appId: com.silicon-empire.game
+productName: Silicon Empire
+executableName: silicon-empire
+copyright: Silicon Empire
+directories:
+  output: release
+  buildResources: apps/desktop/resources
+files:
+  - build/desktop/**
+  - dist/**
+  - package.json
+  - "!**/*.map"
+# Generates app-update.yml so the installed game reads new versions from the public GitHub releases.
+publish:
+  provider: github
+  owner: 1002-AZ-2001
+  repo: Silicon-Empire
+  releaseType: release
+win:
+  target: nsis
+  artifactName: Silicon-Empire-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+linux:
+  target: [AppImage, deb, pacman]
+  category: Game
+  synopsis: Jeu de gestion et d’automatisation de l’industrie informatique
+  artifactName: Silicon-Empire-${version}-${arch}.${ext}
+  maintainer: Silicon Empire
+  syncDesktopName: true
+# electron-builder's default pacman dependencies name packages that Arch no longer ships
+# (http-parser) or renamed (libappindicator-gtk3). Electron bundles the rest.
+pacman:
+  depends: [gtk3, nss, alsa-lib, mesa, libcups, libxss, libxtst, libnotify, xdg-utils]
+# Default list plus the libraries the Electron binary links (sound, GBM, printing).
+# Debian 13 provides these names through its t64 packages.
+deb:
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libuuid1
+    - libsecret-1-0
+    - libgbm1
+    - libasound2
+    - libcups2
