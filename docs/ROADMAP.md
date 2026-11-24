@@ -32,6 +32,8 @@ La v0.2 est livrée en deux tranches :
 
 L’assembleur et le banc de test restent sans ports ni inventaire jusqu’à la v0.3.
 
+La version 0.2.0 publie la tranche 1 avec l’application de bureau (Windows, Debian, Arch, AppImage) et ses mises à jour. La tranche 2 sera publiée en 0.2.x. L’image Docker prévue en v0.5 reste à faire.
+
 ## 22. Tests et critères d’acceptation
 - Placement sur tuile libre ; refus collision, limites ou fonds insuffisants ; rotation correcte.
 - Transfert valide entre ports/convoyeurs, saturation et conservation des ressources.

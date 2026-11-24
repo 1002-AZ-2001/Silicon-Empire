@@ -340,6 +340,13 @@ kbd {
 }
 
 .menu-footer span { display: flex; align-items: center; gap: 8px; }
+.update-panel { flex-wrap: wrap; justify-content: flex-end; gap: 14px !important; }
+.update-status { color: var(--muted); }
+.update-status.update-ready { color: var(--lime); }
+.update-status a, .link-button { color: var(--ink); text-decoration: underline; }
+.link-button { padding: 0; border: 0; background: none; font: inherit; cursor: pointer; }
+.update-status .button { min-height: 30px; padding: 0 12px; font-size: .8rem; }
+.update-status progress { width: 110px; accent-color: var(--lime); }
 .menu-footer strong { color: var(--lime); font-weight: 500; white-space: nowrap; }
 
 /* Workshop */

@@ -22,6 +22,17 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - Phaser redessine les équipements et les ports seulement quand la disposition change. Les unités sont interpolées entre l’état du tick précédent et l’état courant. React regroupe les rafraîchissements dus au temps (200 ms au plus) et applique immédiatement ceux des commandes.
 - Le format de sauvegarde v2 ajoute l’horloge, les stocks, les bandes et le registre. Une sauvegarde v1 est migrée à la lecture sans réécriture de l’enregistrement d’origine. `checkIntegrity` vérifie les emprises, les capacités, l’espacement des bandes, l’unicité des unités, la conservation des composants (achetés = stockés + transportés + mis au rebut) et le capital engagé. Un atelier repris démarre en pause.
 
+## Application de bureau (v0.2)
+
+- `apps/desktop/main.cts` crée la fenêtre Electron et sert `dist/` sous l’origine privilégiée `app://silicon-empire`. Une origine fixe garde les sauvegardes IndexedDB entre lancements et mises à jour ; `file://` ne le garantit pas. Le gestionnaire refuse les chemins hors de `dist/`.
+- La page reste isolée : `contextIsolation`, `sandbox`, pas d’intégration Node. La navigation hors de l’origine est bloquée ; seuls les liens vers la page des releases s’ouvrent dans le navigateur du système. Une seule instance tourne à la fois pour éviter deux écritures concurrentes dans les sauvegardes.
+- `apps/desktop/preload.cts` expose `window.siliconDesktop` (`DesktopBridge`, typé dans `bridge.d.ts`) : version, état de mise à jour, vérification, téléchargement, installation. Le menu React n’affiche les commandes de mise à jour que si ce pont existe.
+- `electron-updater` lit les releases GitHub publiques (`app-update.yml` généré par electron-builder). Téléchargement et installation n’ont lieu que sur demande (`autoDownload` et `autoInstallOnAppQuit` désactivés). Les messages d’erreur sont résumés avant affichage.
+- `electron-builder.yml` produit l’installeur NSIS, l’AppImage, le `.deb` et le paquet pacman. Les dépendances système Debian et Arch sont listées explicitement : celles proposées par défaut pour pacman désignent des paquets retirés ou renommés d’Arch.
+- Seul `electron-updater` est une dépendance d’exécution ; le reste du jeu est empaqueté par Vite. `tests/desktop` lance l’application Linux empaquetée avec Playwright, vérifie l’origine, l’isolement et la persistance d’une sauvegarde entre deux lancements.
+
+Versions épinglées : Electron 45.2.3, electron-builder 26.18.0, electron-updater 6.8.11. [Mises à jour automatiques electron-builder](https://www.electron.build/docs/features/auto-update)
+
 La v0.1 utilise Node.js 24, pnpm 11.25.0, Phaser 3.90, React 19.3, Vite 7.3 et TypeScript 5.9. Le manifeste épingle les versions exactes. [Prérequis de Vite](https://github.com/vitejs/vite/blob/v7.3.8/docs/guide/index.md) · [Caméra Phaser 3.90](https://github.com/phaserjs/phaser/blob/v3.90.0/src/cameras/2d/Camera.js) · [Versions des navigateurs Playwright](https://playwright.dev/docs/browsers)
 
 ## 14. Stack et principes
