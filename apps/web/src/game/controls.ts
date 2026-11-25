@@ -1,8 +1,11 @@
 import { ITEMS, MACHINES, PURCHASE } from '@silicon-empire/game-data';
-import { FixedStepClock, machineAt, turnClockwise } from '@silicon-empire/simulation';
+import { FixedStepClock, lineCost, machineAt, turnClockwise } from '@silicon-empire/simulation';
 import { createStore } from 'zustand/vanilla';
+import { money } from '../ui/shared';
 import type { ItemType, MachineType } from '@silicon-empire/game-data';
-import type { CommandError, Rotation, Simulation, Speed, Tile } from '@silicon-empire/simulation';
+import type {
+  CommandError, LineTile, Rotation, RouterFilter, Simulation, Speed, Tile,
+} from '@silicon-empire/simulation';
 
 export type Tool = 'inspect' | MachineType | 'demolish';
 
@@ -20,6 +23,8 @@ interface WorkshopUi {
   feedback: Feedback | null;
   zoom: number;
   speed: Speed;
+  /** Conveyor line being drawn, in drawing order. */
+  line: LineTile[] | null;
 }
 
 export const ERROR_LABELS: Record<CommandError, string> = {
@@ -30,7 +35,26 @@ export const ERROR_LABELS: Record<CommandError, string> = {
   'id-limit': 'Le nombre maximal de constructions a été atteint.',
   'not-a-dock': 'Seul un quai de réception peut recevoir une commande.',
   'dock-full': 'Le quai n’a pas assez de place pour un lot complet.',
+  'invalid-line': 'Le tracé doit suivre des cases voisines, sans repasser sur lui-même.',
+  'not-a-splitter': 'Seul un répartiteur accepte un filtre.',
 };
+
+/** Direction from one tile to a neighbouring tile. */
+function directionTo(from: Tile, to: Tile): Rotation {
+  if (to.x > from.x) return 1;
+  if (to.x < from.x) return 3;
+  return to.y > from.y ? 2 : 0;
+}
+
+/** Points the line along the drawn path; the last tile keeps the direction of the last step. */
+function orient(path: readonly Tile[], fallback: Rotation): LineTile[] {
+  return path.map((tile, index) => {
+    const next = path[index + 1];
+    const previous = path[index - 1];
+    const rotation = next ? directionTo(tile, next) : previous ? directionTo(previous, tile) : fallback;
+    return { x: tile.x, y: tile.y, rotation };
+  });
+}
 
 export function isBuildTool(tool: Tool): tool is MachineType {
   return tool !== 'inspect' && tool !== 'demolish';
@@ -46,6 +70,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     feedback: null,
     zoom: 1,
     speed: initialSpeed,
+    line: null,
   }));
   const clock = new FixedStepClock();
   clock.speed = initialSpeed;
@@ -59,6 +84,55 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
 
   function togglePause() {
     setSpeed(clock.speed === 0 ? resumeSpeed : 0);
+  }
+
+  function startLine(tile: Tile) {
+    store.setState({ line: orient([tile], store.getState().rotation) });
+  }
+
+  /** Extends the line to the pointed tile, through horizontal then vertical steps. Going back erases. */
+  function extendLine(tile: Tile) {
+    const { line, rotation } = store.getState();
+    const last = line?.[line.length - 1];
+    if (!line || !last || (last.x === tile.x && last.y === tile.y)) return;
+    const path: Tile[] = line.map(({ x, y }) => ({ x, y }));
+    let cursor: Tile = last;
+    while (cursor.x !== tile.x || cursor.y !== tile.y) {
+      cursor = cursor.x !== tile.x
+        ? { x: cursor.x + Math.sign(tile.x - cursor.x), y: cursor.y }
+        : { x: cursor.x, y: cursor.y + Math.sign(tile.y - cursor.y) };
+      const visited = path.findIndex(step => step.x === cursor.x && step.y === cursor.y);
+      if (visited >= 0) path.splice(visited + 1);
+      else path.push(cursor);
+    }
+    store.setState({ line: orient(path, rotation) });
+  }
+
+  function cancelLine() {
+    if (store.getState().line) store.setState({ line: null });
+  }
+
+  /** Builds the drawn line in one command. Returns false when the line has a single tile. */
+  function finishLine(): boolean {
+    const { line } = store.getState();
+    store.setState({ line: null });
+    if (!line || line.length < 2) return false;
+    const result = simulation.dispatch({ kind: 'build-line', tiles: line });
+    store.setState({
+      feedback: result.ok
+        ? { kind: 'success', text: `${line.length} convoyeurs construits pour ${money(lineCost(line.length))}.` }
+        : { kind: 'error', text: ERROR_LABELS[result.reason] },
+    });
+    return true;
+  }
+
+  function configure(id: number, filter: RouterFilter | null) {
+    const result = simulation.dispatch({ kind: 'configure', id, filter });
+    store.setState({
+      feedback: result.ok
+        ? { kind: 'success', text: filter ? `${ITEMS[filter.item].name} trié vers la sortie choisie.` : 'Filtre retiré.' }
+        : { kind: 'error', text: ERROR_LABELS[result.reason] },
+    });
   }
 
   function order(id: number, item: ItemType) {
@@ -77,6 +151,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
       rotation: tool === current.tool ? current.rotation : 0,
       selectedId: null,
       feedback: null,
+      line: null,
     });
   }
 
@@ -131,7 +206,10 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     });
   }
 
-  return { store, clock, setSpeed, togglePause, order, selectTool, aimAt, activateTile, rotate, confirmDemolition };
+  return {
+    store, clock, setSpeed, togglePause, order, configure, startLine, extendLine, cancelLine, finishLine,
+    selectTool, aimAt, activateTile, rotate, confirmDemolition,
+  };
 }
 
 export type WorkshopControls = ReturnType<typeof createWorkshopControls>;

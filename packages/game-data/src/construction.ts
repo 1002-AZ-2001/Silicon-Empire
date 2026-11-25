@@ -26,7 +26,16 @@ export const CONVEYOR = {
   spacingUnits: 10,
 } as const;
 
-export const MACHINE_TYPES = ['storage', 'assembler', 'tester', 'receiving', 'conveyor'] as const;
+/**
+ * Routers move one unit at a time between conveyors, without inventory.
+ * A splitter takes units from its back and hands them out in turn to its left, front and right.
+ * A merger takes units in turn from its left, back and right and sends them to its front.
+ */
+export const ROUTER_TYPES = ['splitter', 'merger'] as const;
+/** Longest conveyor line placed in one drag. */
+export const MAX_LINE_LENGTH = 256;
+
+export const MACHINE_TYPES = ['storage', 'assembler', 'tester', 'receiving', 'conveyor', 'splitter', 'merger'] as const;
 export type MachineType = (typeof MACHINE_TYPES)[number];
 
 /** Directions and port sides: 0 north, 1 east, 2 south, 3 west. */
@@ -106,6 +115,24 @@ export const MACHINES = z.record(z.enum(MACHINE_TYPES), machineDefinition.readon
     width: 1,
     height: 1,
     costCents: 4_000,
+    capacity: 0,
+    ports: [],
+  },
+  splitter: {
+    name: 'Répartiteur',
+    shortName: 'Répartiteur',
+    width: 1,
+    height: 1,
+    costCents: 15_000,
+    capacity: 0,
+    ports: [],
+  },
+  merger: {
+    name: 'Fusionneur',
+    shortName: 'Fusionneur',
+    width: 1,
+    height: 1,
+    costCents: 15_000,
     capacity: 0,
     ports: [],
   },

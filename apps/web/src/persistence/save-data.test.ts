@@ -57,9 +57,36 @@ describe('schéma de sauvegarde', () => {
     expect(decodeSave({ ...v1, world: { ...v1.world, tick: 0 } })).toBeNull();
   });
 
+  it('migre une sauvegarde v0.2.0 avec ses unités en transit', () => {
+    const v2 = JSON.parse(JSON.stringify({ ...inTransit, version: 2 }));
+    delete v2.world.routers;
+    expect(decodeSave(v2)).toEqual(inTransit);
+    expect(decodeSave({ ...v2, world: { ...v2.world, routers: {} } })).toBeNull();
+  });
+
+  it('restaure un répartiteur filtré qui tient une unité', () => {
+    let world = ([
+      { kind: 'build', type: 'receiving', x: 10, y: 10, rotation: 0 },
+      { kind: 'build', type: 'conveyor', x: 11, y: 9, rotation: 0 },
+      { kind: 'build', type: 'splitter', x: 11, y: 8, rotation: 0 },
+      { kind: 'configure', id: 3, filter: { item: 'cpu-8c', output: 'left' } },
+      { kind: 'order', id: 1, item: 'cpu-8c' },
+    ] satisfies Command[]).reduce(run, createWorld());
+    for (let tick = 0; tick < 60; tick++) world = step(world);
+    expect(world.routers[3]?.held).not.toBeNull();
+    const saved: SaveRecord = { ...record, world };
+    expect(decodeSave(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+    expect(decodeSave({ ...saved, world: { ...world, routers: { 3: { held: null, cursor: 0 } } } })).toBeNull();
+    expect(decodeSave({ ...saved, world: { ...world, routers: { 2: world.routers[3] } } })).toBeNull();
+    expect(decodeSave({
+      ...saved,
+      world: { ...world, machines: world.machines.map(machine => ({ ...machine, filter: { item: 'cpu-8c', output: 'left' } })) },
+    })).toBeNull();
+  });
+
   it.each([
     null,
-    { ...record, version: 3 },
+    { ...record, version: 4 },
     { ...record, name: '' },
     { ...record, savedAt: 500 },
     { ...record, world: { ...record.world, columns: 32 } },

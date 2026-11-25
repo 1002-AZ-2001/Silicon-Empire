@@ -20,7 +20,15 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - Ordre d’un tick : convoyeurs par identifiant croissant (transfert de l’unité de tête puis avance), puis sorties des machines par identifiant croissant. Une unité déplacée pendant le tick ne bouge plus avant le tick suivant. Une machine libère d’abord le premier composant du catalogue disponible.
 - `FixedStepClock` convertit le temps réel en ticks entiers (20 par seconde × vitesse 0, 1, 2 ou 5) et limite le rattrapage à 10 ticks par image. `Simulation.advance` publie un seul événement `tick` par lot ; les commandes publient `command`. Le résultat ne dépend que des commandes et du nombre de ticks, pas du découpage des lots.
 - Phaser redessine les équipements et les ports seulement quand la disposition change. Les unités sont interpolées entre l’état du tick précédent et l’état courant. React regroupe les rafraîchissements dus au temps (200 ms au plus) et applique immédiatement ceux des commandes.
-- Le format de sauvegarde v2 ajoute l’horloge, les stocks, les bandes et le registre. Une sauvegarde v1 est migrée à la lecture sans réécriture de l’enregistrement d’origine. `checkIntegrity` vérifie les emprises, les capacités, l’espacement des bandes, l’unicité des unités, la conservation des composants (achetés = stockés + transportés + mis au rebut) et le capital engagé. Un atelier repris démarre en pause.
+- Le format de sauvegarde v2 ajoute l’horloge, les stocks, les bandes et le registre ; le format v3 (v0.2.1) ajoute les répartiteurs, fusionneurs et filtres. Les sauvegardes v1 et v2 sont migrées à la lecture sans réécriture de l’enregistrement d’origine. `checkIntegrity` vérifie les emprises, les capacités, l’espacement des bandes, l’unicité des unités, la conservation des composants (achetés = stockés + transportés + mis au rebut) et le capital engagé. Un atelier repris démarre en pause.
+
+## Répartiteurs et fusionneurs (v0.2.1)
+
+- `routers` conserve pour chaque répartiteur ou fusionneur l’unité tenue (identifiant conservé pour l’animation) et un curseur d’alternance. Le filtre d’un répartiteur est une propriété de la machine (`filter`), modifiée par la commande `configure`.
+- Les liaisons décrivent, pour chaque nœud, ses entrées (convoyeurs qui pointent vers lui) et ses sorties (convoyeur ou entrée de stock). Un répartiteur accepte seulement l’arrière ; un fusionneur accepte tout sauf l’avant. Deux nœuds adjacents ne se transmettent pas d’unité.
+- Les nœuds tirent : un convoyeur qui aboutit à un nœud garde son unité au bout de la bande ; pendant le tick, le nœud transmet d’abord l’unité qu’il tient, puis prend une unité en attente. Le curseur d’un répartiteur avance sur ses sorties, celui d’un fusionneur sur ses entrées, ce qui rend la répartition équitable et indépendante de l’ordre de construction.
+- `build-line` construit une ligne de convoyeurs contiguë en une commande : tout est validé avant la construction, sinon rien n’est construit. Le sens de chaque tuile suit le tracé.
+- Le rendu déduit la forme d’un convoyeur de ses alimentations : alimenté seulement par un côté, il est dessiné en virage et ses unités passent par ce côté. Un convoyeur sans destination porte une croix rouge.
 
 ## Application de bureau (v0.2)
 

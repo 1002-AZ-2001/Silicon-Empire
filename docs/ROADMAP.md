@@ -28,11 +28,12 @@ La phase 0 et la v0.1 couvrent le socle de développement et la construction jou
 La v0.2 est livrée en deux tranches :
 
 - **Tranche 1 (réalisée)** : horloge à pas fixe avec pause, ×1, ×2 et ×5 ; catalogue de composants ; commande d’un lot au quai ; inventaires ; ports ; convoyeurs droits orientés, virages par enchaînement, saturation et remontée des blocages ; unités animées par interpolation ; mise au rebut comptabilisée ; sauvegarde v2 et migration v1.
-- **Tranche 2 (à faire)** : répartiteurs et fusionneurs à alternance stable, filtrage, sprites de virage, prévisualisation du flux pendant la pose et signalement des raccordements invalides, insertion latérale au bon endroit de la bande.
+- **Tranche 2 (réalisée en 0.2.1)** : répartiteurs et fusionneurs à alternance stable, filtre sur le répartiteur, tracé des convoyeurs au glisser, virages, signalement des convoyeurs sans destination.
+- **Reste à faire** : insertion latérale au bon endroit de la bande (une unité qui entre par le côté d’un convoyeur droit apparaît encore à l’arrière de la bande) et transmission directe entre deux nœuds adjacents.
 
 L’assembleur et le banc de test restent sans ports ni inventaire jusqu’à la v0.3.
 
-La version 0.2.0 publie la tranche 1 avec l’application de bureau (Windows, Debian, Arch, AppImage) et ses mises à jour. La tranche 2 sera publiée en 0.2.x. L’image Docker prévue en v0.5 reste à faire.
+La version 0.2.0 publie la tranche 1 avec l’application de bureau (Windows, Debian, Arch, AppImage) et ses mises à jour. La version 0.2.1 publie la tranche 2. Prochain jalon : v0.3 (recettes, assemblage, test, emballage, états des machines). L’image Docker prévue en v0.5 reste à faire.
 
 ## 22. Tests et critères d’acceptation
 - Placement sur tuile libre ; refus collision, limites ou fonds insuffisants ; rotation correcte.

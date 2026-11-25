@@ -1,8 +1,9 @@
 import { CONVEYOR, MACHINES } from '@silicon-empire/game-data';
-import type { Direction } from '@silicon-empire/game-data';
+import type { Direction, ItemType } from '@silicon-empire/game-data';
 import { addItems, firstItem, inventoryTotal } from './inventory';
-import { footprintOf } from './world';
-import type { BeltItem, Machine, Placement, Tile, World } from './world';
+import type { Inventory } from './inventory';
+import { ROUTER_SIDES, footprintOf } from './world';
+import type { BeltItem, Machine, Placement, RouterState, Tile, World } from './world';
 
 const STEPS: readonly Tile[] = [{ x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }];
 
@@ -45,53 +46,111 @@ export function portsOf(placement: Placement): WorldPort[] {
 
 export type BeltTarget =
   | { readonly kind: 'belt'; readonly id: number }
-  | { readonly kind: 'stock'; readonly id: number };
+  | { readonly kind: 'stock'; readonly id: number }
+  | { readonly kind: 'router'; readonly id: number };
+
+/** Directions of the left, front and right sides of a router facing `rotation`. */
+export function routerSides(rotation: Direction): readonly [Direction, Direction, Direction] {
+  return [((rotation + 3) % 4) as Direction, rotation, ((rotation + 1) % 4) as Direction];
+}
+
+interface RouterLinks {
+  readonly id: number;
+  readonly type: 'splitter' | 'merger';
+  /** Splitter: left, front, right. Merger: front only. Stock and belt targets only. */
+  readonly outputs: readonly (BeltTarget | null)[];
+  /** Feeding conveyor ids. Splitter: back only. Merger: left, back, right. */
+  readonly inputs: readonly (number | null)[];
+}
 
 interface Links {
   /** Every conveyor in ascending id order with the place its front unit goes to. */
   readonly conveyors: readonly { readonly id: number; readonly target: BeltTarget | null }[];
   /** Connected output ports in ascending machine id, then catalogue port order. */
   readonly outputs: readonly { readonly id: number; readonly belt: number }[];
+  /** Splitters and mergers in ascending id order. */
+  readonly routers: readonly RouterLinks[];
+  /** Directions in which units arrive on each conveyor, by conveyor id. */
+  readonly feeds: ReadonlyMap<number, readonly Direction[]>;
 }
 
 const linkCache = new WeakMap<readonly Machine[], Links>();
 
-function computeLinks(world: World): Links {
+function isRouter(machine: Machine | undefined): machine is Machine & { type: 'splitter' | 'merger' } {
+  return machine?.type === 'splitter' || machine?.type === 'merger';
+}
+
+/** Where a unit leaving `from` towards `direction` goes, given the building on the next tile. */
+function receiverOf(next: Tile, receiver: Machine | undefined, direction: Direction): BeltTarget | null {
+  if (!receiver) return null;
+  if (receiver.type === 'conveyor') {
+    return receiver.rotation === opposite(direction) ? null : { kind: 'belt', id: receiver.id };
+  }
+  if (receiver.type === 'splitter') return direction === receiver.rotation ? { kind: 'router', id: receiver.id } : null;
+  if (receiver.type === 'merger') {
+    return direction === opposite(receiver.rotation) ? null : { kind: 'router', id: receiver.id };
+  }
+  const entry = portsOf(receiver).find(port =>
+    port.kind === 'input' && port.side === opposite(direction) && port.tile.x === next.x && port.tile.y === next.y);
+  return entry ? { kind: 'stock', id: receiver.id } : null;
+}
+
+function computeLinks(world: Pick<World, 'machines' | 'columns' | 'rows'>): Links {
   const grid = new Map<number, Machine>();
-  const key = (tile: Tile) =>
-    tile.x >= 0 && tile.y >= 0 && tile.x < world.columns && tile.y < world.rows ? tile.y * world.columns + tile.x : -1;
+  const at = (tile: Tile) =>
+    tile.x >= 0 && tile.y >= 0 && tile.x < world.columns && tile.y < world.rows
+      ? grid.get(tile.y * world.columns + tile.x)
+      : undefined;
   for (const machine of world.machines) {
     const { x, y, width, height } = footprintOf(machine);
     for (let row = y; row < y + height; row++) {
       for (let column = x; column < x + width; column++) grid.set(row * world.columns + column, machine);
     }
   }
+  const targetFrom = (tile: Tile, direction: Direction) => {
+    const next = neighbour(tile, direction);
+    return receiverOf(next, at(next), direction);
+  };
+
+  const feeds = new Map<number, Direction[]>();
+  const feed = (target: BeltTarget | null, direction: Direction) => {
+    if (target?.kind === 'belt') feeds.set(target.id, [...feeds.get(target.id) ?? [], direction]);
+  };
 
   const conveyors = world.machines.filter(machine => machine.type === 'conveyor').map(conveyor => {
-    const next = neighbour(conveyor, conveyor.rotation);
-    const receiver = grid.get(key(next));
-    let target: BeltTarget | null = null;
-    if (receiver?.type === 'conveyor') {
-      if (receiver.rotation !== opposite(conveyor.rotation)) target = { kind: 'belt', id: receiver.id };
-    } else if (receiver) {
-      const entry = portsOf(receiver).find(port =>
-        port.kind === 'input' && port.side === opposite(conveyor.rotation) &&
-        port.tile.x === next.x && port.tile.y === next.y);
-      if (entry) target = { kind: 'stock', id: receiver.id };
-    }
+    const target = targetFrom(conveyor, conveyor.rotation);
+    feed(target, conveyor.rotation);
     return { id: conveyor.id, target };
   });
 
   const outputs = world.machines.flatMap(machine => portsOf(machine)
     .filter(port => port.kind === 'output')
     .flatMap(port => {
-      const belt = grid.get(key(neighbour(port.tile, port.side)));
-      return belt?.type === 'conveyor' && belt.rotation !== opposite(port.side)
-        ? [{ id: machine.id, belt: belt.id }]
-        : [];
+      const target = targetFrom(port.tile, port.side);
+      if (target?.kind !== 'belt') return [];
+      feed(target, port.side);
+      return [{ id: machine.id, belt: target.id }];
     }));
 
-  return { conveyors, outputs };
+  const routers = world.machines.filter(isRouter).map(router => {
+    const [left, front, right] = routerSides(router.rotation);
+    const outputSides = router.type === 'splitter' ? [left, front, right] : [front];
+    const outputs = outputSides.map(side => {
+      const target = targetFrom(router, side);
+      if (target?.kind !== 'belt' && target?.kind !== 'stock') return null;
+      feed(target, side);
+      return target;
+    });
+    const inputSides = router.type === 'splitter' ? [opposite(front)] : [left, opposite(front), right];
+    const inputs = inputSides.map(side => {
+      const conveyor = at(neighbour(router, side));
+      const link = conveyors.find(candidate => candidate.id === conveyor?.id);
+      return link?.target?.kind === 'router' && link.target.id === router.id ? link.id : null;
+    });
+    return { id: router.id, type: router.type, outputs, inputs };
+  });
+
+  return { conveyors, outputs, routers, feeds };
 }
 
 export function linksOf(world: World): Links {
@@ -101,6 +160,15 @@ export function linksOf(world: World): Links {
     linkCache.set(world.machines, links);
   }
   return links;
+}
+
+/** Target of a conveyor that would be placed at `tile` facing `direction`, used to preview connections. */
+export function previewTarget(world: World, tile: Tile, direction: Direction): BeltTarget | null {
+  const next = neighbour(tile, direction);
+  return receiverOf(next, world.machines.find(machine => {
+    const { x, y, width, height } = footprintOf(machine);
+    return next.x >= x && next.x < x + width && next.y >= y && next.y < y + height;
+  }), direction);
 }
 
 export function stockRoom(world: Pick<World, 'machines' | 'stocks'>, id: number): number {
@@ -114,19 +182,24 @@ function beltHasRoom(belt: readonly BeltItem[] | undefined, entry = 0): boolean 
   return !tail || tail.position - entry >= CONVEYOR.spacingUnits;
 }
 
+const EMPTY_ROUTER: RouterState = { held: null, cursor: 0 };
+
 /**
  * Advances the workshop by one tick.
  * A unit occupies positions 0 to length - 1 on its belt. When its next move reaches the length,
  * it enters the next belt (keeping the overflow) or the stock of an input port, or waits at the end.
- * Order: conveyors in ascending id (front unit transfer, then movement), then machine outputs in ascending id.
+ * Order: conveyors in ascending id (front unit transfer, then movement); then splitters and mergers
+ * in ascending id (hand out the held unit, then take a waiting unit); then machine outputs in ascending id.
  * A unit that changed place during the tick does not move again before the next tick.
  */
 export function step(world: World): World {
   const { lengthUnits, speedUnitsPerTick, spacingUnits } = CONVEYOR;
   const links = linksOf(world);
+  const machines = new Map(world.machines.map(machine => [machine.id, machine]));
   const arrived = new Set<number>();
   let belts = world.belts;
   let stocks = world.stocks;
+  let routers = world.routers;
   let nextItemId = world.nextItemId;
 
   const setBelt = (id: number, units: readonly BeltItem[]) => {
@@ -139,25 +212,35 @@ export function step(world: World): World {
     setBelt(id, [...belts[id] ?? [], unit]);
     arrived.add(unit.id);
   };
-  const setStock = (id: number, change: (stock: NonNullable<World['stocks'][string]>) => World['stocks'][string]) => {
-    const copy = stocks === world.stocks ? { ...stocks } : stocks as Record<string, World['stocks'][string]>;
+  const setStock = (id: number, change: (stock: Inventory) => Inventory) => {
+    const copy = stocks === world.stocks ? { ...stocks } : stocks as Record<string, Inventory>;
     const next = change(copy[id] ?? {});
-    if (next && inventoryTotal(next) > 0) copy[id] = next;
+    if (inventoryTotal(next) > 0) copy[id] = next;
     else delete copy[id];
     stocks = copy;
+  };
+  const setRouter = (id: number, state: RouterState) => {
+    const copy = routers === world.routers ? { ...routers } : routers as Record<string, RouterState>;
+    if (state.held || state.cursor !== 0) copy[id] = state;
+    else delete copy[id];
+    routers = copy;
+  };
+  const accepts = (target: BeltTarget | null, entry = 0) =>
+    target?.kind === 'belt' ? beltHasRoom(belts[target.id], entry)
+      : target?.kind === 'stock' && stockRoom({ machines: world.machines, stocks }, target.id) > 0;
+  const deliver = (target: BeltTarget, unit: { id: number; item: ItemType }, entry = 0) => {
+    if (target.kind === 'belt') enterBelt(target.id, { ...unit, position: entry });
+    else setStock(target.id, stock => addItems(stock, unit.item, 1));
   };
 
   for (const { id, target } of links.conveyors) {
     let units = belts[id];
     if (!units) continue;
     const front = units[0];
-    if (front && front.position + speedUnitsPerTick >= lengthUnits && !arrived.has(front.id) && target) {
+    if (front && front.position + speedUnitsPerTick >= lengthUnits && !arrived.has(front.id) && target?.kind !== 'router') {
       const entry = front.position + speedUnitsPerTick - lengthUnits;
-      if (target.kind === 'belt' && beltHasRoom(belts[target.id], entry)) {
-        enterBelt(target.id, { ...front, position: entry });
-        units = units.slice(1);
-      } else if (target.kind === 'stock' && stockRoom({ machines: world.machines, stocks }, target.id) > 0) {
-        setStock(target.id, stock => addItems(stock, front.item, 1));
+      if (target && accepts(target, entry)) {
+        deliver(target, front, entry);
         units = units.slice(1);
       }
     }
@@ -178,6 +261,52 @@ export function step(world: World): World {
     if (changed) setBelt(id, moved);
   }
 
+  for (const router of links.routers) {
+    let { held, cursor } = routers[router.id] ?? EMPTY_ROUTER;
+    if (held && !arrived.has(held.id)) {
+      if (router.type === 'merger') {
+        const target = router.outputs[0] ?? null;
+        if (target && accepts(target)) {
+          deliver(target, held);
+          held = null;
+        }
+      } else {
+        const filter = machines.get(router.id)?.filter;
+        const filterIndex = filter ? ROUTER_SIDES.indexOf(filter.output) : -1;
+        const filtered = filter?.item === held.item;
+        for (let offset = 0; offset < 3; offset++) {
+          const index = filtered ? filterIndex : (cursor + offset) % 3;
+          if (!filtered && index === filterIndex) continue;
+          const target = router.outputs[index] ?? null;
+          if (target && accepts(target)) {
+            deliver(target, held);
+            held = null;
+            if (!filtered) cursor = (index + 1) % 3;
+            break;
+          }
+          if (filtered) break;
+        }
+      }
+    }
+    if (!held) {
+      const count = router.inputs.length;
+      for (let offset = 0; offset < count; offset++) {
+        const index = (cursor + offset) % count;
+        const conveyor = router.inputs[index];
+        const front = conveyor === null || conveyor === undefined ? undefined : belts[conveyor]?.[0];
+        if (conveyor === null || conveyor === undefined || !front || arrived.has(front.id)) continue;
+        if (front.position + speedUnitsPerTick < lengthUnits) continue;
+        setBelt(conveyor, (belts[conveyor] ?? []).slice(1));
+        held = { id: front.id, item: front.item };
+        arrived.add(front.id);
+        if (router.type === 'merger') cursor = (index + 1) % count;
+        break;
+      }
+    }
+    const previous = routers[router.id] ?? EMPTY_ROUTER;
+    if (held !== previous.held || cursor !== previous.cursor) setRouter(router.id, { held, cursor });
+  }
+
   for (const { id, belt } of links.outputs) {
     const item = firstItem(stocks[id] ?? {});
     if (!item || !beltHasRoom(belts[belt]) || nextItemId >= Number.MAX_SAFE_INTEGER) continue;
@@ -186,7 +315,7 @@ export function step(world: World): World {
     nextItemId += 1;
   }
 
-  return { ...world, tick: world.tick + 1, belts, stocks, nextItemId };
+  return { ...world, tick: world.tick + 1, belts, stocks, routers, nextItemId };
 }
 
 export type BeltStatus = 'empty' | 'moving' | 'blocked';
@@ -203,8 +332,14 @@ export function beltStatus(world: World, id: number): BeltStatus {
   const target = beltTarget(world, id);
   const accepts = target?.kind === 'belt'
     ? beltHasRoom(world.belts[target.id], next - CONVEYOR.lengthUnits)
-    : target?.kind === 'stock' && stockRoom(world, target.id) > 0;
+    : target?.kind === 'stock' ? stockRoom(world, target.id) > 0
+      : target?.kind === 'router' && !world.routers[target.id]?.held;
   return accepts ? 'moving' : 'blocked';
+}
+
+/** Connected outputs and inputs of a splitter or merger. */
+export function routerLinks(world: World, id: number): RouterLinks | undefined {
+  return linksOf(world).routers.find(router => router.id === id);
 }
 
 /** Ports of a machine with whether a conveyor is attached in a compatible direction. */

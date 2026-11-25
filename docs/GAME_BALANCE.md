@@ -19,6 +19,8 @@
 | Banc de test | 2 × 1 | 2 400 € |
 | Quai de réception | 3 × 2 | 4 200 € |
 | Convoyeur | 1 × 1 | 40 € |
+| Répartiteur | 1 × 1 | 150 € |
+| Fusionneur | 1 × 1 | 150 € |
 
 Les coûts sont fictifs et réglables dans `packages/game-data/src/construction.ts`. Un exemplaire de chaque équipement coûte 9 000 €, laissant 16 000 € de capital. Un placement refusé ou une rotation laisse le solde intact.
 
@@ -34,6 +36,8 @@ Le remboursement de démolition vaut 50 % du prix effectivement payé, arrondi a
 | Unités par tuile de convoyeur | 2 |
 | Débit d’un convoyeur | 2 unités/s à ×1 |
 | Lot d’achat | 10 unités identiques |
+
+Un répartiteur ou un fusionneur tient une seule unité à la fois et la transmet au tick suivant : il ne réduit pas le débit d’un convoyeur. Le filtre est gratuit et modifiable à tout moment. Une ligne tracée coûte 40 € par tuile.
 
 Le quai sort par le port situé sous sa flèche. Le casier reçoit par l’arrière et sort par sa flèche. Un convoyeur coûte peu pour encourager l’essai de tracés, mais sa démolition rembourse aussi 50 %.
 

@@ -54,6 +54,19 @@ export function checkIntegrity(world: World): boolean {
     }
   }
 
+  for (const [id, router] of Object.entries(world.routers)) {
+    const type = machines.get(id)?.type;
+    if (type !== 'splitter' && type !== 'merger') return false;
+    if (!Number.isInteger(router.cursor) || router.cursor < 0 || router.cursor > 2) return false;
+    if (!router.held && router.cursor === 0) return false;
+    if (router.held) {
+      if (itemIds.has(router.held.id) || router.held.id >= world.nextItemId) return false;
+      itemIds.add(router.held.id);
+      held = addItems(held, router.held.item, 1);
+    }
+  }
+  if (world.machines.some(machine => machine.filter && machine.type !== 'splitter')) return false;
+
   const accounted = mergeInventories(held, world.ledger.discarded);
   return ITEM_TYPES.every(item => (accounted[item] ?? 0) === (world.ledger.purchased[item] ?? 0));
 }

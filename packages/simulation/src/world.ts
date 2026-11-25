@@ -1,4 +1,4 @@
-import { ITEMS, MACHINES, PURCHASE, WORKSHOP } from '@silicon-empire/game-data';
+import { ITEMS, MACHINES, MAX_LINE_LENGTH, PURCHASE, WORKSHOP } from '@silicon-empire/game-data';
 import type { Direction, ItemType, MachineType } from '@silicon-empire/game-data';
 import { addItems, inventoryTotal, mergeInventories } from './inventory';
 import type { Inventory } from './inventory';
@@ -16,9 +16,28 @@ export interface Placement extends Tile {
   readonly rotation: Rotation;
 }
 
+/** Outputs of a splitter, relative to the direction it faces. */
+export const ROUTER_SIDES = ['left', 'front', 'right'] as const;
+export type RouterSide = (typeof ROUTER_SIDES)[number];
+
+/** Sends every unit of one component to one splitter output; other units share the remaining outputs. */
+export interface RouterFilter {
+  readonly item: ItemType;
+  readonly output: RouterSide;
+}
+
 export interface Machine extends Placement {
   readonly id: number;
   readonly paidCents: number;
+  /** Splitters only. */
+  readonly filter?: RouterFilter;
+}
+
+/** Unit held by a splitter or merger, and the side it serves next. */
+export interface RouterState {
+  readonly held: { readonly id: number; readonly item: ItemType } | null;
+  /** Index in left, front/back, right order of the next output (splitter) or input (merger) to try. */
+  readonly cursor: number;
 }
 
 export interface Footprint extends Tile {
@@ -53,19 +72,28 @@ export interface World {
   readonly stocks: Readonly<Record<string, Inventory>>;
   /** Units on each conveyor by conveyor id, front unit first. Empty belts are absent. */
   readonly belts: Readonly<Record<string, readonly BeltItem[]>>;
+  /** Splitter and merger states by machine id. Empty routers with cursor 0 are absent. */
+  readonly routers: Readonly<Record<string, RouterState>>;
   readonly ledger: Ledger;
+}
+
+/** One tile of a conveyor line; the direction is the rotation. */
+export interface LineTile extends Tile {
+  readonly rotation: Rotation;
 }
 
 export type Command =
   | ({ readonly kind: 'build' } & Placement)
+  | { readonly kind: 'build-line'; readonly tiles: readonly LineTile[] }
+  | { readonly kind: 'configure'; readonly id: number; readonly filter: RouterFilter | null }
   | { readonly kind: 'rotate'; readonly id: number }
   | { readonly kind: 'demolish'; readonly id: number }
   | { readonly kind: 'order'; readonly id: number; readonly item: ItemType };
 
 type FootprintError = 'out-of-bounds' | 'occupied';
-type BuildError = FootprintError | 'insufficient-funds' | 'id-limit';
+type BuildError = FootprintError | 'insufficient-funds' | 'id-limit' | 'invalid-line';
 type OrderError = 'not-a-dock' | 'insufficient-funds' | 'dock-full' | 'id-limit';
-export type CommandError = BuildError | OrderError | 'missing-machine';
+export type CommandError = BuildError | OrderError | 'missing-machine' | 'not-a-splitter';
 
 export type CommandResult =
   | { readonly ok: true; readonly world: World; readonly machine: Machine }
@@ -82,6 +110,7 @@ export function createWorld(): World {
     machines: [],
     stocks: {},
     belts: {},
+    routers: {},
     ledger: { purchased: {}, discarded: {}, purchaseSpentCents: 0 },
   };
 }
@@ -142,7 +171,31 @@ export function demolitionRefund(machine: Machine): number {
 /** Units held by a machine: its inventory and, for a conveyor, the units on its belt. */
 export function contentsOf(world: World, id: number): Inventory {
   const belt = world.belts[id] ?? [];
-  return belt.reduce((inventory, unit) => addItems(inventory, unit.item, 1), world.stocks[id] ?? {});
+  const held = world.routers[id]?.held;
+  const units = held ? [...belt, held] : belt;
+  return units.reduce((inventory, unit) => addItems(inventory, unit.item, 1), world.stocks[id] ?? {});
+}
+
+/** Checks a conveyor line: contiguous tiles on the map, all free, affordable as a whole. */
+export function checkLine(world: World, tiles: readonly LineTile[]): BuildError | null {
+  if (tiles.length === 0 || tiles.length > MAX_LINE_LENGTH) return 'invalid-line';
+  const seen = new Set<string>();
+  for (const [index, tile] of tiles.entries()) {
+    const previous = tiles[index - 1];
+    if (previous && Math.abs(previous.x - tile.x) + Math.abs(previous.y - tile.y) !== 1) return 'invalid-line';
+    const key = `${tile.x},${tile.y}`;
+    if (seen.has(key)) return 'invalid-line';
+    seen.add(key);
+    const error = checkFootprint(world, { ...tile, type: 'conveyor' });
+    if (error) return error;
+  }
+  if (world.capitalCents < lineCost(tiles.length)) return 'insufficient-funds';
+  if (world.nextMachineId + tiles.length >= Number.MAX_SAFE_INTEGER) return 'id-limit';
+  return null;
+}
+
+export function lineCost(length: number): number {
+  return MACHINES.conveyor.costCents * length;
 }
 
 export function orderCost(item: ItemType): number {
@@ -166,6 +219,27 @@ function withoutKey<T>(record: Readonly<Record<string, T>>, key: number): Readon
 }
 
 export function applyCommand(world: World, command: Command): CommandResult {
+  if (command.kind === 'build-line') {
+    const reason = checkLine(world, command.tiles);
+    if (reason) return { ok: false, reason };
+    const built: Machine[] = command.tiles.map((tile, index) => ({
+      type: 'conveyor', x: tile.x, y: tile.y, rotation: tile.rotation,
+      id: world.nextMachineId + index, paidCents: MACHINES.conveyor.costCents,
+    }));
+    const last = built[built.length - 1];
+    if (!last) return { ok: false, reason: 'invalid-line' };
+    return {
+      ok: true,
+      world: {
+        ...world,
+        capitalCents: world.capitalCents - lineCost(built.length),
+        nextMachineId: world.nextMachineId + built.length,
+        machines: [...world.machines, ...built],
+      },
+      machine: last,
+    };
+  }
+
   if (command.kind === 'build') {
     const reason = checkBuild(world, command);
     if (reason) return { ok: false, reason };
@@ -187,6 +261,19 @@ export function applyCommand(world: World, command: Command): CommandResult {
 
   const machine = world.machines.find(candidate => candidate.id === command.id);
   if (!machine) return { ok: false, reason: 'missing-machine' };
+
+  if (command.kind === 'configure') {
+    if (machine.type !== 'splitter') return { ok: false, reason: 'not-a-splitter' };
+    const rest: Machine = { type: machine.type, x: machine.x, y: machine.y, rotation: machine.rotation, id: machine.id, paidCents: machine.paidCents };
+    const configured: Machine = command.filter
+      ? { ...rest, filter: { item: command.filter.item, output: command.filter.output } }
+      : rest;
+    return {
+      ok: true,
+      world: { ...world, machines: world.machines.map(candidate => candidate.id === machine.id ? configured : candidate) },
+      machine: configured,
+    };
+  }
 
   if (command.kind === 'order') {
     const reason = checkOrder(world, machine.id, command.item);
@@ -218,6 +305,7 @@ export function applyCommand(world: World, command: Command): CommandResult {
         capitalCents: world.capitalCents + demolitionRefund(machine),
         stocks: withoutKey(world.stocks, machine.id),
         belts: withoutKey(world.belts, machine.id),
+        routers: withoutKey(world.routers, machine.id),
         ledger: inventoryTotal(lost) === 0
           ? world.ledger
           : { ...world.ledger, discarded: mergeInventories(world.ledger.discarded, lost) },
@@ -242,6 +330,6 @@ export function applyCommand(world: World, command: Command): CommandResult {
 
 /** True when both worlds hold the same layout, money and units, whatever their tick. */
 export function sameContents(a: World, b: World): boolean {
-  return a.machines === b.machines && a.stocks === b.stocks && a.belts === b.belts &&
+  return a.machines === b.machines && a.stocks === b.stocks && a.belts === b.belts && a.routers === b.routers &&
     a.ledger === b.ledger && a.capitalCents === b.capitalCents;
 }
