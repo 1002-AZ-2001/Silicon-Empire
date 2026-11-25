@@ -102,7 +102,36 @@ Au lancement, le menu principal vérifie s’il existe une version plus récente
 2. Cliquer sur **Télécharger**. La progression s’affiche.
 3. Cliquer sur **Redémarrer pour installer**. Le jeu se ferme, installe la mise à jour et redémarre.
 
-Rien n’est téléchargé ni installé sans clic. Avec les paquets `.deb` et `.pacman`, le système demande le mot de passe administrateur pour installer la mise à jour. Avec l’AppImage, le fichier est remplacé par la nouvelle version.
+Rien n’est téléchargé ni installé sans clic. Avec l’AppImage, le fichier est remplacé par la nouvelle version. Sous Windows, l’installeur se lance seul.
+
+### Paquets `.deb` et `.pacman` : mot de passe administrateur
+
+Installer un paquet système demande les droits administrateur. Le jeu les demande par `pkexec`, qui affiche une fenêtre de mot de passe grâce à un **agent d’authentification polkit**. GNOME, KDE Plasma, Xfce, Cinnamon et MATE en lancent un d’office. Hyprland, Sway, i3 et la plupart des gestionnaires de fenêtres légers n’en lancent pas.
+
+Sans agent, le jeu affiche **Installation automatique impossible**. Cliquer sur **Installer manuellement** : la fenêtre donne la commande exacte (bouton **Copier la commande**). La coller dans un terminal, saisir son mot de passe, puis relancer le jeu.
+
+Pour que le jeu installe lui-même les prochaines mises à jour, installer un agent et le démarrer avec sa session :
+
+| Système | Paquets possibles |
+|---|---|
+| Arch Linux | `hyprpolkitagent` (Hyprland), `polkit-gnome`, `lxqt-policykit`, `mate-polkit`, `polkit-kde-agent` |
+| Debian, Ubuntu | `lxpolkit`, `lxqt-policykit`, `mate-polkit`, `polkit-kde-agent-1` |
+
+Par exemple, `polkit-gnome` se démarre avec `/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1`, à ajouter au démarrage automatique de sa session. Voir aussi [Polkit, agents d’authentification (wiki Arch)](https://wiki.archlinux.org/title/Polkit#Authentication_agents).
+
+Les versions 0.2.0 et 0.2.1 n’ont pas cette solution de repli. Sans agent, elles affichent **Mise à jour impossible : Command pkexec exited with code 127**. Le fichier est pourtant déjà téléchargé : l’installer une fois depuis un terminal, par exemple sous Arch :
+
+```bash
+sudo pacman -U ~/.cache/silicon-empire-updater/pending/Silicon-Empire-*-x64.pacman
+```
+
+Sous Debian et Ubuntu :
+
+```bash
+sudo apt install ~/.cache/silicon-empire-updater/pending/Silicon-Empire-*-amd64.deb
+```
+
+On peut aussi télécharger le paquet sur la page des versions et l’installer comme à l’étape 2.
 
 Le message **Mise à jour impossible : Aucune version publiée trouvée sur GitHub** signifie que la page des versions n’est pas accessible publiquement ou ne contient encore aucune version. **Connexion à GitHub impossible** signale un problème réseau ; le jeu reste jouable.
 

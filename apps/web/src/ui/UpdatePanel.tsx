@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Dialog } from './shared';
 import type { DesktopBridge, UpdateStatus } from '../../../desktop/bridge';
 
 declare global {
@@ -10,11 +11,41 @@ declare global {
 
 const RELEASES = 'https://github.com/1002-AZ-2001/Silicon-Empire/releases';
 
+function ManualInstall({ desktop, status, onClose }: {
+  desktop: DesktopBridge;
+  status: Extract<UpdateStatus, { state: 'manual' }>;
+  onClose: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <Dialog
+      title={`Installer la version ${status.version}`}
+      onDismiss={onClose}
+      actions={<>
+        <button type="button" className="button" onClick={() => void desktop.showUpdateFile()}>Ouvrir le dossier</button>
+        <button type="button" className="button" onClick={() => void desktop.installUpdate()}>Réessayer</button>
+        <button type="button" className="button button-primary" onClick={() => {
+          void desktop.copyInstallCommand().then(() => setCopied(true));
+        }}>{copied ? 'Commande copiée' : 'Copier la commande'}</button>
+      </>}
+    >
+      <p>{status.reason}</p>
+      <p>La mise à jour est téléchargée. Pour l’installer, exécutez cette commande dans un terminal, puis relancez le jeu :</p>
+      <pre className="install-command">{status.command}</pre>
+      <p>Pour que le jeu installe lui-même les prochaines mises à jour, démarrez un agent d’authentification polkit dans votre session. Le tutoriel d’installation en indique plusieurs.</p>
+    </Dialog>
+  );
+}
+
 function DesktopUpdates({ desktop }: { desktop: DesktopBridge }) {
   const [status, setStatus] = useState<UpdateStatus | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = desktop.onUpdateStatus(setStatus);
+    const unsubscribe = desktop.onUpdateStatus(next => {
+      setStatus(next);
+      setManualOpen(next.state === 'manual');
+    });
     void desktop.getUpdateStatus().then(current => {
       setStatus(current);
       if (current.state === 'idle') void desktop.checkForUpdates();
@@ -55,6 +86,16 @@ function DesktopUpdates({ desktop }: { desktop: DesktopBridge }) {
         <span className="update-status update-ready">
           Version {status.version} prête
           <button type="button" className="button button-primary" onClick={() => void desktop.installUpdate()}>Redémarrer pour installer</button>
+        </span>
+      );
+    case 'installing':
+      return <span className="update-status">Installation de la version {status.version}…</span>;
+    case 'manual':
+      return (
+        <span className="update-status text-error">
+          Installation automatique impossible
+          <button type="button" className="button button-primary" onClick={() => setManualOpen(true)}>Installer manuellement</button>
+          {manualOpen && <ManualInstall desktop={desktop} status={status} onClose={() => setManualOpen(false)} />}
         </span>
       );
     case 'error':
