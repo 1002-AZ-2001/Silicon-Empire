@@ -1,7 +1,9 @@
-import { ITEMS, MACHINES, MAX_LINE_LENGTH, PURCHASE, WORKSHOP } from '@silicon-empire/game-data';
-import type { Direction, ItemType, MachineType } from '@silicon-empire/game-data';
+import { ITEMS, MACHINES, MAX_LINE_LENGTH, PURCHASE, WORKSHOP, isConveyor } from '@silicon-empire/game-data';
+import type { ConveyorType, Direction, ItemType, MachineType, MilestoneId } from '@silicon-empire/game-data';
 import { addItems, inventoryTotal, mergeInventories } from './inventory';
 import type { Inventory } from './inventory';
+import { createProgress, milestoneAvailable, orderableItems, unlockedMachines } from './progress';
+import type { Progress } from './progress';
 
 export const ROTATIONS = [0, 1, 2, 3] as const satisfies readonly Direction[];
 export type Rotation = (typeof ROTATIONS)[number];
@@ -52,11 +54,28 @@ export interface BeltItem {
   readonly position: number;
 }
 
-/** Every unit bought is either in a stock, on a belt or explicitly discarded. */
+/**
+ * Units entering and leaving the workshop. For every item type:
+ * purchased + produced = held (stocks, belts, routers, production) + discarded + consumed + delivered.
+ */
 export interface Ledger {
   readonly purchased: Inventory;
   readonly discarded: Inventory;
   readonly purchaseSpentCents: number;
+  /** Units made by production machines, counted when a batch starts. */
+  readonly produced: Inventory;
+  /** Recipe inputs used by production machines. */
+  readonly consumed: Inventory;
+  /** Units delivered to the headquarters for milestones. */
+  readonly delivered: Inventory;
+}
+
+/** State of a production machine. Its input buffer is its entry in `stocks`. */
+export interface ProductionState {
+  /** Unit being made: its inputs are already consumed. */
+  readonly batch: { readonly item: ItemType; readonly remaining: number } | null;
+  /** Finished units waiting for the output port. */
+  readonly output: Inventory;
 }
 
 export interface World {
@@ -74,6 +93,9 @@ export interface World {
   readonly belts: Readonly<Record<string, readonly BeltItem[]>>;
   /** Splitter and merger states by machine id. Empty routers with cursor 0 are absent. */
   readonly routers: Readonly<Record<string, RouterState>>;
+  /** Production machine states by machine id. Idle machines with an empty output are absent. */
+  readonly production: Readonly<Record<string, ProductionState>>;
+  readonly progress: Progress;
   readonly ledger: Ledger;
 }
 
@@ -84,22 +106,28 @@ export interface LineTile extends Tile {
 
 export type Command =
   | ({ readonly kind: 'build' } & Placement)
-  | { readonly kind: 'build-line'; readonly tiles: readonly LineTile[] }
+  | { readonly kind: 'build-line'; readonly tiles: readonly LineTile[]; readonly type?: ConveyorType }
+  | { readonly kind: 'select-milestone'; readonly milestone: MilestoneId | null }
   | { readonly kind: 'configure'; readonly id: number; readonly filter: RouterFilter | null }
   | { readonly kind: 'rotate'; readonly id: number }
   | { readonly kind: 'demolish'; readonly id: number }
   | { readonly kind: 'order'; readonly id: number; readonly item: ItemType };
 
 type FootprintError = 'out-of-bounds' | 'occupied';
-type BuildError = FootprintError | 'insufficient-funds' | 'id-limit' | 'invalid-line';
-type OrderError = 'not-a-dock' | 'insufficient-funds' | 'dock-full' | 'id-limit';
-export type CommandError = BuildError | OrderError | 'missing-machine' | 'not-a-splitter';
+type BuildError = FootprintError | 'insufficient-funds' | 'id-limit' | 'invalid-line' | 'locked' | 'unique';
+type OrderError = 'not-a-dock' | 'insufficient-funds' | 'dock-full' | 'id-limit' | 'locked';
+export type CommandError = BuildError | OrderError | 'missing-machine' | 'not-a-splitter' | 'milestone-unavailable';
 
 export type CommandResult =
-  | { readonly ok: true; readonly world: World; readonly machine: Machine }
+  | { readonly ok: true; readonly world: World; readonly machine: Machine | null }
   | { readonly ok: false; readonly reason: CommandError };
 
-export function createWorld(): World {
+export const EMPTY_LEDGER: Ledger = {
+  purchased: {}, discarded: {}, purchaseSpentCents: 0, produced: {}, consumed: {}, delivered: {},
+};
+
+/** A new workshop. Sandbox mode unlocks everything; progression mode starts at tier 0. */
+export function createWorld(mode: 'sandbox' | 'progression' = 'sandbox'): World {
   return {
     columns: WORKSHOP.columns,
     rows: WORKSHOP.rows,
@@ -111,7 +139,9 @@ export function createWorld(): World {
     stocks: {},
     belts: {},
     routers: {},
-    ledger: { purchased: {}, discarded: {}, purchaseSpentCents: 0 },
+    production: {},
+    progress: createProgress(mode === 'sandbox'),
+    ledger: EMPTY_LEDGER,
   };
 }
 
@@ -157,6 +187,8 @@ function checkFootprint(world: World, placement: Placement, ignoreId?: number): 
 }
 
 export function checkBuild(world: World, placement: Placement): BuildError | null {
+  if (!unlockedMachines(world.progress).has(placement.type)) return 'locked';
+  if (placement.type === 'headquarters' && world.machines.some(machine => machine.type === 'headquarters')) return 'unique';
   const footprintError = checkFootprint(world, placement);
   if (footprintError) return footprintError;
   if (world.capitalCents < MACHINES[placement.type].costCents) return 'insufficient-funds';
@@ -168,16 +200,23 @@ export function demolitionRefund(machine: Machine): number {
   return Math.floor(machine.paidCents * WORKSHOP.demolitionRefundPercent / 100);
 }
 
-/** Units held by a machine: its inventory and, for a conveyor, the units on its belt. */
+/** Units held by a machine: inventory, belt, router, finished and in-progress production. */
 export function contentsOf(world: World, id: number): Inventory {
   const belt = world.belts[id] ?? [];
   const held = world.routers[id]?.held;
+  const production = world.production[id];
   const units = held ? [...belt, held] : belt;
-  return units.reduce((inventory, unit) => addItems(inventory, unit.item, 1), world.stocks[id] ?? {});
+  let contents = units.reduce((inventory, unit) => addItems(inventory, unit.item, 1), world.stocks[id] ?? {});
+  if (production) {
+    contents = mergeInventories(contents, production.output);
+    if (production.batch) contents = addItems(contents, production.batch.item, 1);
+  }
+  return contents;
 }
 
 /** Checks a conveyor line: contiguous tiles on the map, all free, affordable as a whole. */
-export function checkLine(world: World, tiles: readonly LineTile[]): BuildError | null {
+export function checkLine(world: World, tiles: readonly LineTile[], type: ConveyorType = 'conveyor'): BuildError | null {
+  if (!unlockedMachines(world.progress).has(type)) return 'locked';
   if (tiles.length === 0 || tiles.length > MAX_LINE_LENGTH) return 'invalid-line';
   const seen = new Set<string>();
   for (const [index, tile] of tiles.entries()) {
@@ -186,26 +225,28 @@ export function checkLine(world: World, tiles: readonly LineTile[]): BuildError 
     const key = `${tile.x},${tile.y}`;
     if (seen.has(key)) return 'invalid-line';
     seen.add(key);
-    const error = checkFootprint(world, { ...tile, type: 'conveyor' });
+    const error = checkFootprint(world, { ...tile, type });
     if (error) return error;
   }
-  if (world.capitalCents < lineCost(tiles.length)) return 'insufficient-funds';
+  if (world.capitalCents < lineCost(tiles.length, type)) return 'insufficient-funds';
   if (world.nextMachineId + tiles.length >= Number.MAX_SAFE_INTEGER) return 'id-limit';
   return null;
 }
 
-export function lineCost(length: number): number {
-  return MACHINES.conveyor.costCents * length;
+export function lineCost(length: number, type: ConveyorType = 'conveyor'): number {
+  return MACHINES[type].costCents * length;
 }
 
+/** Price of a lot; 0 for items that cannot be bought. */
 export function orderCost(item: ItemType): number {
-  return ITEMS[item].unitCostCents * PURCHASE.lotSize;
+  return (ITEMS[item].unitCostCents ?? 0) * PURCHASE.lotSize;
 }
 
 export function checkOrder(world: World, id: number, item: ItemType): CommandError | null {
   const dock = world.machines.find(machine => machine.id === id);
   if (!dock) return 'missing-machine';
   if (dock.type !== 'receiving') return 'not-a-dock';
+  if (!orderableItems(world.progress).has(item)) return 'locked';
   if (world.capitalCents < orderCost(item)) return 'insufficient-funds';
   if (inventoryTotal(world.stocks[id] ?? {}) + PURCHASE.lotSize > MACHINES.receiving.capacity) return 'dock-full';
   return null;
@@ -219,12 +260,21 @@ function withoutKey<T>(record: Readonly<Record<string, T>>, key: number): Readon
 }
 
 export function applyCommand(world: World, command: Command): CommandResult {
+  if (command.kind === 'select-milestone') {
+    if (command.milestone !== null && !milestoneAvailable(world.progress, command.milestone)) {
+      return { ok: false, reason: 'milestone-unavailable' };
+    }
+    return { ok: true, world: { ...world, progress: { ...world.progress, active: command.milestone } }, machine: null };
+  }
+
   if (command.kind === 'build-line') {
-    const reason = checkLine(world, command.tiles);
+    const type = command.type ?? 'conveyor';
+    if (!isConveyor(type)) return { ok: false, reason: 'invalid-line' };
+    const reason = checkLine(world, command.tiles, type);
     if (reason) return { ok: false, reason };
     const built: Machine[] = command.tiles.map((tile, index) => ({
-      type: 'conveyor', x: tile.x, y: tile.y, rotation: tile.rotation,
-      id: world.nextMachineId + index, paidCents: MACHINES.conveyor.costCents,
+      type, x: tile.x, y: tile.y, rotation: tile.rotation,
+      id: world.nextMachineId + index, paidCents: MACHINES[type].costCents,
     }));
     const last = built[built.length - 1];
     if (!last) return { ok: false, reason: 'invalid-line' };
@@ -232,7 +282,7 @@ export function applyCommand(world: World, command: Command): CommandResult {
       ok: true,
       world: {
         ...world,
-        capitalCents: world.capitalCents - lineCost(built.length),
+        capitalCents: world.capitalCents - lineCost(built.length, type),
         nextMachineId: world.nextMachineId + built.length,
         machines: [...world.machines, ...built],
       },
@@ -306,6 +356,7 @@ export function applyCommand(world: World, command: Command): CommandResult {
         stocks: withoutKey(world.stocks, machine.id),
         belts: withoutKey(world.belts, machine.id),
         routers: withoutKey(world.routers, machine.id),
+        production: withoutKey(world.production, machine.id),
         ledger: inventoryTotal(lost) === 0
           ? world.ledger
           : { ...world.ledger, discarded: mergeInventories(world.ledger.discarded, lost) },
@@ -331,5 +382,6 @@ export function applyCommand(world: World, command: Command): CommandResult {
 /** True when both worlds hold the same layout, money and units, whatever their tick. */
 export function sameContents(a: World, b: World): boolean {
   return a.machines === b.machines && a.stocks === b.stocks && a.belts === b.belts && a.routers === b.routers &&
+    a.production === b.production && a.progress === b.progress &&
     a.ledger === b.ledger && a.capitalCents === b.capitalCents;
 }

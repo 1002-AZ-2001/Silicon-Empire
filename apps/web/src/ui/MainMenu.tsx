@@ -9,7 +9,7 @@ import { UpdatePanel } from './UpdatePanel';
 import type { SaveRecord } from '../persistence/save-data';
 
 export function MainMenu({ onNewGame, onResume }: {
-  onNewGame: (name: string) => void;
+  onNewGame: (name: string, sandbox: boolean) => void;
   onResume: (save: SaveRecord) => void;
 }) {
   const [saves, setSaves] = useState<SaveRecord[] | null>(null);
@@ -93,11 +93,16 @@ export function MainMenu({ onNewGame, onResume }: {
 
           <form className="new-game" onSubmit={event => {
             event.preventDefault();
-            const name = new FormData(event.currentTarget).get('name');
-            onNewGame(typeof name === 'string' && name.trim() ? name.trim() : t.menu.defaultName);
+            const form = new FormData(event.currentTarget);
+            const name = form.get('name');
+            onNewGame(typeof name === 'string' && name.trim() ? name.trim() : t.menu.defaultName, form.get('sandbox') === 'on');
           }}>
             <label htmlFor="workshop-name">{t.menu.nameLabel}</label>
             <input id="workshop-name" name="name" placeholder={t.menu.defaultName} maxLength={MAX_WORKSHOP_NAME} autoComplete="off" disabled={busy} />
+            <label className="sandbox-option">
+              <input type="checkbox" name="sandbox" disabled={busy} />
+              <span><strong>{t.menu.sandbox}</strong> {t.menu.sandboxHint}</span>
+            </label>
             <button className="button button-primary new-game-button" disabled={busy}>
               {t.menu.newGame} <Icon name="arrow" />
             </button>
@@ -121,7 +126,7 @@ export function MainMenu({ onNewGame, onResume }: {
                       onClick={() => void resume(record.id)}
                     >
                       <span className="save-row-info">
-                        <strong>{record.name}</strong>
+                        <strong>{record.name}{record.world.progress.sandbox && <em className="save-badge">{t.menu.sandboxBadge}</em>}</strong>
                         <small>{date(record.savedAt)} · {money(record.world.capitalCents)}</small>
                       </span>
                       <Icon name="arrow" />

@@ -1,13 +1,14 @@
 import { z } from 'zod';
 
 export const ITEM_CATEGORIES = [
-  'cpu', 'gpu', 'ram', 'storage', 'motherboard', 'power-supply', 'case',
+  'cpu', 'gpu', 'ram', 'storage', 'motherboard', 'power-supply', 'case', 'packaging', 'product',
 ] as const;
 export type ItemCategory = (typeof ITEM_CATEGORIES)[number];
 
 /** Order of this list is the stable order used when a machine releases mixed stock. */
 export const ITEM_TYPES = [
-  'cpu-8c', 'gpu-8g', 'ram-16g', 'ssd-1t', 'motherboard-atx', 'psu-650', 'case-standard',
+  'cpu-8c', 'gpu-8g', 'ram-16g', 'ssd-1t', 'motherboard-atx', 'psu-650', 'case-standard', 'carton',
+  'pc-office', 'pc-office-tested', 'pc-office-packaged',
 ] as const;
 export type ItemType = (typeof ITEM_TYPES)[number];
 
@@ -17,9 +18,10 @@ export const PURCHASE = { lotSize: 10 } as const;
 /** Display names are translated in the game interface (apps/web/src/i18n). */
 const itemDefinition = z.strictObject({
   category: z.enum(ITEM_CATEGORIES),
-  /** Fictional manufacturer. */
+  /** Fictional manufacturer, or the workshop for its own products. */
   manufacturer: z.string().min(1),
-  unitCostCents: z.int().positive(),
+  /** Supplier price; null for products made in the workshop, which cannot be bought. */
+  unitCostCents: z.int().positive().nullable(),
 });
 
 export const ITEMS = z.record(z.enum(ITEM_TYPES), itemDefinition.readonly()).readonly().parse({
@@ -57,5 +59,25 @@ export const ITEMS = z.record(z.enum(ITEM_TYPES), itemDefinition.readonly()).rea
     category: 'case',
     manufacturer: 'Carrène',
     unitCostCents: 4_500,
+  },
+  carton: {
+    category: 'packaging',
+    manufacturer: 'Embalis',
+    unitCostCents: 300,
+  },
+  'pc-office': {
+    category: 'product',
+    manufacturer: 'Silicon Empire',
+    unitCostCents: null,
+  },
+  'pc-office-tested': {
+    category: 'product',
+    manufacturer: 'Silicon Empire',
+    unitCostCents: null,
+  },
+  'pc-office-packaged': {
+    category: 'product',
+    manufacturer: 'Silicon Empire',
+    unitCostCents: null,
   },
 } satisfies Record<ItemType, z.input<typeof itemDefinition>>);

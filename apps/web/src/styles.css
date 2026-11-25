@@ -771,7 +771,7 @@ kbd {
 
 .tool-list {
   display: grid;
-  grid-template-columns: repeat(9, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
   gap: 7px;
 }
 
@@ -896,3 +896,47 @@ kbd {
   .tool-art { width: 28px; height: 32px; }
   .tool-art img { max-width: 27px; }
 }
+
+/* Progression (v0.3) */
+
+.sandbox-option { display: flex; gap: 9px; align-items: flex-start; margin: 4px 0 10px; color: var(--muted); font-size: .8rem; }
+.sandbox-option input { margin-top: 3px; accent-color: var(--lime); }
+.sandbox-option strong { color: var(--ink); }
+.save-badge { margin-left: 8px; padding: 1px 6px; border: 1px solid var(--line); border-radius: 3px; color: var(--muted); font: 500 .62rem var(--mono); font-style: normal; text-transform: uppercase; }
+
+.progression-button { display: grid; grid-template-columns: auto 1fr; column-gap: 7px; align-items: center; max-width: 230px; text-align: left; }
+.progression-button .icon { grid-row: span 2; color: var(--lime); }
+.progression-button small { overflow: hidden; color: var(--muted); font: 500 .66rem var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+
+.dialog.dialog-wide { width: min(1080px, calc(100% - 30px)); max-height: calc(100dvh - 40px); overflow: auto; }
+.tier-list { display: grid; gap: 14px; margin-top: 12px; }
+.tier h3 { font-size: 1.3rem; letter-spacing: .06em; text-transform: uppercase; }
+.tier-hint { color: var(--muted); font-size: .8rem; }
+.tier-locked { opacity: .6; }
+.milestone-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; margin: 8px 0 0; padding: 0; list-style: none; }
+.milestone { display: grid; gap: 8px; align-content: start; padding: 11px; border: 1px solid var(--line); border-radius: 4px; background: #121c19; }
+.milestone header { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.milestone h4 { font: 600 1.15rem var(--heading); }
+.milestone-state { color: var(--muted); font: 500 .66rem var(--mono); text-transform: uppercase; white-space: nowrap; }
+.milestone-active { border-color: #abd56f; }
+.milestone-active .milestone-state, .milestone-completed .milestone-state { color: var(--lime); }
+.milestone-completed { opacity: .75; }
+.milestone-locked { opacity: .55; }
+.milestone .button { justify-content: center; }
+.milestone-parts { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: .78rem; }
+.milestone-parts li { display: grid; grid-template-columns: 16px 1fr auto; gap: 3px 7px; align-items: center; }
+.milestone-parts img { width: 16px; height: 16px; image-rendering: pixelated; }
+.milestone-parts strong { font: 500 .74rem var(--mono); }
+.milestone-parts progress { grid-column: 2 / -1; width: 100%; height: 4px; accent-color: var(--lime); }
+.milestone-rewards { display: grid; gap: 3px; margin: 0; font-size: .76rem; }
+.milestone-rewards div { display: flex; justify-content: space-between; gap: 10px; }
+.milestone-rewards dt { color: var(--muted); }
+.milestone-rewards dd { margin: 0; text-align: right; }
+
+.inspector-subtitle { margin: 4px 0 6px; font: 600 1.02rem var(--heading); letter-spacing: .04em; text-transform: uppercase; }
+.headquarters-details { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid #364940; }
+.headquarters-details p { font-size: .82rem; }
+.machine-stats progress { width: 70px; height: 6px; vertical-align: middle; accent-color: var(--lime); }
+.production-working { color: var(--lime); }
+.production-starved { color: #f0b24a; }
+.production-blocked { color: var(--danger); }

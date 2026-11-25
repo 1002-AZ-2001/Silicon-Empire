@@ -28,3 +28,15 @@ export function mergeInventories(first: Inventory, second: Inventory): Inventory
 export function firstItem(inventory: Inventory): ItemType | undefined {
   return ITEM_TYPES.find(item => (inventory[item] ?? 0) > 0);
 }
+
+/**
+ * Item type with the most units, ties broken by catalogue order. Machines release this one first,
+ * so a mixed stock leaves in alternation instead of one type after another.
+ */
+export function mostStocked(inventory: Inventory): ItemType | undefined {
+  let best: ItemType | undefined;
+  for (const item of ITEM_TYPES) {
+    if ((inventory[item] ?? 0) > (best ? inventory[best] ?? 0 : 0)) best = item;
+  }
+  return best;
+}

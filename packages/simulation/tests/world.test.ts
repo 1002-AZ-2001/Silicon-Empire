@@ -17,7 +17,11 @@ describe('construction', () => {
   it('démarre avec une grille 64 × 64 vide et 25 000 €', () => {
     expect(createWorld()).toEqual({
       columns: 64, rows: 64, tick: 0, capitalCents: 2_500_000, nextMachineId: 1, nextItemId: 1,
-      machines: [], stocks: {}, belts: {}, routers: {}, ledger: { purchased: {}, discarded: {}, purchaseSpentCents: 0 },
+      machines: [], stocks: {}, belts: {}, routers: {}, production: {},
+      progress: { sandbox: true, completed: [], active: null, delivered: {} },
+      ledger: {
+        purchased: {}, discarded: {}, purchaseSpentCents: 0, produced: {}, consumed: {}, delivered: {},
+      },
     });
   });
 

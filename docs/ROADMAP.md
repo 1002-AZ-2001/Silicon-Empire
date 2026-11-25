@@ -33,6 +33,10 @@ La v0.2 est livrée en deux tranches :
 
 L’assembleur et le banc de test restent sans ports ni inventaire jusqu’à la v0.3.
 
+**v0.3.0 (réalisée)** : production (assemblage, test, emballage), voyants d’état, Direction et progression par paliers 0 à 2, mode bac à sable. La progression reprend la mécanique des jeux d’automatisation (paliers, jalons payés en pièces, grands projets qui ouvrent les paliers suivants), avec des noms et un thème originaux.
+
+**Suite proposée (0.3.x)** : premier **contrat phare** (grande livraison, par exemple 200 PC bureautiques pour une université) qui ouvre les paliers 3 et 4 : PC gaming et professionnel, carte graphique, défauts au test et tri des rebuts. Puis v0.4 : ventes, commandes et finances.
+
 La version 0.2.0 publie la tranche 1 avec l’application de bureau (Windows, Debian, Arch, AppImage) et ses mises à jour. La version 0.2.1 publie la tranche 2. Prochain jalon : v0.3 (recettes, assemblage, test, emballage, états des machines). L’image Docker prévue en v0.5 reste à faire.
 
 ## 22. Tests et critères d’acceptation
