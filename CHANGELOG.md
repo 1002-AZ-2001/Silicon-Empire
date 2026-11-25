@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.3 — Langues
+
+- Interface disponible en français, anglais, espagnol, allemand, chinois simplifié et japonais : menus, atelier, équipements, composants, messages d’erreur et mises à jour.
+- Au premier lancement, le jeu suit la langue du système ou du navigateur, sinon l’anglais. Le sélecteur du menu principal change la langue ; le choix est mémorisé sur l’appareil.
+- Montants et dates au format de la langue choisie ; les prix restent en euros.
+- Dictionnaires typés sans dépendance : une traduction manquante fait échouer la vérification des types. Les noms affichés ne sont plus stockés dans les données de jeu.
+- L’application de bureau transmet des codes d’état de mise à jour, traduits par l’interface.
+
 ## 0.2.2 — Mises à jour Linux sans agent polkit
 
 - Paquets `.deb` et `.pacman` : le jeu installe lui-même la mise à jour par `pkexec`, sans shell et sans bloquer l’interface. Il ne lance plus `pacman -Sy`, une synchronisation partielle déconseillée sous Arch.

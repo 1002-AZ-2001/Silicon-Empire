@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import type { InstallFailure } from './bridge';
 
 /**
  * Installation of downloaded .deb and pacman updates.
@@ -37,16 +38,12 @@ export function terminalCommand(command: readonly string[]): string {
 }
 
 /** Exit codes from the pkexec manual: 126 when the dialog is dismissed, 127 when no authorization is obtained. */
-export function failureReason(error: unknown): string {
+export function failureReason(error: unknown): InstallFailure {
   const code = (error as { code?: unknown }).code;
-  if (code === 'ENOENT') return 'pkexec n’est pas installé : le jeu ne peut pas demander les droits administrateur.';
-  if (code === 126) return 'Authentification annulée.';
-  if (code === 127) {
-    return 'Aucun agent d’authentification polkit n’a répondu : les droits administrateur n’ont pas pu être demandés.';
-  }
-  return typeof code === 'number'
-    ? `Le gestionnaire de paquets a échoué (code ${code}).`
-    : 'L’installation n’a pas pu démarrer.';
+  if (code === 'ENOENT') return { reason: 'no-pkexec' };
+  if (code === 126) return { reason: 'cancelled' };
+  if (code === 127) return { reason: 'no-agent' };
+  return typeof code === 'number' ? { reason: 'failed', code } : { reason: 'not-started' };
 }
 
 /** Runs the installation as root through pkexec, or directly when the game already runs as root. */

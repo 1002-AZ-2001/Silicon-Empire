@@ -1,5 +1,5 @@
 import { contentsOf, demolitionRefund, inventoryTotal, sameContents, Simulation } from '@silicon-empire/simulation';
-import { MACHINES, TIME } from '@silicon-empire/game-data';
+import { TIME } from '@silicon-empire/game-data';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import { createWorkshopControls } from '../game/controls';
@@ -7,7 +7,8 @@ import { writeSave } from '../persistence/indexed-saves';
 import { SAVE_VERSION } from '../persistence/save-data';
 import { ConstructionBar, getShortcut } from './ConstructionBar';
 import { Inspector } from './Inspector';
-import { Dialog, Icon, gameTime, money } from './shared';
+import { useI18n } from '../i18n';
+import { Dialog, Icon, gameTime } from './shared';
 import { useWorld } from './use-world';
 import type { World } from '@silicon-empire/simulation';
 
@@ -30,7 +31,8 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
   const speed = useStore(controls.store, state => state.speed);
   const [savedWorld, setSavedWorld] = useState<World | null>(session.savedAt === null ? null : session.world);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
+  const [saveFailed, setSaveFailed] = useState(false);
+  const { t, money } = useI18n();
   const [leaveDialog, setLeaveDialog] = useState(false);
   const saveInProgress = useRef(false);
   const lastSavedAt = useRef(session.savedAt ?? session.createdAt);
@@ -77,7 +79,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
     if (saveInProgress.current) return;
     saveInProgress.current = true;
     setSaving(true);
-    setSaveError('');
+    setSaveFailed(false);
     const snapshot = simulation.getSnapshot();
     const savedAt = Math.max(Date.now(), lastSavedAt.current);
     try {
@@ -93,7 +95,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
       setSavedWorld(snapshot);
       if (leaveAfter) onMenu();
     } catch {
-      setSaveError('Impossible d’enregistrer cet atelier dans le navigateur.');
+      setSaveFailed(true);
     } finally {
       saveInProgress.current = false;
       setSaving(false);
@@ -115,19 +117,19 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
         <div className="workshop-brand"><span className="brand-mark"><Icon name="chip" /></span><span>Silicon<br />Empire</span></div>
         <div className="workshop-metrics">
           <div className="metric">
-            <span className="metric-label">Capital disponible</span>
-            <strong className="capital" aria-label="Capital disponible">{money(world.capitalCents)}</strong>
+            <span className="metric-label">{t.workshop.capital}</span>
+            <strong className="capital" aria-label={t.workshop.capital}>{money(world.capitalCents)}</strong>
           </div>
           <div className="metric equipment-count">
-            <span className="metric-label">Équipements</span>
-            <strong aria-label="Équipements installés">{world.machines.length}</strong>
+            <span className="metric-label">{t.workshop.equipment}</span>
+            <strong aria-label={t.workshop.equipmentInstalled}>{world.machines.length}</strong>
           </div>
           <div className="metric">
-            <span className="metric-label">Temps simulé</span>
-            <strong className="game-time" aria-label="Temps simulé">{gameTime(world.tick)}</strong>
+            <span className="metric-label">{t.workshop.time}</span>
+            <strong className="game-time" aria-label={t.workshop.time}>{gameTime(world.tick)}</strong>
           </div>
         </div>
-        <div className="speed-control" role="group" aria-label="Vitesse de simulation">
+        <div className="speed-control" role="group" aria-label={t.workshop.speed}>
           {TIME.speeds.map(option => (
             <button
               type="button"
@@ -136,24 +138,24 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
               aria-pressed={speed === option}
               aria-keyshortcuts={option === 0 ? 'P' : undefined}
               onClick={() => controls.setSpeed(option)}
-            >{option === 0 ? 'Pause' : `×${option}`}</button>
+            >{option === 0 ? t.workshop.pause : `×${option}`}</button>
           ))}
         </div>
         <div className="workshop-actions">
-          <span className={`save-status${saveError ? ' text-error' : ''}`} role="status">
-            {saveError || (saving ? 'Enregistrement…' : dirty ? 'À enregistrer' : 'Atelier enregistré')}
+          <span className={`save-status${saveFailed ? ' text-error' : ''}`} role="status">
+            {saveFailed ? t.workshop.saveFailed : saving ? t.workshop.saving : dirty ? t.workshop.unsaved : t.workshop.saved}
           </span>
           <button type="button" className="button save-button" disabled={saving} onClick={() => void save(false)}>
-            <Icon name="save" /> Enregistrer
+            <Icon name="save" /> {t.workshop.save}
           </button>
           <button type="button" className="button menu-button" disabled={saving} onClick={openMenu}>
-            <Icon name="back" /> Menu
+            <Icon name="back" /> {t.workshop.menu}
           </button>
         </div>
       </header>
 
       <main className="workspace-grid">
-        <Suspense fallback={<div className="map-panel map-loading" role="status">Chargement de l’atelier…</div>}>
+        <Suspense fallback={<div className="map-panel map-loading" role="status">{t.workshop.loading}</div>}>
           <WorkshopViewport simulation={simulation} controls={controls} name={session.name} />
         </Suspense>
         <Inspector controls={controls} world={world} />
@@ -163,30 +165,30 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
 
       {toDemolish && (
         <Dialog
-          title="Démolir cet équipement ?"
+          title={t.workshop.demolishTitle}
           onDismiss={() => controls.store.setState({ demolitionId: null })}
           actions={<>
-            <button type="button" className="button" onClick={() => controls.store.setState({ demolitionId: null })}>Annuler</button>
-            <button type="button" className="button button-danger" onClick={controls.confirmDemolition}>Confirmer la démolition</button>
+            <button type="button" className="button" onClick={() => controls.store.setState({ demolitionId: null })}>{t.common.cancel}</button>
+            <button type="button" className="button button-danger" onClick={controls.confirmDemolition}>{t.workshop.confirmDemolition}</button>
           </>}
         >
-          <p>{MACHINES[toDemolish.type].name} sera retiré. Le remboursement de <strong>{money(demolitionRefund(toDemolish))}</strong> sera crédité à votre atelier.</p>
-          {unitsLost > 0 && <p className="text-error">{unitsLost} {unitsLost > 1 ? 'composants présents seront mis' : 'composant présent sera mis'} au rebut.</p>}
+          <p>{t.workshop.demolishBody(t.machines[toDemolish.type].name, money(demolitionRefund(toDemolish)))}</p>
+          {unitsLost > 0 && <p className="text-error">{t.workshop.unitsLost(unitsLost)}</p>}
         </Dialog>
       )}
 
       {leaveDialog && (
         <Dialog
-          title="Revenir au menu ?"
+          title={t.workshop.leaveTitle}
           onDismiss={() => { if (!saving) setLeaveDialog(false); }}
           actions={<>
-            <button type="button" className="button" disabled={saving} onClick={() => setLeaveDialog(false)}>Annuler</button>
-            <button type="button" className="button" disabled={saving} onClick={onMenu}>Quitter sans sauvegarder</button>
-            <button type="button" className="button button-primary" disabled={saving} onClick={() => void save(true)}>Enregistrer et quitter</button>
+            <button type="button" className="button" disabled={saving} onClick={() => setLeaveDialog(false)}>{t.common.cancel}</button>
+            <button type="button" className="button" disabled={saving} onClick={onMenu}>{t.workshop.leaveWithoutSaving}</button>
+            <button type="button" className="button button-primary" disabled={saving} onClick={() => void save(true)}>{t.workshop.saveAndLeave}</button>
           </>}
         >
-          <p>Enregistrez l’atelier pour reprendre la partie depuis cet état.</p>
-          {saveError && <p role="alert" className="text-error">{saveError}</p>}
+          <p>{t.workshop.leaveBody}</p>
+          {saveFailed && <p role="alert" className="text-error">{t.workshop.saveFailed}</p>}
         </Dialog>
       )}
     </div>

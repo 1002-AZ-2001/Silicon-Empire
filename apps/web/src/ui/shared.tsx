@@ -20,18 +20,6 @@ export function Icon({ name }: { name: keyof typeof icons }) {
   return <span className="icon" aria-hidden="true" style={{ maskImage: `url("${icons[name]}")` }} />;
 }
 
-const euros = new Intl.NumberFormat('fr-FR', {
-  style: 'currency',
-  currency: 'EUR',
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 2,
-});
-
-export function money(cents: number): string {
-  return euros.format(cents / 100);
-}
-
-export const DIRECTIONS = ['Nord', 'Est', 'Sud', 'Ouest'] as const;
 
 /** Simulated time as h:mm:ss. */
 export function gameTime(tick: number): string {

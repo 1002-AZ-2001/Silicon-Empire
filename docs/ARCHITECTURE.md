@@ -30,6 +30,14 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - `build-line` construit une ligne de convoyeurs contiguë en une commande : tout est validé avant la construction, sinon rien n’est construit. Le sens de chaque tuile suit le tracé.
 - Le rendu déduit la forme d’un convoyeur de ses alimentations : alimenté seulement par un côté, il est dessiné en virage et ses unités passent par ce côté. Un convoyeur sans destination porte une croix rouge.
 
+## Langues (v0.2.3)
+
+- `apps/web/src/i18n/fr.ts` est le dictionnaire de référence ; son type `Messages` impose les mêmes clés et signatures aux autres langues (`en`, `es`, `de`, `zh`, `ja`). Les phrases variables sont des fonctions, ce qui place les valeurs selon la grammaire de chaque langue.
+- `useI18n()` donne le dictionnaire courant et des formateurs `Intl` (euros, dates). Un magasin Zustand garde la langue ; `setLocale` la mémorise dans `localStorage` et met à jour `<html lang>`. Au premier lancement, la langue vient de `navigator.languages`, sinon l’anglais.
+- Les données de jeu ne contiennent plus de noms affichés : équipements et composants sont nommés dans les dictionnaires. Les messages de retour des commandes sont des fonctions du dictionnaire, évaluées à l’affichage : ils suivent un changement de langue.
+- Le processus principal de l’application de bureau n’envoie que des codes (`UpdateError`, `InstallFailure`), traduits par le menu.
+- Les tests navigateur fixent la langue (`fr-FR`) ; d’autres scénarios vérifient le changement de langue et la détection automatique.
+
 ## Application de bureau (v0.2)
 
 - `apps/desktop/main.cts` crée la fenêtre Electron et sert `dist/` sous l’origine privilégiée `app://silicon-empire`. Une origine fixe garde les sauvegardes IndexedDB entre lancements et mises à jour ; `file://` ne le garantit pas. Le gestionnaire refuse les chemins hors de `dist/`.

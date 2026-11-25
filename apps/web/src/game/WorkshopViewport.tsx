@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
+import { useI18n } from '../i18n';
 import { Icon } from '../ui/shared';
 import { MAX_ZOOM, MIN_ZOOM, WorkshopScene, ZOOM_STEP } from './workshop-scene';
 import type { Simulation } from '@silicon-empire/simulation';
@@ -14,6 +15,7 @@ export default function WorkshopViewport({ simulation, controls, name }: {
   const mount = useRef<HTMLDivElement>(null);
   const scene = useRef<WorkshopScene | null>(null);
   const [ready, setReady] = useState(false);
+  const { t } = useI18n();
   const hover = useStore(controls.store, state => state.hover);
   const zoom = useStore(controls.store, state => state.zoom);
   const { columns, rows } = simulation.getSnapshot();
@@ -48,36 +50,40 @@ export default function WorkshopViewport({ simulation, controls, name }: {
     };
   }, [simulation, controls]);
 
+  useEffect(() => {
+    if (ready) mount.current?.querySelector('canvas')?.setAttribute('aria-label', t.viewport.grid);
+  }, [ready, t]);
+
   return (
-    <section className="map-panel" aria-label="Carte de l’atelier">
+    <section className="map-panel" aria-label={t.viewport.map}>
       <div className="map-surface">
         <div className="canvas-container" ref={mount} />
-        {!ready && <div className="map-loading" role="status">Chargement de la grille…</div>}
+        {!ready && <div className="map-loading" role="status">{t.viewport.loading}</div>}
         <header className="map-overlay">
           <h1>{name}</h1>
-          <div className="zoom-panel" role="group" aria-label="Caméra">
+          <div className="zoom-panel" role="group" aria-label={t.viewport.camera}>
             <button
               className="icon-button"
               type="button"
-              title="Zoom arrière"
-              aria-label="Zoom arrière"
+              title={t.viewport.zoomOut}
+              aria-label={t.viewport.zoomOut}
               disabled={!ready || zoom <= MIN_ZOOM}
               onClick={() => scene.current?.zoomBy(1 / ZOOM_STEP)}
             ><Icon name="minus" /></button>
-            <output className="zoom-value" aria-label="Zoom">{Math.round(zoom * 100)}&#8201;%</output>
+            <output className="zoom-value" aria-label={t.viewport.zoom}>{Math.round(zoom * 100)}&#8201;%</output>
             <button
               className="icon-button"
               type="button"
-              aria-label="Zoom avant"
-              title="Zoom avant"
+              aria-label={t.viewport.zoomIn}
+              title={t.viewport.zoomIn}
               disabled={!ready || zoom >= MAX_ZOOM}
               onClick={() => scene.current?.zoomBy(ZOOM_STEP)}
             ><Icon name="plus" /></button>
             <button
               className="icon-button recenter"
               type="button"
-              title="Recentrer la carte"
-              aria-label="Recentrer la carte"
+              title={t.viewport.recenter}
+              aria-label={t.viewport.recenter}
               disabled={!ready}
               onClick={() => scene.current?.resetView()}
             ><Icon name="target" /></button>
@@ -86,8 +92,8 @@ export default function WorkshopViewport({ simulation, controls, name }: {
       </div>
 
       <div className="map-status">
-        <span><Icon name="grid" /> {columns} × {rows} tuiles</span>
-        <span aria-label="Case survolée">{onGrid ? `X ${hover.x + 1} / Y ${hover.y + 1}` : 'X — / Y —'}</span>
+        <span><Icon name="grid" /> {t.menu.tiles(columns, rows)}</span>
+        <span aria-label={t.viewport.hovered}>{onGrid ? `X ${hover.x + 1} / Y ${hover.y + 1}` : 'X — / Y —'}</span>
       </div>
     </section>
   );

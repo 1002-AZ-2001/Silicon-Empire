@@ -7,30 +7,25 @@ import { useState } from 'react';
 import { useStore } from 'zustand';
 import { ITEM_ART } from '../art/items';
 import { MACHINE_ART } from '../art/machines';
-import { ERROR_LABELS, isBuildTool } from '../game/controls';
-import { DIRECTIONS, Icon, money } from './shared';
+import { isBuildTool } from '../game/controls';
+import { useI18n } from '../i18n';
+import { Icon } from './shared';
 import type { ItemType } from '@silicon-empire/game-data';
-import type { BeltStatus, Inventory, Machine, Placement, RouterSide, World } from '@silicon-empire/simulation';
+import type { Inventory, Machine, Placement, RouterSide, World } from '@silicon-empire/simulation';
 import type { WorkshopControls } from '../game/controls';
-
-const BELT_STATUS: Record<BeltStatus, string> = {
-  empty: 'Vide',
-  moving: 'En mouvement',
-  blocked: 'Saturé',
-};
 
 const UNITS_PER_BELT = Math.ceil(CONVEYOR.lengthUnits / CONVEYOR.spacingUnits);
 
-const SIDE_LABELS: Record<RouterSide, string> = { left: 'Gauche', front: 'Avant', right: 'Droite' };
-const MERGER_INPUTS = ['Gauche', 'Arrière', 'Droite'] as const;
+const MERGER_INPUTS = ['left', 'back', 'right'] as const;
 
 function FilterForm({ controls, splitter }: { controls: WorkshopControls; splitter: Machine }) {
   const filter = splitter.filter;
+  const { t } = useI18n();
   return (
     <form className="order-form" onSubmit={event => event.preventDefault()}>
-      <h4>Filtre</h4>
+      <h4>{t.inspector.filter}</h4>
       <label>
-        <span>Composant filtré</span>
+        <span>{t.inspector.filterItem}</span>
         <select
           value={filter?.item ?? ''}
           onChange={event => {
@@ -38,12 +33,12 @@ function FilterForm({ controls, splitter }: { controls: WorkshopControls; splitt
             controls.configure(splitter.id, item ? { item, output: filter?.output ?? 'front' } : null);
           }}
         >
-          <option value="">Aucun : alternance sur toutes les sorties</option>
-          {ITEM_TYPES.map(option => <option key={option} value={option}>{ITEMS[option].name}</option>)}
+          <option value="">{t.inspector.filterNone}</option>
+          {ITEM_TYPES.map(option => <option key={option} value={option}>{t.items[option]}</option>)}
         </select>
       </label>
       <label>
-        <span>Sortie du filtre</span>
+        <span>{t.inspector.filterOutput}</span>
         <select
           value={filter?.output ?? 'front'}
           disabled={!filter}
@@ -51,7 +46,7 @@ function FilterForm({ controls, splitter }: { controls: WorkshopControls; splitt
             if (filter) controls.configure(splitter.id, { item: filter.item, output: event.target.value as RouterSide });
           }}
         >
-          {ROUTER_SIDES.map(side => <option key={side} value={side}>{SIDE_LABELS[side]}</option>)}
+          {ROUTER_SIDES.map(side => <option key={side} value={side}>{t.inspector.sides[side]}</option>)}
         </select>
       </label>
     </form>
@@ -61,17 +56,18 @@ function FilterForm({ controls, splitter }: { controls: WorkshopControls; splitt
 function RouterDetails({ world, machine }: { world: World; machine: Machine }) {
   const links = routerLinks(world, machine.id);
   const held = world.routers[machine.id]?.held;
+  const { t } = useI18n();
   const outputs = machine.type === 'splitter'
-    ? ROUTER_SIDES.map((side, index) => [`Sortie ${SIDE_LABELS[side].toLowerCase()}`, links?.outputs[index]] as const)
-    : [['Sortie avant', links?.outputs[0]] as const];
+    ? ROUTER_SIDES.map((side, index) => [t.inspector.outputSide[side], links?.outputs[index]] as const)
+    : [[t.inspector.outputSide.front, links?.outputs[0]] as const];
   const inputs = machine.type === 'splitter'
-    ? [['Entrée arrière', links?.inputs[0]] as const]
-    : MERGER_INPUTS.map((label, index) => [`Entrée ${label.toLowerCase()}`, links?.inputs[index]] as const);
+    ? [[t.inspector.inputSide.back, links?.inputs[0]] as const]
+    : MERGER_INPUTS.map((side, index) => [t.inspector.inputSide[side], links?.inputs[index]] as const);
   return (
     <dl className="machine-stats logistics-stats">
-      <div><dt>En transit</dt><dd>{held ? ITEMS[held.item].name : 'Vide'}</dd></div>
+      <div><dt>{t.inspector.inTransit}</dt><dd>{held ? t.items[held.item] : t.inspector.empty}</dd></div>
       {[...inputs, ...outputs].map(([label, link]) => (
-        <div key={label}><dt>{label}</dt><dd>{link === null || link === undefined ? 'libre' : 'raccordée'}</dd></div>
+        <div key={label}><dt>{label}</dt><dd>{link === null || link === undefined ? t.inspector.free : t.inspector.connected}</dd></div>
       ))}
     </dl>
   );
@@ -79,15 +75,16 @@ function RouterDetails({ world, machine }: { world: World; machine: Machine }) {
 
 function LinePreview({ world, line }: { world: World; line: NonNullable<ReturnType<WorkshopControls['store']['getState']>['line']> }) {
   const error = checkLine(world, line);
+  const { t, money } = useI18n();
   return (
     <div className="inspector-detail">
-      <h3>Tracé de convoyeurs</h3>
+      <h3>{t.inspector.line}</h3>
       <dl className="machine-stats">
-        <div><dt>Longueur</dt><dd>{line.length} {line.length > 1 ? 'tuiles' : 'tuile'}</dd></div>
-        <div><dt>Coût</dt><dd aria-label="Coût du tracé">{money(lineCost(line.length))}</dd></div>
+        <div><dt>{t.inspector.length}</dt><dd>{t.inspector.lineTiles(line.length)}</dd></div>
+        <div><dt>{t.inspector.cost}</dt><dd aria-label={t.inspector.lineCost}>{money(lineCost(line.length))}</dd></div>
       </dl>
       <p className={error ? 'placement-status text-error' : 'placement-status'}>
-        {error ? ERROR_LABELS[error] : 'Relâchez pour construire la ligne.'}
+        {error ? t.errors[error] : t.inspector.lineRelease}
       </p>
     </div>
   );
@@ -103,13 +100,14 @@ function MachinePreview({ placement }: { placement: Placement }) {
 
 function StockList({ stock, label }: { stock: Inventory; label: string }) {
   const lines = ITEM_TYPES.filter(item => (stock[item] ?? 0) > 0);
+  const { t } = useI18n();
   if (lines.length === 0) return null;
   return (
     <ul className="stock-list" aria-label={label}>
       {lines.map(item => (
         <li key={item}>
           <img src={ITEM_ART[item]} alt="" />
-          <span>{ITEMS[item].name}</span>
+          <span>{t.items[item]}</span>
           <strong>{stock[item]}</strong>
         </li>
       ))}
@@ -120,6 +118,7 @@ function StockList({ stock, label }: { stock: Inventory; label: string }) {
 function OrderForm({ controls, world, dock }: { controls: WorkshopControls; world: World; dock: Machine }) {
   const [item, setItem] = useState<ItemType>(ITEM_TYPES[0]);
   const error = checkOrder(world, dock.id, item);
+  const { t, money } = useI18n();
   return (
     <form
       className="order-form"
@@ -128,25 +127,26 @@ function OrderForm({ controls, world, dock }: { controls: WorkshopControls; worl
         controls.order(dock.id, item);
       }}
     >
-      <h4>Commande fournisseur</h4>
+      <h4>{t.inspector.order}</h4>
       <label>
-        <span>Composant</span>
+        <span>{t.inspector.component}</span>
         <select value={item} onChange={event => setItem(event.target.value as ItemType)}>
           {ITEM_TYPES.map(option => (
-            <option key={option} value={option}>{ITEMS[option].name} · {ITEMS[option].manufacturer}</option>
+            <option key={option} value={option}>{t.items[option]} · {ITEMS[option].manufacturer}</option>
           ))}
         </select>
       </label>
       <button className="button button-primary" type="submit" disabled={error !== null}>
-        Commander {PURCHASE.lotSize} unités · {money(orderCost(item))}
+        {t.inspector.orderButton(PURCHASE.lotSize, money(orderCost(item)))}
       </button>
-      {error && <p className="order-hint text-error">{ERROR_LABELS[error]}</p>}
+      {error && <p className="order-hint text-error">{t.errors[error]}</p>}
     </form>
   );
 }
 
 function Logistics({ world, machine }: { world: World; machine: Machine }) {
   const definition = MACHINES[machine.type];
+  const { t } = useI18n();
   if (machine.type === 'conveyor') {
     const belt = world.belts[machine.id] ?? [];
     const target = beltTarget(world, machine.id);
@@ -155,11 +155,11 @@ function Logistics({ world, machine }: { world: World; machine: Machine }) {
     return (
       <>
         <dl className="machine-stats logistics-stats">
-          <div><dt>Charge</dt><dd>{belt.length} / {UNITS_PER_BELT}</dd></div>
-          <div><dt>État</dt><dd>{BELT_STATUS[beltStatus(world, machine.id)]}</dd></div>
-          <div><dt>Destination</dt><dd>{receiver ? MACHINES[receiver.type].name : 'Non raccordée'}</dd></div>
+          <div><dt>{t.inspector.load}</dt><dd>{belt.length} / {UNITS_PER_BELT}</dd></div>
+          <div><dt>{t.inspector.state}</dt><dd>{t.inspector.belt[beltStatus(world, machine.id)]}</dd></div>
+          <div><dt>{t.inspector.destination}</dt><dd>{receiver ? t.machines[receiver.type].name : t.inspector.notConnected}</dd></div>
         </dl>
-        <StockList stock={onBelt} label="Unités sur le convoyeur" />
+        <StockList stock={onBelt} label={t.inspector.beltUnits} />
       </>
     );
   }
@@ -170,56 +170,59 @@ function Logistics({ world, machine }: { world: World; machine: Machine }) {
   return (
     <>
       <dl className="machine-stats logistics-stats">
-        <div><dt>Stock</dt><dd aria-label="Stock">{inventoryTotal(stock)} / {definition.capacity}</dd></div>
+        <div><dt>{t.inspector.stock}</dt><dd aria-label={t.inspector.stock}>{inventoryTotal(stock)} / {definition.capacity}</dd></div>
         {portConnections(world, machine).map((port, index) => (
           <div key={index}>
-            <dt>{port.kind === 'input' ? 'Entrée' : 'Sortie'}</dt>
-            <dd>{DIRECTIONS[port.side]} · {port.connected ? 'raccordée' : 'libre'}</dd>
+            <dt>{port.kind === 'input' ? t.inspector.input : t.inspector.output}</dt>
+            <dd>{t.directions[port.side]} · {port.connected ? t.inspector.connected : t.inspector.free}</dd>
           </div>
         ))}
       </dl>
-      <StockList stock={stock} label="Contenu du stock" />
+      <StockList stock={stock} label={t.inspector.stockContents} />
     </>
   );
 }
 
 export function Inspector({ controls, world }: { controls: WorkshopControls; world: World }) {
   const { tool, hover, rotation, selectedId, feedback, line } = useStore(controls.store);
+  const translator = useI18n();
+  const { t, money } = translator;
   const selected = world.machines.find(machine => machine.id === selectedId);
   const pending = isBuildTool(tool) ? { type: tool, x: hover?.x ?? 0, y: hover?.y ?? 0, rotation } : null;
   const placement = pending ?? selected;
   const previewError = pending && hover ? checkBuild(world, pending) : null;
   const previewMessage = previewError
-    ? ERROR_LABELS[previewError]
-    : hover ? 'Placement possible' : 'Cliquez sur une case libre pour construire.';
+    ? t.errors[previewError]
+    : hover ? t.inspector.placementOk : t.inspector.placementHint;
+  const feedbackText = feedback?.message(translator);
   const definition = placement && MACHINES[placement.type];
   const footprint = placement && footprintOf(placement);
 
   return (
     <aside className="inspector" aria-labelledby="inspector-heading">
-      <h2 id="inspector-heading"><Icon name="target" /> Inspection</h2>
+      <h2 id="inspector-heading"><Icon name="target" /> {t.inspector.title}</h2>
 
       {line && line.length > 1 ? <LinePreview world={world} line={line} /> : placement && definition && footprint ? (
         <div className="inspector-detail">
           <MachinePreview placement={placement} />
-          <h3>{definition.name}</h3>
+          <h3>{t.machines[placement.type].name}</h3>
           <dl className="machine-stats">
-            <div><dt>Emprise</dt><dd>{footprint.width} × {footprint.height}</dd></div>
-            <div><dt>{placement.type === 'conveyor' ? 'Sens' : 'Orientation'}</dt><dd>{DIRECTIONS[placement.rotation]}</dd></div>
-            {selected && <div><dt>Ancrage</dt><dd>{selected.x + 1}, {selected.y + 1}</dd></div>}
-            <div><dt>{selected ? 'Prix payé' : 'Coût'}</dt><dd>{money(selected?.paidCents ?? definition.costCents)}</dd></div>
-            {pending && definition.capacity > 0 && <div><dt>Capacité</dt><dd>{definition.capacity} unités</dd></div>}
+            <div><dt>{t.inspector.footprint}</dt><dd>{footprint.width} × {footprint.height}</dd></div>
+            <div><dt>{placement.type === 'conveyor' ? t.inspector.direction : t.inspector.orientation}</dt><dd>{t.directions[placement.rotation]}</dd></div>
+            {selected && <div><dt>{t.inspector.anchor}</dt><dd>{selected.x + 1}, {selected.y + 1}</dd></div>}
+            <div><dt>{selected ? t.inspector.paid : t.inspector.cost}</dt><dd>{money(selected?.paidCents ?? definition.costCents)}</dd></div>
+            {pending && definition.capacity > 0 && <div><dt>{t.inspector.capacity}</dt><dd>{t.inspector.units(definition.capacity)}</dd></div>}
             {pending && portsOf(pending).map((port, index) => (
               <div key={index}>
-                <dt>{port.kind === 'input' ? 'Entrée' : 'Sortie'}</dt>
-                <dd>{DIRECTIONS[port.side]}</dd>
+                <dt>{port.kind === 'input' ? t.inspector.input : t.inspector.output}</dt>
+                <dd>{t.directions[port.side]}</dd>
               </div>
             ))}
           </dl>
           <button className="button rotate-button" type="button" onClick={controls.rotate} aria-keyshortcuts="R">
-            <Icon name="rotate" /> Pivoter <kbd>R</kbd>
+            <Icon name="rotate" /> {t.inspector.rotate} <kbd>R</kbd>
           </button>
-          {pending && feedback?.text !== previewMessage && (
+          {pending && feedbackText !== previewMessage && (
             <p className={previewError ? 'placement-status text-error' : 'placement-status'}>
               {previewMessage}
             </p>
@@ -231,16 +234,14 @@ export function Inspector({ controls, world }: { controls: WorkshopControls; wor
       ) : (
         <div className="inspector-empty">
           <span className={tool === 'demolish' ? 'empty-symbol text-error' : 'empty-symbol'}><Icon name={tool === 'demolish' ? 'trash' : 'target'} /></span>
-          <h3>{tool === 'demolish' ? 'Démolition' : 'Aucun équipement sélectionné'}</h3>
-          <p>{tool === 'demolish'
-            ? 'Cliquez sur un équipement pour voir son remboursement et confirmer sa démolition.'
-            : 'Sélectionnez un équipement sur la grille pour voir son emprise, ses ports et son contenu.'}</p>
+          <h3>{tool === 'demolish' ? t.inspector.demolition : t.inspector.nothingSelected}</h3>
+          <p>{tool === 'demolish' ? t.inspector.demolitionHint : t.inspector.selectionHint}</p>
         </div>
       )}
 
       {feedback && (
         <p className={`workshop-feedback ${feedback.kind === 'error' ? 'text-error' : 'text-success'}`} role="status">
-          {feedback.text}
+          {feedbackText}
         </p>
       )}
     </aside>

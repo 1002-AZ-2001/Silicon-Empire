@@ -9,7 +9,8 @@ const executable = process.env.SILICON_EMPIRE_DESKTOP ?? path.resolve('release/l
 const profile = mkdtempSync(path.join(tmpdir(), 'silicon-empire-profile-'));
 
 async function launch(): Promise<ElectronApplication> {
-  const args = [`--user-data-dir=${profile}`];
+  // The game follows the system language; the scenario is written in French.
+  const args = [`--user-data-dir=${profile}`, '--lang=fr-FR'];
   if (process.getuid?.() === 0) args.push('--no-sandbox');
   return electron.launch({ executablePath: executable, args });
 }

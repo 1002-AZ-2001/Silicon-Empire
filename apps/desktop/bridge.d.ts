@@ -1,3 +1,11 @@
+/** Why an update could not be checked or downloaded. The game menu translates it. */
+export type UpdateError = 'not-published' | 'offline' | 'other';
+
+/** Why a .deb or pacman update could not be installed automatically. */
+export type InstallFailure =
+  | { readonly reason: 'no-agent' | 'cancelled' | 'no-pkexec' | 'not-started' }
+  | { readonly reason: 'failed'; readonly code: number };
+
 /** Update state reported by the desktop application to the game menu. */
 export type UpdateStatus =
   | { readonly state: 'unsupported' }
@@ -9,8 +17,8 @@ export type UpdateStatus =
   | { readonly state: 'downloaded'; readonly version: string }
   | { readonly state: 'installing'; readonly version: string }
   /** Automatic installation failed: the player can run `command` in a terminal. */
-  | { readonly state: 'manual'; readonly version: string; readonly reason: string; readonly command: string }
-  | { readonly state: 'error'; readonly message: string };
+  | { readonly state: 'manual'; readonly version: string; readonly failure: InstallFailure; readonly command: string }
+  | { readonly state: 'error'; readonly reason: UpdateError };
 
 /** API exposed to the game page as `window.siliconDesktop` by the desktop preload script. */
 export interface DesktopBridge {

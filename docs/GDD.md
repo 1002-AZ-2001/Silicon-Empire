@@ -92,4 +92,4 @@ Vue de dessus orthographique, pixel art industriel moderne, machines lisibles, v
 
 Écran : barre haute (capital, revenus, charges, temps, pause, vitesse, alertes) ; carte centrale interactive ; barre basse (construction, rotation, démolition) ; panneau contextuel (inventaires, recette, progression, état, rendement). Menus : dashboard, inventaire, Product Designer, production, fournisseurs, commandes, finances, recherche, employés, IT, statistiques, paramètres. N’afficher comme utilisables que les fonctionnalités réellement implémentées.
 
-Contrôles : zoom molette, glisser caméra, WASD/ZQSD, R rotation, Échap annulation, démolition, infobulles, confirmation destructrice. Desktop prioritaire, interface française, architecture internationalisable.
+Contrôles : zoom molette, glisser caméra, WASD/ZQSD, R rotation, Échap annulation, démolition, infobulles, confirmation destructrice. Desktop prioritaire. Interface en français, anglais, espagnol, allemand, chinois simplifié et japonais (v0.2.3).
