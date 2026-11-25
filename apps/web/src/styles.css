@@ -347,6 +347,18 @@ kbd {
 .link-button { padding: 0; border: 0; background: none; font: inherit; cursor: pointer; }
 .update-status .button { min-height: 30px; padding: 0 12px; font-size: .8rem; }
 .update-status progress { width: 110px; accent-color: var(--lime); }
+.install-command {
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #0f1715;
+  color: var(--ink);
+  font: 500 .75rem/1.45 var(--mono);
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: all;
+}
 .menu-footer strong { color: var(--lime); font-weight: 500; white-space: nowrap; }
 
 /* Workshop */

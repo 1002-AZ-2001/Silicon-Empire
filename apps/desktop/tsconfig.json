@@ -13,5 +13,5 @@
     "rootDir": ".",
     "outDir": "../../build/desktop"
   },
-  "include": ["main.cts", "preload.cts", "bridge.d.ts"]
+  "include": ["main.cts", "preload.cts", "system-install.cts", "bridge.d.ts"]
 }

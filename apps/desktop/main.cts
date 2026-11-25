@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain, net, protocol, shell } from 'electron';
+import { app, BrowserWindow, clipboard, ipcMain, net, protocol, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { UpdateStatus } from './bridge';
+import { failureReason, installCommand, runInstall, systemPackageType, terminalCommand } from './system-install.cjs';
 
 /**
  * The game is served from a fixed privileged origin, app://silicon-empire,
@@ -20,6 +21,7 @@ protocol.registerSchemesAsPrivileged([
 
 let window: BrowserWindow | null = null;
 let status: UpdateStatus = app.isPackaged ? { state: 'idle' } : { state: 'unsupported' };
+let downloadedFile: string | null = null;
 
 function publish(next: UpdateStatus) {
   status = next;
@@ -80,7 +82,9 @@ function setUpUpdates() {
   ipcMain.handle('update:status', () => status);
 
   if (!app.isPackaged) {
-    for (const channel of ['update:check', 'update:download', 'update:install']) ipcMain.handle(channel, () => undefined);
+    for (const channel of ['update:check', 'update:download', 'update:install', 'update:copy-command', 'update:show-file']) {
+      ipcMain.handle(channel, () => undefined);
+    }
     return;
   }
 
@@ -94,11 +98,14 @@ function setUpUpdates() {
       publish({ state: 'downloading', version: status.version, percent: Math.floor(progress.percent) });
     }
   });
-  autoUpdater.on('update-downloaded', info => publish({ state: 'downloaded', version: info.version }));
+  autoUpdater.on('update-downloaded', info => {
+    downloadedFile = info.downloadedFile;
+    publish({ state: 'downloaded', version: info.version });
+  });
   autoUpdater.on('error', error => publish({ state: 'error', message: describeError(error) }));
 
   ipcMain.handle('update:check', async () => {
-    if (status.state === 'downloading' || status.state === 'downloaded' || status.state === 'checking') return;
+    if (['checking', 'downloading', 'downloaded', 'installing', 'manual'].includes(status.state)) return;
     await autoUpdater.checkForUpdates().catch(() => undefined);
   });
   ipcMain.handle('update:download', async () => {
@@ -106,8 +113,29 @@ function setUpUpdates() {
     publish({ state: 'downloading', version: status.version, percent: 0 });
     await autoUpdater.downloadUpdate().catch(() => undefined);
   });
-  ipcMain.handle('update:install', () => {
-    if (status.state === 'downloaded') autoUpdater.quitAndInstall();
+  ipcMain.handle('update:install', async () => {
+    if (status.state !== 'downloaded' && status.state !== 'manual') return;
+    const type = systemPackageType(process.resourcesPath, process.env);
+    if (!type || !downloadedFile) {
+      autoUpdater.quitAndInstall();
+      return;
+    }
+    const { version } = status;
+    const command = installCommand(type, downloadedFile);
+    publish({ state: 'installing', version });
+    try {
+      await runInstall(command, process.getuid?.() === 0);
+      app.relaunch();
+      app.exit(0);
+    } catch (error) {
+      publish({ state: 'manual', version, reason: failureReason(error), command: terminalCommand(command) });
+    }
+  });
+  ipcMain.handle('update:copy-command', () => {
+    if (status.state === 'manual') clipboard.writeText(status.command);
+  });
+  ipcMain.handle('update:show-file', () => {
+    if (downloadedFile) shell.showItemInFolder(downloadedFile);
   });
 }
 

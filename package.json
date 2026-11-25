@@ -1,6 +1,6 @@
 {
   "name": "silicon-empire",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.25.0",
@@ -12,7 +12,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit && tsc -p apps/desktop/tsconfig.json --noEmit",
-    "test": "vitest run",
+    "test": "pnpm desktop:compile && vitest run",
     "test:e2e": "pnpm build && playwright test",
     "build": "pnpm typecheck && vite build",
     "desktop:compile": "tsc -p apps/desktop/tsconfig.json",

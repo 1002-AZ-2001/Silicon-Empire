@@ -8,6 +8,8 @@ const bridge: DesktopBridge = {
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
+  copyInstallCommand: () => ipcRenderer.invoke('update:copy-command'),
+  showUpdateFile: () => ipcRenderer.invoke('update:show-file'),
   onUpdateStatus: listener => {
     const forward = (_event: IpcRendererEvent, status: UpdateStatus) => listener(status);
     ipcRenderer.on('update:status', forward);

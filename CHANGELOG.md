@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.2 — Mises à jour Linux sans agent polkit
+
+- Paquets `.deb` et `.pacman` : le jeu installe lui-même la mise à jour par `pkexec`, sans shell et sans bloquer l’interface. Il ne lance plus `pacman -Sy`, une synchronisation partielle déconseillée sous Arch.
+- Si les droits administrateur ne peuvent pas être obtenus (par exemple sans agent d’authentification polkit, `pkexec` quitte avec le code 127), le jeu explique la cause et propose la commande exacte à copier dans un terminal, ainsi que l’ouverture du dossier de la mise à jour.
+- Après une installation réussie, le jeu redémarre sur la nouvelle version.
+- Tutoriel : agents polkit par distribution et procédure pour les versions 0.2.0 et 0.2.1 déjà installées.
+
 ## 0.2.1 — Répartiteurs, fusionneurs et tracé des convoyeurs
 
 - Répartiteur (150 €) : reçoit par l’arrière et distribue à tour de rôle à gauche, devant et à droite, en sautant les sorties non raccordées ou pleines.
