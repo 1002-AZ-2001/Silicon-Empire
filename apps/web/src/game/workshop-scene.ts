@@ -1,10 +1,13 @@
 import { CONVEYOR, ITEM_TYPES, MACHINE_TYPES, WORKSHOP } from '@silicon-empire/game-data';
-import { checkBuild, fitsMap, footprintOf, machineAt, neighbour, portsOf } from '@silicon-empire/simulation';
+import {
+  checkBuild, checkLine, fitsMap, footprintOf, linksOf, machineAt, neighbour, portsOf, previewTarget,
+} from '@silicon-empire/simulation';
 import Phaser from 'phaser';
 import { ITEM_ART } from '../art/items';
-import { MACHINE_ART } from '../art/machines';
+import { CONVEYOR_TURN_ART, MACHINE_ART } from '../art/machines';
 import { isBuildTool } from './controls';
 import { createFloor } from './floor';
+import type { Direction } from '@silicon-empire/game-data';
 import type { Footprint, Machine, Placement, Simulation, Tile, World, WorldPort } from '@silicon-empire/simulation';
 import type { WorkshopControls } from './controls';
 
@@ -24,21 +27,39 @@ interface Point { x: number; y: number }
 const PORT_COLORS = { input: 0xbde778, output: 0xf0b24a } as const;
 const itemKey = (item: string) => `item:${item}`;
 
-/** Screen position of every unit on a belt, by unit id. */
+/**
+ * Direction in which units enter a conveyor. A conveyor fed only from one side turns:
+ * units come in through that side and leave through the front.
+ */
+function entryDirection(world: World, conveyor: Machine): Direction {
+  const feeds = linksOf(world).feeds.get(conveyor.id) ?? [];
+  const [first] = feeds;
+  if (first === undefined || feeds.includes(conveyor.rotation) || feeds.some(feed => feed !== first)) return conveyor.rotation;
+  return first === (conveyor.rotation + 2) % 4 ? conveyor.rotation : first;
+}
+
+/** Screen position of every unit on a belt or held by a splitter or merger, by unit id. */
 function unitPositions(world: World): Map<number, Point> {
   const positions = new Map<number, Point>();
-  const conveyors = new Map(world.machines.map(machine => [String(machine.id), machine]));
+  const machines = new Map(world.machines.map(machine => [String(machine.id), machine]));
   for (const [id, belt] of Object.entries(world.belts)) {
-    const conveyor = conveyors.get(id);
+    const conveyor = machines.get(id);
     if (!conveyor) continue;
-    const direction = neighbour({ x: 0, y: 0 }, conveyor.rotation);
+    const exit = neighbour({ x: 0, y: 0 }, conveyor.rotation);
+    const entry = neighbour({ x: 0, y: 0 }, entryDirection(world, conveyor));
     for (const unit of belt) {
+      // First half: from the entry edge to the centre. Second half: from the centre to the exit edge.
       const along = unit.position / CONVEYOR.lengthUnits - 0.5;
+      const direction = along < 0 ? entry : exit;
       positions.set(unit.id, {
         x: (conveyor.x + 0.5 + direction.x * along) * TILE,
         y: (conveyor.y + 0.5 + direction.y * along) * TILE,
       });
     }
+  }
+  for (const [id, router] of Object.entries(world.routers)) {
+    const machine = machines.get(id);
+    if (machine && router.held) positions.set(router.held.id, { x: (machine.x + 0.5) * TILE, y: (machine.y + 0.5) * TILE });
   }
   return positions;
 }
@@ -50,6 +71,8 @@ interface PointerGesture {
   pan: boolean;
   click: boolean;
   moved: boolean;
+  /** Left drag with the conveyor tool draws a line. */
+  drawing: boolean;
 }
 
 export class WorkshopScene extends Phaser.Scene {
@@ -61,6 +84,7 @@ export class WorkshopScene extends Phaser.Scene {
   private ready = false;
   private equipment!: Phaser.GameObjects.Container;
   private ports!: Phaser.GameObjects.Graphics;
+  private alerts!: Phaser.GameObjects.Graphics;
   private units!: Phaser.GameObjects.Container;
   private outline!: Phaser.GameObjects.Graphics;
   private ghost!: Phaser.GameObjects.Image;
@@ -79,6 +103,7 @@ export class WorkshopScene extends Phaser.Scene {
   preload() {
     for (const type of MACHINE_TYPES) this.load.image(type, MACHINE_ART[type]);
     for (const item of ITEM_TYPES) this.load.image(itemKey(item), ITEM_ART[item]);
+    this.load.image('conveyor-turn', CONVEYOR_TURN_ART);
   }
 
   create() {
@@ -87,6 +112,7 @@ export class WorkshopScene extends Phaser.Scene {
     this.equipment = this.add.container(0, 0).setDepth(1);
     this.units = this.add.container(0, 0).setDepth(1.5);
     this.ports = this.add.graphics().setDepth(1.8);
+    this.alerts = this.add.graphics().setDepth(1.9);
     this.ghost = this.add.image(0, 0, MACHINE_TYPES[0]).setDepth(2).setAlpha(0.55);
     this.outline = this.add.graphics().setDepth(3);
     this.ready = true;
@@ -100,7 +126,7 @@ export class WorkshopScene extends Phaser.Scene {
       this.drawPreview();
     });
     const unsubscribeUi = this.controls.store.subscribe((state, previous) => {
-      if (state.hover !== previous.hover || state.tool !== previous.tool ||
+      if (state.hover !== previous.hover || state.tool !== previous.tool || state.line !== previous.line ||
           state.rotation !== previous.rotation || state.selectedId !== previous.selectedId) {
         this.drawPreview();
       }
@@ -223,6 +249,7 @@ export class WorkshopScene extends Phaser.Scene {
       if (!event.isPrimary || this.gesture || event.button > 2) return;
       const point = this.canvasPoint(event);
       const click = event.button === 0 && !this.keys.has(' ');
+      const drawing = click && event.pointerType !== 'touch' && this.controls.store.getState().tool === 'conveyor';
       this.gesture = {
         id: event.pointerId,
         start: point,
@@ -230,7 +257,9 @@ export class WorkshopScene extends Phaser.Scene {
         pan: !click || event.pointerType === 'touch',
         click,
         moved: false,
+        drawing,
       };
+      if (drawing) this.controls.startLine(this.tileAt(point));
       canvas.focus({ preventScroll: true });
       canvas.setPointerCapture(event.pointerId);
       this.updateAim(point);
@@ -249,6 +278,7 @@ export class WorkshopScene extends Phaser.Scene {
           gesture.previous = point;
           return;
         }
+        if (gesture.drawing) this.controls.extendLine(this.tileAt(point));
       }
       this.updateAim(point);
     }, options);
@@ -260,12 +290,14 @@ export class WorkshopScene extends Phaser.Scene {
         point.x < this.cameras.main.width && point.y < this.cameras.main.height;
       this.gesture = null;
       canvas.classList.remove('is-dragging');
-      if (gesture.click && !gesture.moved && inCanvas) this.controls.activateTile(this.tileAt(point));
+      const drewLine = gesture.drawing && this.controls.finishLine();
+      if (!drewLine && gesture.click && !gesture.moved && inCanvas) this.controls.activateTile(this.tileAt(point));
       this.updateAim(inCanvas && event.pointerType !== 'touch' ? point : null);
     }, options);
     const cancelGesture = () => {
       if (!this.gesture) return;
       this.gesture = null;
+      this.controls.cancelLine();
       canvas.classList.remove('is-dragging');
       this.updateAim(null);
     };
@@ -296,12 +328,29 @@ export class WorkshopScene extends Phaser.Scene {
     this.drawnMachines = world.machines;
     this.equipment.removeAll(true);
     this.ports.clear();
+    this.alerts.clear();
+    const links = linksOf(world);
     for (const machine of world.machines) {
       const sprite = this.add.image(0, 0, machine.type);
       this.positionSprite(sprite, machine);
+      if (machine.type === 'conveyor') {
+        const entry = entryDirection(world, machine);
+        // The turn sprite brings units in from the west of a north-facing belt; it is mirrored for the east.
+        if (entry !== machine.rotation) sprite.setTexture('conveyor-turn').setFlipX(entry === (machine.rotation + 3) % 4);
+        if (!links.conveyors.find(conveyor => conveyor.id === machine.id)?.target) this.drawDeadEnd(this.alerts, machine);
+      }
       this.equipment.add(sprite);
       for (const port of portsOf(machine)) this.drawPort(this.ports, port);
     }
+  }
+
+  /** Red cross on the front edge of a conveyor that leads nowhere or faces another conveyor. */
+  private drawDeadEnd(graphics: Phaser.GameObjects.Graphics, tile: Tile & { rotation: Direction }) {
+    const direction = neighbour({ x: 0, y: 0 }, tile.rotation);
+    const x = (tile.x + 0.5 + direction.x * 0.42) * TILE;
+    const y = (tile.y + 0.5 + direction.y * 0.42) * TILE;
+    graphics.fillStyle(0x101615, 0.9).fillCircle(x, y, 6);
+    graphics.lineStyle(2, 0xff8267, 1).lineBetween(x - 3, y - 3, x + 3, y + 3).lineBetween(x - 3, y + 3, x + 3, y - 3);
   }
 
   /** Outward amber arrow for an output, inward green arrow for an input, on the edge of the port tile. */
@@ -369,11 +418,33 @@ export class WorkshopScene extends Phaser.Scene {
     this.outline.lineStyle(1, color, 0.9).strokeRect(left + 1, top + 1, width * TILE - 2, height * TILE - 2);
   }
 
+  private drawLineArrow(tile: Tile & { rotation: Direction }) {
+    const direction = neighbour({ x: 0, y: 0 }, tile.rotation);
+    const across = { x: -direction.y, y: direction.x };
+    const centre = { x: (tile.x + 0.5) * TILE, y: (tile.y + 0.5) * TILE };
+    this.outline.fillStyle(0xe6eee8, 0.9).fillTriangle(
+      centre.x + direction.x * 7, centre.y + direction.y * 7,
+      centre.x - direction.x * 4 + across.x * 6, centre.y - direction.y * 4 + across.y * 6,
+      centre.x - direction.x * 4 - across.x * 6, centre.y - direction.y * 4 - across.y * 6,
+    );
+  }
+
   private drawPreview() {
     this.outline.clear();
     this.ghost.setVisible(false);
     const world = this.simulation.getSnapshot();
-    const { tool, rotation, hover, selectedId } = this.controls.store.getState();
+    const { tool, rotation, hover, selectedId, line } = this.controls.store.getState();
+
+    if (line) {
+      const valid = checkLine(world, line) === null;
+      for (const tile of line) {
+        this.markFootprint({ ...tile, width: 1, height: 1 }, valid ? 0xbde778 : 0xff8267, 0.22);
+        this.drawLineArrow(tile);
+      }
+      const last = line[line.length - 1];
+      if (last && !previewTarget(world, last, last.rotation)) this.drawDeadEnd(this.outline, last);
+      return;
+    }
 
     const selected = world.machines.find(machine => machine.id === selectedId);
     if (selected) this.markFootprint(footprintOf(selected), 0xa7e6da, 0.09);
@@ -386,6 +457,7 @@ export class WorkshopScene extends Phaser.Scene {
       const error = checkBuild(world, placement);
       this.markFootprint(footprintOf(placement), error ? 0xff8267 : 0xbde778, 0.2);
       for (const port of portsOf(placement)) this.drawPort(this.outline, port);
+      if (tool === 'conveyor' && !previewTarget(world, placement, rotation)) this.drawDeadEnd(this.outline, placement);
       return;
     }
 

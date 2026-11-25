@@ -1,6 +1,7 @@
 import { CONVEYOR, ITEMS, ITEM_TYPES, MACHINES, PURCHASE } from '@silicon-empire/game-data';
 import {
-  beltStatus, beltTarget, checkBuild, checkOrder, footprintOf, inventoryTotal, orderCost, portConnections, portsOf,
+  ROUTER_SIDES, beltStatus, beltTarget, checkBuild, checkLine, checkOrder, footprintOf, inventoryTotal, lineCost,
+  orderCost, portConnections, portsOf, routerLinks,
 } from '@silicon-empire/simulation';
 import { useState } from 'react';
 import { useStore } from 'zustand';
@@ -9,7 +10,7 @@ import { MACHINE_ART } from '../art/machines';
 import { ERROR_LABELS, isBuildTool } from '../game/controls';
 import { DIRECTIONS, Icon, money } from './shared';
 import type { ItemType } from '@silicon-empire/game-data';
-import type { BeltStatus, Inventory, Machine, Placement, World } from '@silicon-empire/simulation';
+import type { BeltStatus, Inventory, Machine, Placement, RouterSide, World } from '@silicon-empire/simulation';
 import type { WorkshopControls } from '../game/controls';
 
 const BELT_STATUS: Record<BeltStatus, string> = {
@@ -19,6 +20,78 @@ const BELT_STATUS: Record<BeltStatus, string> = {
 };
 
 const UNITS_PER_BELT = Math.ceil(CONVEYOR.lengthUnits / CONVEYOR.spacingUnits);
+
+const SIDE_LABELS: Record<RouterSide, string> = { left: 'Gauche', front: 'Avant', right: 'Droite' };
+const MERGER_INPUTS = ['Gauche', 'Arrière', 'Droite'] as const;
+
+function FilterForm({ controls, splitter }: { controls: WorkshopControls; splitter: Machine }) {
+  const filter = splitter.filter;
+  return (
+    <form className="order-form" onSubmit={event => event.preventDefault()}>
+      <h4>Filtre</h4>
+      <label>
+        <span>Composant filtré</span>
+        <select
+          value={filter?.item ?? ''}
+          onChange={event => {
+            const item = event.target.value as ItemType | '';
+            controls.configure(splitter.id, item ? { item, output: filter?.output ?? 'front' } : null);
+          }}
+        >
+          <option value="">Aucun : alternance sur toutes les sorties</option>
+          {ITEM_TYPES.map(option => <option key={option} value={option}>{ITEMS[option].name}</option>)}
+        </select>
+      </label>
+      <label>
+        <span>Sortie du filtre</span>
+        <select
+          value={filter?.output ?? 'front'}
+          disabled={!filter}
+          onChange={event => {
+            if (filter) controls.configure(splitter.id, { item: filter.item, output: event.target.value as RouterSide });
+          }}
+        >
+          {ROUTER_SIDES.map(side => <option key={side} value={side}>{SIDE_LABELS[side]}</option>)}
+        </select>
+      </label>
+    </form>
+  );
+}
+
+function RouterDetails({ world, machine }: { world: World; machine: Machine }) {
+  const links = routerLinks(world, machine.id);
+  const held = world.routers[machine.id]?.held;
+  const outputs = machine.type === 'splitter'
+    ? ROUTER_SIDES.map((side, index) => [`Sortie ${SIDE_LABELS[side].toLowerCase()}`, links?.outputs[index]] as const)
+    : [['Sortie avant', links?.outputs[0]] as const];
+  const inputs = machine.type === 'splitter'
+    ? [['Entrée arrière', links?.inputs[0]] as const]
+    : MERGER_INPUTS.map((label, index) => [`Entrée ${label.toLowerCase()}`, links?.inputs[index]] as const);
+  return (
+    <dl className="machine-stats logistics-stats">
+      <div><dt>En transit</dt><dd>{held ? ITEMS[held.item].name : 'Vide'}</dd></div>
+      {[...inputs, ...outputs].map(([label, link]) => (
+        <div key={label}><dt>{label}</dt><dd>{link === null || link === undefined ? 'libre' : 'raccordée'}</dd></div>
+      ))}
+    </dl>
+  );
+}
+
+function LinePreview({ world, line }: { world: World; line: NonNullable<ReturnType<WorkshopControls['store']['getState']>['line']> }) {
+  const error = checkLine(world, line);
+  return (
+    <div className="inspector-detail">
+      <h3>Tracé de convoyeurs</h3>
+      <dl className="machine-stats">
+        <div><dt>Longueur</dt><dd>{line.length} {line.length > 1 ? 'tuiles' : 'tuile'}</dd></div>
+        <div><dt>Coût</dt><dd aria-label="Coût du tracé">{money(lineCost(line.length))}</dd></div>
+      </dl>
+      <p className={error ? 'placement-status text-error' : 'placement-status'}>
+        {error ? ERROR_LABELS[error] : 'Relâchez pour construire la ligne.'}
+      </p>
+    </div>
+  );
+}
 
 function MachinePreview({ placement }: { placement: Placement }) {
   return (
@@ -90,6 +163,7 @@ function Logistics({ world, machine }: { world: World; machine: Machine }) {
       </>
     );
   }
+  if (machine.type === 'splitter' || machine.type === 'merger') return <RouterDetails world={world} machine={machine} />;
   if (definition.capacity === 0) return null;
 
   const stock = world.stocks[machine.id] ?? {};
@@ -110,7 +184,7 @@ function Logistics({ world, machine }: { world: World; machine: Machine }) {
 }
 
 export function Inspector({ controls, world }: { controls: WorkshopControls; world: World }) {
-  const { tool, hover, rotation, selectedId, feedback } = useStore(controls.store);
+  const { tool, hover, rotation, selectedId, feedback, line } = useStore(controls.store);
   const selected = world.machines.find(machine => machine.id === selectedId);
   const pending = isBuildTool(tool) ? { type: tool, x: hover?.x ?? 0, y: hover?.y ?? 0, rotation } : null;
   const placement = pending ?? selected;
@@ -125,7 +199,7 @@ export function Inspector({ controls, world }: { controls: WorkshopControls; wor
     <aside className="inspector" aria-labelledby="inspector-heading">
       <h2 id="inspector-heading"><Icon name="target" /> Inspection</h2>
 
-      {placement && definition && footprint ? (
+      {line && line.length > 1 ? <LinePreview world={world} line={line} /> : placement && definition && footprint ? (
         <div className="inspector-detail">
           <MachinePreview placement={placement} />
           <h3>{definition.name}</h3>
@@ -152,6 +226,7 @@ export function Inspector({ controls, world }: { controls: WorkshopControls; wor
           )}
           {selected && <Logistics world={world} machine={selected} />}
           {selected?.type === 'receiving' && <OrderForm controls={controls} world={world} dock={selected} />}
+          {selected?.type === 'splitter' && <FilterForm controls={controls} splitter={selected} />}
         </div>
       ) : (
         <div className="inspector-empty">

@@ -23,6 +23,8 @@ Ouvrir l’adresse affichée par Vite, puis choisir **Nouvelle partie**. Les ate
 |---|---|
 | Construire | Choisir un équipement dans la barre basse ou avec les touches 1 à 5, puis cliquer sur la grille |
 | Poser un convoyeur | **Convoyeur** ou **5** ; **R** change son sens avant la pose |
+| Tracer une ligne de convoyeurs | Avec l’outil **Convoyeur**, maintenir le clic gauche et glisser ; relâcher pour construire |
+| Répartir ou fusionner | **Répartiteur** (**6**) ou **Fusionneur** (**7**) ; le filtre du répartiteur se règle dans l’inspection |
 | Commander des composants | Inspecter un quai de réception, choisir un composant, puis **Commander 10 unités** |
 | Régler le temps | **Pause**, **×1**, **×2**, **×5** dans la barre haute ; **P** met en pause ou reprend |
 | Inspecter | **Inspecter** ou **I**, puis cliquer sur l’équipement |
@@ -32,7 +34,7 @@ Ouvrir l’adresse affichée par Vite, puis choisir **Nouvelle partie**. Les ate
 | Déplacer la vue | **ZQSD**, **WASD**, flèches sur la grille, ou glisser avec le bouton droit ou central |
 | Zoomer | Molette sur la grille ou boutons de caméra |
 
-Les constructions sont facturées au placement. La démolition rembourse 50 % du prix payé ; les composants qu’elle contient sont mis au rebut. Sur la grille, une flèche orange marque une sortie et une flèche verte une entrée. Le quai sort par sa flèche ; le casier reçoit par l’arrière et ressort par sa flèche. Un atelier repris démarre en pause. Utiliser **Enregistrer** pour conserver les modifications ou **Enregistrer et quitter** pour revenir au menu avec l’état sauvegardé.
+Les constructions sont facturées au placement. La démolition rembourse 50 % du prix payé ; les composants qu’elle contient sont mis au rebut. Sur la grille, une flèche orange marque une sortie, une flèche verte une entrée, et une croix rouge un convoyeur qui ne mène nulle part. Le quai sort par sa flèche ; le casier reçoit par l’arrière et ressort par sa flèche. Un atelier repris démarre en pause. Utiliser **Enregistrer** pour conserver les modifications ou **Enregistrer et quitter** pour revenir au menu avec l’état sauvegardé.
 
 ## Vérifier le projet
 

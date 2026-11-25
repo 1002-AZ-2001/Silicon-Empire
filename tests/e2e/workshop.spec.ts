@@ -296,3 +296,62 @@ test('achemine un lot du quai au casier et restaure les unités en transit', asy
   await expect(capital(page)).toHaveText(euros(25_000 - 4_200 - 80 - 600 - 400 - 1_800));
   expect(pageErrors).toEqual([]);
 });
+
+test('trace une ligne de convoyeurs au glisser et trie les composants avec un répartiteur filtré', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  const stock = () => inspector(page).getByLabel('Stock', { exact: true });
+  await page.goto('/');
+  await startWorkshop(page, 'Atelier de tri');
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: 'Pause' }).click();
+
+  await page.getByRole('button', { name: /^Réception/ }).click();
+  await clickTile(page, 26, 36);
+  await page.getByRole('button', { name: /^Convoyeur/ }).click();
+  const start = await tileAtCenterZoom(page, 27, 35);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  for (const [x, y] of [[27, 32], [30, 32]] as const) {
+    const point = await tileAtCenterZoom(page, x, y);
+    await page.mouse.move(point.x, point.y, { steps: 8 });
+  }
+  await expect(inspector(page).getByLabel('Coût du tracé')).toHaveText(euros(280));
+  await expect(inspector(page).getByText('7 tuiles')).toBeVisible();
+  await page.mouse.up();
+  await expect(capital(page)).toHaveText(euros(25_000 - 4_200 - 280));
+  await expect(equipment(page)).toHaveText('8');
+
+  await page.getByRole('button', { name: /^Répartiteur/ }).click();
+  await page.keyboard.press('r');
+  await clickTile(page, 31, 32);
+  await page.getByRole('button', { name: /^Stockage/ }).click();
+  await clickTile(page, 31, 31);
+  await page.keyboard.press('r');
+  await clickTile(page, 32, 32);
+  await page.keyboard.press('r');
+  await clickTile(page, 31, 33);
+  await expect(equipment(page)).toHaveText('12');
+
+  await page.keyboard.press('Escape');
+  await clickTile(page, 31, 32);
+  await expect(inspector(page).getByRole('heading', { name: 'Répartiteur' })).toBeVisible();
+  await inspector(page).getByLabel('Composant filtré').selectOption('gpu-8g');
+  await inspector(page).getByLabel('Sortie du filtre').selectOption('right');
+  await expect(inspector(page).getByText('Sortie droite')).toBeVisible();
+
+  await clickTile(page, 27, 37);
+  await inspector(page).getByRole('button', { name: /^Commander 10 unités/ }).click();
+  await inspector(page).getByLabel('Composant').selectOption('gpu-8g');
+  await inspector(page).getByRole('button', { name: /^Commander 10 unités/ }).click();
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: '×5' }).click();
+
+  await clickTile(page, 31, 33);
+  await expect(stock()).toHaveText('10 / 40', { timeout: 20_000 });
+  await expect(inspector(page).getByRole('list', { name: 'Contenu du stock' })).toHaveText(/Carte graphique 8 Go V8\s*10/);
+  for (const [x, y] of [[31, 31], [32, 32]] as const) {
+    await clickTile(page, x, y);
+    await expect(stock()).toHaveText('5 / 40', { timeout: 10_000 });
+    await expect(inspector(page).getByRole('list', { name: 'Contenu du stock' })).toContainText('Processeur 8 cœurs K8');
+  }
+  expect(pageErrors).toEqual([]);
+});
