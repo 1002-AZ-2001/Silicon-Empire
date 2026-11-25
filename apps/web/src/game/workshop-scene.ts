@@ -5,6 +5,7 @@ import {
 import Phaser from 'phaser';
 import { ITEM_ART } from '../art/items';
 import { CONVEYOR_TURN_ART, MACHINE_ART } from '../art/machines';
+import { currentTranslator } from '../i18n';
 import { isBuildTool } from './controls';
 import { createFloor } from './floor';
 import type { Direction } from '@silicon-empire/game-data';
@@ -234,7 +235,7 @@ export class WorkshopScene extends Phaser.Scene {
     const options = { signal: this.canvasInput.signal };
     canvas.tabIndex = 0;
     canvas.setAttribute('role', 'region');
-    canvas.setAttribute('aria-label', 'Grille interactive de l’atelier');
+    canvas.setAttribute('aria-label', currentTranslator().t.viewport.grid);
     canvas.addEventListener('contextmenu', event => event.preventDefault(), options);
     canvas.addEventListener('wheel', event => {
       event.preventDefault();

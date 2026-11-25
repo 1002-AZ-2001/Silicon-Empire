@@ -334,6 +334,19 @@ kbd {
 
 .delete-save:hover { color: var(--danger); }
 
+.menu-header-tools { display: flex; align-items: center; gap: 14px; }
+.language-select { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.language-select select {
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #121c19;
+  color: var(--ink);
+  font: inherit;
+  letter-spacing: 0;
+}
+
 .menu-footer {
   min-height: 58px;
   border-top: 1px solid #4a5d4b80;

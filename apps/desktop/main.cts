@@ -2,7 +2,7 @@ import { app, BrowserWindow, clipboard, ipcMain, net, protocol, shell } from 'el
 import { autoUpdater } from 'electron-updater';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { UpdateStatus } from './bridge';
+import type { UpdateError, UpdateStatus } from './bridge';
 import { failureReason, installCommand, runInstall, systemPackageType, terminalCommand } from './system-install.cjs';
 
 /**
@@ -69,11 +69,11 @@ function createWindow() {
   void window.loadURL(`${ORIGIN}/index.html`);
 }
 
-/** Short reason for the menu. Raw updater errors can contain whole HTTP responses. */
-function describeError(error: Error): string {
-  if (/\b404\b/.test(error.message)) return 'Aucune version publiée trouvée sur GitHub.';
-  if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT|net::ERR_/.test(error.message)) return 'Connexion à GitHub impossible.';
-  return error.message.split('\n')[0]?.slice(0, 160) ?? 'Erreur inconnue.';
+/** Reason code for the menu, which translates it. Raw updater errors can contain whole HTTP responses. */
+function describeError(error: Error): UpdateError {
+  if (/\b404\b/.test(error.message)) return 'not-published';
+  if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT|net::ERR_/.test(error.message)) return 'offline';
+  return 'other';
 }
 
 /** Updates are offered, then downloaded and installed only on the player's request. */
@@ -102,7 +102,10 @@ function setUpUpdates() {
     downloadedFile = info.downloadedFile;
     publish({ state: 'downloaded', version: info.version });
   });
-  autoUpdater.on('error', error => publish({ state: 'error', message: describeError(error) }));
+  autoUpdater.on('error', error => {
+    console.error('Mise à jour :', error.message.split('\n')[0]);
+    publish({ state: 'error', reason: describeError(error) });
+  });
 
   ipcMain.handle('update:check', async () => {
     if (['checking', 'downloading', 'downloaded', 'installing', 'manual'].includes(status.state)) return;
@@ -128,7 +131,7 @@ function setUpUpdates() {
       app.relaunch();
       app.exit(0);
     } catch (error) {
-      publish({ state: 'manual', version, reason: failureReason(error), command: terminalCommand(command) });
+      publish({ state: 'manual', version, failure: failureReason(error), command: terminalCommand(command) });
     }
   });
   ipcMain.handle('update:copy-command', () => {

@@ -1,16 +1,17 @@
-import { ITEMS, MACHINES, PURCHASE } from '@silicon-empire/game-data';
+import { PURCHASE } from '@silicon-empire/game-data';
 import { FixedStepClock, lineCost, machineAt, turnClockwise } from '@silicon-empire/simulation';
 import { createStore } from 'zustand/vanilla';
-import { money } from '../ui/shared';
+import type { Messages, Translator } from '../i18n';
 import type { ItemType, MachineType } from '@silicon-empire/game-data';
 import type {
-  CommandError, LineTile, Rotation, RouterFilter, Simulation, Speed, Tile,
+  LineTile, Rotation, RouterFilter, Simulation, Speed, Tile,
 } from '@silicon-empire/simulation';
 
 export type Tool = 'inspect' | MachineType | 'demolish';
 
 interface Feedback {
-  text: string;
+  /** Built when displayed, so the message follows the current language. */
+  message: (translator: Translator) => string;
   kind: 'success' | 'error';
 }
 
@@ -27,17 +28,10 @@ interface WorkshopUi {
   line: LineTile[] | null;
 }
 
-export const ERROR_LABELS: Record<CommandError, string> = {
-  'out-of-bounds': 'L’emprise dépasse les limites de l’atelier.',
-  occupied: 'Une ou plusieurs cases sont déjà occupées.',
-  'insufficient-funds': 'Capital insuffisant pour cette construction.',
-  'missing-machine': 'Cet équipement a déjà été retiré.',
-  'id-limit': 'Le nombre maximal de constructions a été atteint.',
-  'not-a-dock': 'Seul un quai de réception peut recevoir une commande.',
-  'dock-full': 'Le quai n’a pas assez de place pour un lot complet.',
-  'invalid-line': 'Le tracé doit suivre des cases voisines, sans repasser sur lui-même.',
-  'not-a-splitter': 'Seul un répartiteur accepte un filtre.',
-};
+
+function errorMessage(reason: keyof Messages['errors']): Feedback['message'] {
+  return ({ t }) => t.errors[reason];
+}
 
 /** Direction from one tile to a neighbouring tile. */
 function directionTo(from: Tile, to: Tile): Rotation {
@@ -120,8 +114,8 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     const result = simulation.dispatch({ kind: 'build-line', tiles: line });
     store.setState({
       feedback: result.ok
-        ? { kind: 'success', text: `${line.length} convoyeurs construits pour ${money(lineCost(line.length))}.` }
-        : { kind: 'error', text: ERROR_LABELS[result.reason] },
+        ? { kind: 'success', message: ({ t, money }) => t.feedback.lineBuilt(line.length, money(lineCost(line.length))) }
+        : { kind: 'error', message: errorMessage(result.reason) },
     });
     return true;
   }
@@ -130,8 +124,8 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     const result = simulation.dispatch({ kind: 'configure', id, filter });
     store.setState({
       feedback: result.ok
-        ? { kind: 'success', text: filter ? `${ITEMS[filter.item].name} trié vers la sortie choisie.` : 'Filtre retiré.' }
-        : { kind: 'error', text: ERROR_LABELS[result.reason] },
+        ? { kind: 'success', message: ({ t }) => filter ? t.feedback.filterSet(t.items[filter.item]) : t.feedback.filterCleared }
+        : { kind: 'error', message: errorMessage(result.reason) },
     });
   }
 
@@ -139,8 +133,8 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     const result = simulation.dispatch({ kind: 'order', id, item });
     store.setState({
       feedback: result.ok
-        ? { kind: 'success', text: `${PURCHASE.lotSize} × ${ITEMS[item].name} livrés au quai.` }
-        : { kind: 'error', text: ERROR_LABELS[result.reason] },
+        ? { kind: 'success', message: ({ t }) => t.feedback.delivered(PURCHASE.lotSize, t.items[item]) }
+        : { kind: 'error', message: errorMessage(result.reason) },
     });
   }
 
@@ -167,8 +161,8 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
       const result = simulation.dispatch({ kind: 'build', type: tool, ...tile, rotation });
       store.setState({
         feedback: result.ok
-          ? { kind: 'success', text: `${MACHINES[tool].name} construit.` }
-          : { kind: 'error', text: ERROR_LABELS[result.reason] },
+          ? { kind: 'success', message: ({ t }) => t.feedback.built(t.machines[tool].name) }
+          : { kind: 'error', message: errorMessage(result.reason) },
       });
       return;
     }
@@ -187,8 +181,8 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
       const result = simulation.dispatch({ kind: 'rotate', id: selectedId });
       store.setState({
         feedback: result.ok
-          ? { kind: 'success', text: 'Équipement pivoté.' }
-          : { kind: 'error', text: ERROR_LABELS[result.reason] },
+          ? { kind: 'success', message: ({ t }) => t.feedback.rotated }
+          : { kind: 'error', message: errorMessage(result.reason) },
       });
     }
   }
@@ -201,8 +195,8 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     store.setState({
       demolitionId: null,
       feedback: result.ok
-        ? { kind: 'success', text: 'Équipement démoli. Remboursement crédité.' }
-        : { kind: 'error', text: ERROR_LABELS[result.reason] },
+        ? { kind: 'success', message: ({ t }) => t.feedback.demolished }
+        : { kind: 'error', message: errorMessage(result.reason) },
     });
   }
 

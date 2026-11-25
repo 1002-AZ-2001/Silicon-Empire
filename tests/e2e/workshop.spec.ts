@@ -355,3 +355,45 @@ test('trace une ligne de convoyeurs au glisser et trie les composants avec un r�
   }
   expect(pageErrors).toEqual([]);
 });
+
+test('change de langue depuis le menu, traduit l’atelier et garde ce choix', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await page.goto('/');
+  await page.getByLabel('Langue').selectOption('en');
+  await expect(page.getByRole('button', { name: 'New game' })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en-GB');
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'New game' })).toBeVisible();
+
+  await page.getByLabel('Workshop name').fill('Tokyo');
+  await page.getByRole('button', { name: 'New game' }).click();
+  await expect(page.getByRole('region', { name: 'Interactive workshop grid' })).toBeVisible();
+  await expect(page.getByLabel('Available capital', { exact: true })).toHaveText('€25,000');
+  await page.getByRole('button', { name: /^Storage/ }).click();
+  const point = await (async () => {
+    const box = await page.getByRole('region', { name: 'Interactive workshop grid' }).boundingBox();
+    if (!box) throw new Error('Grid hidden');
+    return { x: box.x + box.width / 2 + 16, y: box.y + box.height / 2 + 16 };
+  })();
+  await page.mouse.click(point.x, point.y);
+  await expect(page.getByRole('complementary', { name: 'Inspection' }).getByRole('status')).toHaveText('Storage locker built.');
+
+  await page.getByRole('button', { name: 'Menu', exact: true }).click();
+  await page.getByRole('dialog', { name: /Back to the menu/ }).getByRole('button', { name: 'Leave without saving' }).click();
+  await page.getByLabel('Language').selectOption('ja');
+  await expect(page.getByRole('button', { name: 'ニューゲーム' })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ja-JP');
+  expect(pageErrors).toEqual([]);
+});
+
+test.describe('langue du navigateur', () => {
+  test.use({ locale: 'de-DE' });
+
+  test('suit la langue du navigateur au premier lancement', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: 'Neues Spiel' })).toBeVisible();
+    await expect(page.getByLabel('Sprache')).toHaveValue('de');
+    await expect(page.getByText('Startkapital')).toBeVisible();
+  });
+});

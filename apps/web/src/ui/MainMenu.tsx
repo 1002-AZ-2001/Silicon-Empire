@@ -3,11 +3,10 @@ import { useEffect, useState } from 'react';
 import workshopArt from '../art/workshop-menu.webp';
 import { listSaves, loadSave, removeSave } from '../persistence/indexed-saves';
 import { MAX_WORKSHOP_NAME } from '../persistence/save-data';
-import { Dialog, Icon, money } from './shared';
+import { LOCALES, LOCALE_NAMES, setLocale, useI18n } from '../i18n';
+import { Dialog, Icon } from './shared';
 import { UpdatePanel } from './UpdatePanel';
 import type { SaveRecord } from '../persistence/save-data';
-
-const dateFormat = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' });
 
 export function MainMenu({ onNewGame, onResume }: {
   onNewGame: (name: string) => void;
@@ -15,10 +14,11 @@ export function MainMenu({ onNewGame, onResume }: {
 }) {
   const [saves, setSaves] = useState<SaveRecord[] | null>(null);
   const [unreadable, setUnreadable] = useState(0);
-  const [storageError, setStorageError] = useState('');
+  const [storageError, setStorageError] = useState<'storageUnavailable' | 'saveMissing' | 'readFailed' | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<SaveRecord | null>(null);
-  const [deleteError, setDeleteError] = useState('');
+  const [deleteFailed, setDeleteFailed] = useState(false);
+  const { t, money, date, locale } = useI18n();
 
   useEffect(() => {
     let active = true;
@@ -30,23 +30,23 @@ export function MainMenu({ onNewGame, onResume }: {
         }
       })
       .catch(() => {
-        if (active) setStorageError('Le stockage local est indisponible.');
+        if (active) setStorageError('storageUnavailable');
       });
     return () => { active = false; };
   }, []);
 
   async function resume(id: string) {
     setBusy(true);
-    setStorageError('');
+    setStorageError(null);
     try {
       const record = await loadSave(id);
       if (record) {
         onResume(record);
       } else {
-        setStorageError('Cette sauvegarde est introuvable ou illisible.');
+        setStorageError('saveMissing');
       }
     } catch {
-      setStorageError('Impossible de lire cette sauvegarde locale.');
+      setStorageError('readFailed');
     } finally {
       setBusy(false);
     }
@@ -55,13 +55,13 @@ export function MainMenu({ onNewGame, onResume }: {
   async function deleteWorkshop() {
     if (!deleteTarget) return;
     setBusy(true);
-    setDeleteError('');
+    setDeleteFailed(false);
     try {
       await removeSave(deleteTarget.id);
       setSaves(previous => previous?.filter(record => record.id !== deleteTarget.id) ?? []);
       setDeleteTarget(null);
     } catch {
-      setDeleteError('Impossible de supprimer cette sauvegarde.');
+      setDeleteFailed(true);
     } finally {
       setBusy(false);
     }
@@ -74,33 +74,41 @@ export function MainMenu({ onNewGame, onResume }: {
       </div>
 
       <header className="menu-header menu-frame">
-        <span className="menu-identity"><span className="brand-mark"><Icon name="chip" /></span> Jeu de gestion industrielle</span>
-        <span className="version">Version {__APP_VERSION__.split('.').slice(0, 2).join('.')}</span>
+        <span className="menu-identity"><span className="brand-mark"><Icon name="chip" /></span> {t.tagline}</span>
+        <span className="menu-header-tools">
+          <label className="language-select">
+            <span>{t.menu.language}</span>
+            <select value={locale} onChange={event => setLocale(event.target.value as typeof locale)}>
+              {LOCALES.map(option => <option key={option} value={option} lang={option}>{LOCALE_NAMES[option]}</option>)}
+            </select>
+          </label>
+          <span className="version">{t.version(__APP_VERSION__.split('.').slice(0, 2).join('.'))}</span>
+        </span>
       </header>
 
       <main className="menu-main menu-frame">
         <div className="menu-column">
           <h1 className="menu-title">Silicon<br /><span>Empire</span></h1>
-          <p className="menu-intro">Construisez votre atelier informatique. Implantez vos équipements et aménagez l’espace à votre rythme.</p>
+          <p className="menu-intro">{t.menu.intro}</p>
 
           <form className="new-game" onSubmit={event => {
             event.preventDefault();
             const name = new FormData(event.currentTarget).get('name');
-            onNewGame(typeof name === 'string' && name.trim() ? name.trim() : 'Atelier 01');
+            onNewGame(typeof name === 'string' && name.trim() ? name.trim() : t.menu.defaultName);
           }}>
-            <label htmlFor="workshop-name">Nom de l’atelier</label>
-            <input id="workshop-name" name="name" placeholder="Atelier 01" maxLength={MAX_WORKSHOP_NAME} autoComplete="off" disabled={busy} />
+            <label htmlFor="workshop-name">{t.menu.nameLabel}</label>
+            <input id="workshop-name" name="name" placeholder={t.menu.defaultName} maxLength={MAX_WORKSHOP_NAME} autoComplete="off" disabled={busy} />
             <button className="button button-primary new-game-button" disabled={busy}>
-              Nouvelle partie <Icon name="arrow" />
+              {t.menu.newGame} <Icon name="arrow" />
             </button>
           </form>
 
           <section className="save-panel" aria-labelledby="saved-workshops">
-            <h2 id="saved-workshops"><Icon name="folder" /> Ateliers enregistrés</h2>
-            {storageError && <p role="alert" className="text-error">{storageError}</p>}
-            {unreadable > 0 && <p role="status" className="text-error">Sauvegardes illisibles ou incompatibles&#8201;: {unreadable}.</p>}
-            {saves === null && !storageError && <p role="status">Lecture des sauvegardes…</p>}
-            {saves?.length === 0 && !storageError && <p>Aucun atelier enregistré sur ce navigateur.</p>}
+            <h2 id="saved-workshops"><Icon name="folder" /> {t.menu.saved}</h2>
+            {storageError && <p role="alert" className="text-error">{t.menu[storageError]}</p>}
+            {unreadable > 0 && <p role="status" className="text-error">{t.menu.unreadable(unreadable)}</p>}
+            {saves === null && !storageError && <p role="status">{t.menu.loading}</p>}
+            {saves?.length === 0 && !storageError && <p>{t.menu.empty}</p>}
             {saves && saves.length > 0 && (
               <ul className="save-list">
                 {saves.map(record => (
@@ -108,24 +116,24 @@ export function MainMenu({ onNewGame, onResume }: {
                     <button
                       type="button"
                       className="save-open"
-                      aria-label={`Reprendre ${record.name}`}
+                      aria-label={t.menu.resume(record.name)}
                       disabled={busy}
                       onClick={() => void resume(record.id)}
                     >
                       <span className="save-row-info">
                         <strong>{record.name}</strong>
-                        <small>{dateFormat.format(record.savedAt)} · {money(record.world.capitalCents)}</small>
+                        <small>{date(record.savedAt)} · {money(record.world.capitalCents)}</small>
                       </span>
                       <Icon name="arrow" />
                     </button>
                     <button
                       type="button"
                       className="icon-button delete-save"
-                      title="Supprimer la sauvegarde"
-                      aria-label={`Supprimer la sauvegarde « ${record.name} »`}
+                      title={t.menu.deleteSave}
+                      aria-label={t.menu.deleteNamed(record.name)}
                       disabled={busy}
                       onClick={() => {
-                        setDeleteError('');
+                        setDeleteFailed(false);
                         setDeleteTarget(record);
                       }}
                     ><Icon name="trash" /></button>
@@ -138,22 +146,22 @@ export function MainMenu({ onNewGame, onResume }: {
       </main>
 
       <footer className="menu-footer menu-frame">
-        <span><Icon name="grid" /> {WORKSHOP.columns} × {WORKSHOP.rows} tuiles</span>
-        <span>Capital de départ <strong>{money(WORKSHOP.initialCapitalCents)}</strong></span>
+        <span><Icon name="grid" /> {t.menu.tiles(WORKSHOP.columns, WORKSHOP.rows)}</span>
+        <span>{t.menu.startingCapital} <strong>{money(WORKSHOP.initialCapitalCents)}</strong></span>
         <UpdatePanel />
       </footer>
 
       {deleteTarget && (
         <Dialog
-          title="Supprimer la sauvegarde ?"
+          title={t.menu.deleteTitle}
           onDismiss={() => { if (!busy) setDeleteTarget(null); }}
           actions={<>
-            <button type="button" className="button" disabled={busy} onClick={() => setDeleteTarget(null)}>Annuler</button>
-            <button type="button" className="button button-danger" disabled={busy} onClick={() => void deleteWorkshop()}>Supprimer</button>
+            <button type="button" className="button" disabled={busy} onClick={() => setDeleteTarget(null)}>{t.common.cancel}</button>
+            <button type="button" className="button button-danger" disabled={busy} onClick={() => void deleteWorkshop()}>{t.common.delete}</button>
           </>}
         >
-          <p>La sauvegarde de <strong>{deleteTarget.name}</strong> sera supprimée de ce navigateur.</p>
-          {deleteError && <p role="alert" className="text-error">{deleteError}</p>}
+          <p>{t.menu.deleteBody(deleteTarget.name)}</p>
+          {deleteFailed && <p role="alert" className="text-error">{t.menu.deleteFailed}</p>}
         </Dialog>
       )}
     </div>

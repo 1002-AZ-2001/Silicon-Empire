@@ -10,6 +10,8 @@ export default defineConfig({
     baseURL,
     browserName: 'chromium',
     viewport: { width: 1366, height: 850 },
+    // The game follows the browser language; scenarios are written in French.
+    locale: 'fr-FR',
     launchOptions: executablePath ? { executablePath } : undefined,
     trace: 'retain-on-failure',
   },

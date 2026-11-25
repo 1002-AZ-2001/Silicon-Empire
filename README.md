@@ -4,6 +4,10 @@
 
 Jeu de gestion industrielle informatique en 2D, solo et jouable dans un navigateur. On construit un atelier de 64 × 64 tuiles avec un capital initial de 25 000 €, on commande des composants au quai de réception et on les achemine par convoyeurs jusqu’aux casiers de stockage.
 
+## Langues
+
+Français, English, Español, Deutsch, 简体中文, 日本語. Le jeu suit la langue du système au premier lancement ; le sélecteur **Langue** du menu principal permet d’en changer.
+
 ## Installer le jeu
 
 Windows, Debian/Ubuntu et Arch Linux : télécharger l’installeur sur la [page des versions](https://github.com/1002-AZ-2001/Silicon-Empire/releases/latest), puis suivre le **[tutoriel d’installation](docs/INSTALLATION.md)**. Le jeu se met à jour depuis son menu principal.

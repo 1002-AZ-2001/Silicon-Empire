@@ -50,9 +50,8 @@ const port = z.strictObject({
   offset: z.int().nonnegative(),
 });
 
+/** Display names are translated in the game interface (apps/web/src/i18n). */
 const machineDefinition = z.strictObject({
-  name: z.string().min(1),
-  shortName: z.string().min(1),
   width: z.int().min(1).max(WORKSHOP.columns),
   height: z.int().min(1).max(WORKSHOP.rows),
   costCents: z.int().min(1).max(WORKSHOP.initialCapitalCents),
@@ -71,8 +70,6 @@ export type PortDefinition = z.infer<typeof port>;
 
 export const MACHINES = z.record(z.enum(MACHINE_TYPES), machineDefinition.readonly()).readonly().parse({
   storage: {
-    name: 'Casier de stockage',
-    shortName: 'Stockage',
     width: 1,
     height: 1,
     costCents: 60_000,
@@ -83,8 +80,6 @@ export const MACHINES = z.record(z.enum(MACHINE_TYPES), machineDefinition.readon
     ],
   },
   assembler: {
-    name: 'Établi d’assemblage',
-    shortName: 'Assemblage',
     width: 2,
     height: 2,
     costCents: 180_000,
@@ -92,8 +87,6 @@ export const MACHINES = z.record(z.enum(MACHINE_TYPES), machineDefinition.readon
     ports: [],
   },
   tester: {
-    name: 'Banc de test',
-    shortName: 'Banc de test',
     width: 2,
     height: 1,
     costCents: 240_000,
@@ -101,8 +94,6 @@ export const MACHINES = z.record(z.enum(MACHINE_TYPES), machineDefinition.readon
     ports: [],
   },
   receiving: {
-    name: 'Quai de réception',
-    shortName: 'Réception',
     width: 3,
     height: 2,
     costCents: 420_000,
@@ -110,8 +101,6 @@ export const MACHINES = z.record(z.enum(MACHINE_TYPES), machineDefinition.readon
     ports: [{ kind: 'output', side: 0, offset: 1 }],
   },
   conveyor: {
-    name: 'Convoyeur',
-    shortName: 'Convoyeur',
     width: 1,
     height: 1,
     costCents: 4_000,
@@ -119,8 +108,6 @@ export const MACHINES = z.record(z.enum(MACHINE_TYPES), machineDefinition.readon
     ports: [],
   },
   splitter: {
-    name: 'Répartiteur',
-    shortName: 'Répartiteur',
     width: 1,
     height: 1,
     costCents: 15_000,
@@ -128,8 +115,6 @@ export const MACHINES = z.record(z.enum(MACHINE_TYPES), machineDefinition.readon
     ports: [],
   },
   merger: {
-    name: 'Fusionneur',
-    shortName: 'Fusionneur',
     width: 1,
     height: 1,
     costCents: 15_000,

@@ -9,7 +9,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 const { failureReason, installCommand, systemPackageType, terminalCommand } = createRequire(import.meta.url)(
   '../../build/desktop/system-install.cjs',
 ) as {
-  failureReason(error: unknown): string;
+  failureReason(error: unknown): { reason: string; code?: number };
   installCommand(type: 'deb' | 'pacman', file: string): string[];
   systemPackageType(resourcesPath: string, env: Record<string, string>): 'deb' | 'pacman' | null;
   terminalCommand(command: readonly string[]): string;
@@ -44,10 +44,10 @@ describe('installation des paquets système', () => {
   });
 
   it('explique les codes de sortie de pkexec', () => {
-    expect(failureReason({ code: 127 })).toMatch(/agent d’authentification polkit/);
-    expect(failureReason({ code: 126 })).toBe('Authentification annulée.');
-    expect(failureReason({ code: 'ENOENT' })).toMatch(/pkexec n’est pas installé/);
-    expect(failureReason({ code: 1 })).toBe('Le gestionnaire de paquets a échoué (code 1).');
-    expect(failureReason(new Error('?'))).toBe('L’installation n’a pas pu démarrer.');
+    expect(failureReason({ code: 127 })).toEqual({ reason: 'no-agent' });
+    expect(failureReason({ code: 126 })).toEqual({ reason: 'cancelled' });
+    expect(failureReason({ code: 'ENOENT' })).toEqual({ reason: 'no-pkexec' });
+    expect(failureReason({ code: 1 })).toEqual({ reason: 'failed', code: 1 });
+    expect(failureReason(new Error('?'))).toEqual({ reason: 'not-started' });
   });
 });
