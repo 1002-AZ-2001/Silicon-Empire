@@ -1,7 +1,7 @@
-import { CONVEYOR, ITEMS, ITEM_TYPES, MACHINES, PURCHASE } from '@silicon-empire/game-data';
+import { CONVEYOR, ITEMS, ITEM_TYPES, MACHINES, PRODUCTION, PURCHASE, isConveyor, recipeOf } from '@silicon-empire/game-data';
 import {
   ROUTER_SIDES, beltStatus, beltTarget, checkBuild, checkLine, checkOrder, footprintOf, inventoryTotal, lineCost,
-  orderCost, portConnections, portsOf, routerLinks,
+  orderCost, orderableItems, portConnections, portsOf, productionStatus, routerLinks,
 } from '@silicon-empire/simulation';
 import { useState } from 'react';
 import { useStore } from 'zustand';
@@ -9,6 +9,7 @@ import { ITEM_ART } from '../art/items';
 import { MACHINE_ART } from '../art/machines';
 import { isBuildTool } from '../game/controls';
 import { useI18n } from '../i18n';
+import { MilestoneParts } from './ProgressionPanel';
 import { Icon } from './shared';
 import type { ItemType } from '@silicon-empire/game-data';
 import type { Inventory, Machine, Placement, RouterSide, World } from '@silicon-empire/simulation';
@@ -73,15 +74,68 @@ function RouterDetails({ world, machine }: { world: World; machine: Machine }) {
   );
 }
 
-function LinePreview({ world, line }: { world: World; line: NonNullable<ReturnType<WorkshopControls['store']['getState']>['line']> }) {
-  const error = checkLine(world, line);
+function ProductionDetails({ world, machine }: { world: World; machine: Machine }) {
+  const { t } = useI18n();
+  const recipe = recipeOf(machine.type);
+  if (!recipe) return null;
+  const stock = world.stocks[machine.id] ?? {};
+  const state = world.production[machine.id];
+  const done = state?.batch ? recipe.ticks - state.batch.remaining : 0;
+  const status = productionStatus(world, machine.id);
+  return (
+    <>
+      <dl className="machine-stats logistics-stats">
+        <div><dt>{t.inspector.state}</dt><dd className={`production-${status}`}>{t.production.status[status]}</dd></div>
+        <div>
+          <dt>{t.production.progress}</dt>
+          <dd><progress max={recipe.ticks} value={done} aria-label={t.production.progress} /> {Math.floor(done * 100 / recipe.ticks)}&#8201;%</dd>
+        </div>
+        <div><dt>{t.production.output}</dt><dd>{t.items[recipe.output]} · {state ? Object.values(state.output).reduce((total, count) => total + (count ?? 0), 0) : 0} / {PRODUCTION.outputCapacity}</dd></div>
+      </dl>
+      <h4 className="inspector-subtitle">{t.production.recipe}</h4>
+      <ul className="stock-list" aria-label={t.production.recipe}>
+        {ITEM_TYPES.filter(item => (recipe.inputs[item] ?? 0) > 0).map(item => (
+          <li key={item}>
+            <img src={ITEM_ART[item]} alt="" />
+            <span>{(recipe.inputs[item] ?? 0)} × {t.items[item]}</span>
+            <strong>{stock[item] ?? 0} / {(recipe.inputs[item] ?? 0) * PRODUCTION.inputBatches}</strong>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+function HeadquartersDetails({ world, controls }: { world: World; controls: WorkshopControls }) {
+  const { t } = useI18n();
+  const { progress } = world;
+  if (progress.sandbox) return <p className="placement-status">{t.progression.sandbox}</p>;
+  return (
+    <div className="headquarters-details">
+      <h4 className="inspector-subtitle">{t.production.objective}</h4>
+      {progress.active
+        ? <><p>{t.progression.milestones[progress.active]}</p><MilestoneParts world={world} id={progress.active} /></>
+        : <p className="placement-status">{t.progression.none}</p>}
+      <button type="button" className="button" onClick={() => controls.store.setState({ progressionOpen: true })}>
+        {t.production.open}
+      </button>
+    </div>
+  );
+}
+
+function LinePreview({ world, line, type }: {
+  world: World;
+  line: NonNullable<ReturnType<WorkshopControls['store']['getState']>['line']>;
+  type: 'conveyor' | 'conveyor-fast';
+}) {
+  const error = checkLine(world, line, type);
   const { t, money } = useI18n();
   return (
     <div className="inspector-detail">
       <h3>{t.inspector.line}</h3>
       <dl className="machine-stats">
         <div><dt>{t.inspector.length}</dt><dd>{t.inspector.lineTiles(line.length)}</dd></div>
-        <div><dt>{t.inspector.cost}</dt><dd aria-label={t.inspector.lineCost}>{money(lineCost(line.length))}</dd></div>
+        <div><dt>{t.inspector.cost}</dt><dd aria-label={t.inspector.lineCost}>{money(lineCost(line.length, type))}</dd></div>
       </dl>
       <p className={error ? 'placement-status text-error' : 'placement-status'}>
         {error ? t.errors[error] : t.inspector.lineRelease}
@@ -117,6 +171,7 @@ function StockList({ stock, label }: { stock: Inventory; label: string }) {
 
 function OrderForm({ controls, world, dock }: { controls: WorkshopControls; world: World; dock: Machine }) {
   const [item, setItem] = useState<ItemType>(ITEM_TYPES[0]);
+  const orderable = orderableItems(world.progress);
   const error = checkOrder(world, dock.id, item);
   const { t, money } = useI18n();
   return (
@@ -131,7 +186,7 @@ function OrderForm({ controls, world, dock }: { controls: WorkshopControls; worl
       <label>
         <span>{t.inspector.component}</span>
         <select value={item} onChange={event => setItem(event.target.value as ItemType)}>
-          {ITEM_TYPES.map(option => (
+          {ITEM_TYPES.filter(option => orderable.has(option)).map(option => (
             <option key={option} value={option}>{t.items[option]} · {ITEMS[option].manufacturer}</option>
           ))}
         </select>
@@ -147,7 +202,7 @@ function OrderForm({ controls, world, dock }: { controls: WorkshopControls; worl
 function Logistics({ world, machine }: { world: World; machine: Machine }) {
   const definition = MACHINES[machine.type];
   const { t } = useI18n();
-  if (machine.type === 'conveyor') {
+  if (isConveyor(machine.type)) {
     const belt = world.belts[machine.id] ?? [];
     const target = beltTarget(world, machine.id);
     const receiver = target && world.machines.find(candidate => candidate.id === target.id);
@@ -164,6 +219,7 @@ function Logistics({ world, machine }: { world: World; machine: Machine }) {
     );
   }
   if (machine.type === 'splitter' || machine.type === 'merger') return <RouterDetails world={world} machine={machine} />;
+  if (recipeOf(machine.type)) return <ProductionDetails world={world} machine={machine} />;
   if (definition.capacity === 0) return null;
 
   const stock = world.stocks[machine.id] ?? {};
@@ -202,13 +258,13 @@ export function Inspector({ controls, world }: { controls: WorkshopControls; wor
     <aside className="inspector" aria-labelledby="inspector-heading">
       <h2 id="inspector-heading"><Icon name="target" /> {t.inspector.title}</h2>
 
-      {line && line.length > 1 ? <LinePreview world={world} line={line} /> : placement && definition && footprint ? (
+      {line && line.length > 1 ? <LinePreview world={world} line={line} type={tool === 'conveyor-fast' ? 'conveyor-fast' : 'conveyor'} /> : placement && definition && footprint ? (
         <div className="inspector-detail">
           <MachinePreview placement={placement} />
           <h3>{t.machines[placement.type].name}</h3>
           <dl className="machine-stats">
             <div><dt>{t.inspector.footprint}</dt><dd>{footprint.width} × {footprint.height}</dd></div>
-            <div><dt>{placement.type === 'conveyor' ? t.inspector.direction : t.inspector.orientation}</dt><dd>{t.directions[placement.rotation]}</dd></div>
+            <div><dt>{isConveyor(placement.type) ? t.inspector.direction : t.inspector.orientation}</dt><dd>{t.directions[placement.rotation]}</dd></div>
             {selected && <div><dt>{t.inspector.anchor}</dt><dd>{selected.x + 1}, {selected.y + 1}</dd></div>}
             <div><dt>{selected ? t.inspector.paid : t.inspector.cost}</dt><dd>{money(selected?.paidCents ?? definition.costCents)}</dd></div>
             {pending && definition.capacity > 0 && <div><dt>{t.inspector.capacity}</dt><dd>{t.inspector.units(definition.capacity)}</dd></div>}
@@ -230,6 +286,7 @@ export function Inspector({ controls, world }: { controls: WorkshopControls; wor
           {selected && <Logistics world={world} machine={selected} />}
           {selected?.type === 'receiving' && <OrderForm controls={controls} world={world} dock={selected} />}
           {selected?.type === 'splitter' && <FilterForm controls={controls} splitter={selected} />}
+          {selected?.type === 'headquarters' && <HeadquartersDetails world={world} controls={controls} />}
         </div>
       ) : (
         <div className="inspector-empty">

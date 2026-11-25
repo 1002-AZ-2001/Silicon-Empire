@@ -11,8 +11,9 @@ function run(world: World, command: Command): World {
   return result.world;
 }
 
-const built = applyCommand(createWorld(), { kind: 'build', type: 'tester', x: 12, y: 15, rotation: 1 });
-if (!built.ok) throw new Error('Le scénario de test doit pouvoir construire une machine.');
+const result = applyCommand(createWorld(), { kind: 'build', type: 'tester', x: 12, y: 15, rotation: 1 });
+if (!result.ok || !result.machine) throw new Error('Le scénario de test doit pouvoir construire une machine.');
+const built = { world: result.world, machine: result.machine };
 
 const record: SaveRecord = {
   id: '00000000000000000000000000000001',
@@ -59,9 +60,43 @@ describe('schéma de sauvegarde', () => {
 
   it('migre une sauvegarde v0.2.0 avec ses unités en transit', () => {
     const v2 = JSON.parse(JSON.stringify({ ...inTransit, version: 2 }));
-    delete v2.world.routers;
+    for (const key of ['routers', 'production', 'progress']) delete v2.world[key];
+    for (const key of ['produced', 'consumed', 'delivered']) delete v2.world.ledger[key];
     expect(decodeSave(v2)).toEqual(inTransit);
     expect(decodeSave({ ...v2, world: { ...v2.world, routers: {} } })).toBeNull();
+  });
+
+  it('migre une sauvegarde v0.2.x en bac à sable et refuse ses champs v4', () => {
+    const v3 = JSON.parse(JSON.stringify({ ...inTransit, version: 3 }));
+    for (const key of ['production', 'progress']) delete v3.world[key];
+    for (const key of ['produced', 'consumed', 'delivered']) delete v3.world.ledger[key];
+    const migrated = decodeSave(v3);
+    expect(migrated?.world.progress).toEqual({ sandbox: true, completed: [], active: null, delivered: {} });
+    expect(migrated).toEqual(inTransit);
+    expect(decodeSave({ ...v3, world: { ...v3.world, production: {} } })).toBeNull();
+  });
+
+  it('restaure une partie en progression avec un jalon en cours et un lot en fabrication', () => {
+    let world = ([
+      { kind: 'build', type: 'headquarters', x: 20, y: 20, rotation: 0 },
+      { kind: 'build', type: 'receiving', x: 18, y: 25, rotation: 0 },
+      { kind: 'build-line', tiles: [
+        { x: 19, y: 24, rotation: 0 }, { x: 19, y: 23, rotation: 1 }, { x: 20, y: 23, rotation: 0 }, { x: 20, y: 22, rotation: 0 },
+      ] },
+      { kind: 'select-milestone', milestone: 'assembly-bench' },
+      { kind: 'order', id: 2, item: 'case-standard' },
+    ] satisfies Command[]).reduce(run, createWorld('progression'));
+    for (let tick = 0; tick < 150; tick++) world = step(world);
+    expect(Object.keys(world.progress.delivered)).toEqual(['assembly-bench']);
+    const saved: SaveRecord = { ...record, world };
+    expect(decodeSave(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+    expect(decodeSave({ ...saved, world: { ...world, progress: { ...world.progress, completed: ['quality-control'] } } })).toBeNull();
+    expect(decodeSave({ ...saved, world: { ...world, progress: { ...world.progress, sandbox: true } } })).toBeNull();
+    expect(decodeSave({ ...saved, world: { ...world, ledger: { ...world.ledger, delivered: {} } } })).toBeNull();
+    expect(decodeSave({
+      ...saved,
+      world: { ...world, machines: [...world.machines, { id: 99, type: 'assembler', x: 1, y: 1, rotation: 0, paidCents: 1 }], nextMachineId: 100 },
+    })).toBeNull();
   });
 
   it('restaure un répartiteur filtré qui tient une unité', () => {
@@ -86,7 +121,7 @@ describe('schéma de sauvegarde', () => {
 
   it.each([
     null,
-    { ...record, version: 4 },
+    { ...record, version: 5 },
     { ...record, name: '' },
     { ...record, savedAt: 500 },
     { ...record, world: { ...record.world, columns: 32 } },

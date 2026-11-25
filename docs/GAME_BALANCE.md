@@ -26,6 +26,28 @@ Les coûts sont fictifs et réglables dans `packages/game-data/src/construction.
 
 Le remboursement de démolition vaut 50 % du prix effectivement payé, arrondi au centime inférieur. La différence reste une dépense de l’atelier. Pour un casier acheté à 600 €, le remboursement est de 300 € et la dépense définitive de 300 €.
 
+## Production et progression v0.3
+
+| Recette | Machine | Entrées | Durée |
+|---|---|---|---:|
+| PC bureautique assemblé | Établi d’assemblage | processeur, barrette, SSD, carte mère, alimentation, boîtier | 30 s |
+| PC bureautique testé | Banc de test | PC assemblé | 10 s |
+| PC bureautique emballé | Emballeuse (3 000 €) | PC testé, carton (3 €) | 8 s |
+
+Chaque machine garde deux lots d’entrées et deux produits finis. Le PC bureautique n’utilise pas de carte graphique (GPU intégré) : 470 € de pièces.
+
+| Palier | Jalon | Pièces à livrer | Débloque | Récompense |
+|---|---|---|---|---:|
+| 0 | Poste de montage | 10 boîtiers, 10 alimentations (1 000 €) | Établi d’assemblage | 1 500 € |
+| 0 | Contrôle qualité | 5 PC assemblés (2 350 €) | Banc de test | 5 000 € |
+| 0 | Flux maîtrisés | 10 PC testés (4 700 €) | Répartiteur, fusionneur | 7 500 € |
+| 1 | Conditionnement | 20 PC testés (9 400 €) | Emballeuse, carton | 12 000 € |
+| 1 | Entrepôt | 15 PC testés, 30 barrettes (8 250 €) | Entrepôt (2 500 €, 200 unités) | 10 000 € |
+| 2 | Convoyeurs rapides | 20 PC emballés (9 460 €) | Convoyeur rapide (120 €) | 12 000 € |
+| 2 | Subvention régionale | 30 PC emballés (14 190 €) | — | 25 000 € |
+
+Au départ : Direction (gratuite, une seule), quai, casier, convoyeur, et les sept composants. Chaque récompense dépasse le prix des pièces demandées : un joueur qui garde de quoi acheter les pièces d’un jalon ne peut pas se bloquer. Il n’existe pas encore d’autre revenu (ventes en v0.4) : dépenser tout son capital en constructions peut bloquer la partie.
+
 ## Logistique v0.2 (tranche 1)
 
 | Paramètre | Valeur |

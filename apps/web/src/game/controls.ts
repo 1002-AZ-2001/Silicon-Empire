@@ -1,4 +1,5 @@
-import { PURCHASE } from '@silicon-empire/game-data';
+import { PURCHASE, isConveyor } from '@silicon-empire/game-data';
+import type { ConveyorType, MilestoneId } from '@silicon-empire/game-data';
 import { FixedStepClock, lineCost, machineAt, turnClockwise } from '@silicon-empire/simulation';
 import { createStore } from 'zustand/vanilla';
 import type { Messages, Translator } from '../i18n';
@@ -26,6 +27,7 @@ interface WorkshopUi {
   speed: Speed;
   /** Conveyor line being drawn, in drawing order. */
   line: LineTile[] | null;
+  progressionOpen: boolean;
 }
 
 
@@ -65,6 +67,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     zoom: 1,
     speed: initialSpeed,
     line: null,
+    progressionOpen: false,
   }));
   const clock = new FixedStepClock();
   clock.speed = initialSpeed;
@@ -108,16 +111,22 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
 
   /** Builds the drawn line in one command. Returns false when the line has a single tile. */
   function finishLine(): boolean {
-    const { line } = store.getState();
+    const { line, tool } = store.getState();
     store.setState({ line: null });
     if (!line || line.length < 2) return false;
-    const result = simulation.dispatch({ kind: 'build-line', tiles: line });
+    const type: ConveyorType = isBuildTool(tool) && isConveyor(tool) ? tool : 'conveyor';
+    const result = simulation.dispatch({ kind: 'build-line', tiles: line, type });
     store.setState({
       feedback: result.ok
-        ? { kind: 'success', message: ({ t, money }) => t.feedback.lineBuilt(line.length, money(lineCost(line.length))) }
+        ? { kind: 'success', message: ({ t, money }) => t.feedback.lineBuilt(line.length, money(lineCost(line.length, type))) }
         : { kind: 'error', message: errorMessage(result.reason) },
     });
     return true;
+  }
+
+  function selectMilestone(milestone: MilestoneId | null) {
+    const result = simulation.dispatch({ kind: 'select-milestone', milestone });
+    if (!result.ok) store.setState({ feedback: { kind: 'error', message: errorMessage(result.reason) } });
   }
 
   function configure(id: number, filter: RouterFilter | null) {
@@ -164,6 +173,10 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
           ? { kind: 'success', message: ({ t }) => t.feedback.built(t.machines[tool].name) }
           : { kind: 'error', message: errorMessage(result.reason) },
       });
+      // The headquarters is unique: once placed, show it in the inspector.
+      if (result.ok && tool === 'headquarters' && result.machine) {
+        store.setState({ tool: 'inspect', selectedId: result.machine.id, rotation: 0 });
+      }
       return;
     }
 
@@ -201,7 +214,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
   }
 
   return {
-    store, clock, setSpeed, togglePause, order, configure, startLine, extendLine, cancelLine, finishLine,
+    store, clock, setSpeed, togglePause, order, configure, selectMilestone, startLine, extendLine, cancelLine, finishLine,
     selectTool, aimAt, activateTile, rotate, confirmDemolition,
   };
 }

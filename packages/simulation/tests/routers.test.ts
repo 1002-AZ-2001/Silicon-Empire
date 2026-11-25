@@ -72,7 +72,8 @@ describe('répartiteur', () => {
     world = run(world, { kind: 'configure', id: 3, filter: { item: 'ram-16g', output: 'right' } });
     world = run(run(world, order(1, 'cpu-8c')), order(1, 'ram-16g'));
     const end = ticks(world, 800);
-    expect(inventoryTotal(end.stocks[4] ?? {}) + inventoryTotal(end.stocks[5] ?? {})).toBe(10);
+    // The dock alternates CPU and RAM: the first RAM unit waits in the splitter and holds back the rest.
+    expect(inventoryTotal(end.stocks[4] ?? {}) + inventoryTotal(end.stocks[5] ?? {})).toBe(1);
     expect(end.routers[3]?.held?.item).toBe('ram-16g');
     expect(beltStatus(end, 2)).toBe('blocked');
     expect(step(end).routers).toBe(end.routers);

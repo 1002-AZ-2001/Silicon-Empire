@@ -30,6 +30,15 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - `build-line` construit une ligne de convoyeurs contiguë en une commande : tout est validé avant la construction, sinon rien n’est construit. Le sens de chaque tuile suit le tracé.
 - Le rendu déduit la forme d’un convoyeur de ses alimentations : alimenté seulement par un côté, il est dessiné en virage et ses unités passent par ce côté. Un convoyeur sans destination porte une croix rouge.
 
+## Production et progression (v0.3.0)
+
+- `packages/game-data` : `production.ts` (une recette fixe par machine, tampons), `progression.ts` (jalons, paliers, éléments de départ). Les produits fabriqués ont un prix fournisseur `null` et ne peuvent pas être commandés.
+- Monde : `production` (lot en cours avec ticks restants, produits finis), `progress` (bac à sable, jalons terminés, objectif, livraisons par jalon) et registre étendu (`produced`, `consumed`, `delivered`).
+- Ordre d’un tick : convoyeurs, nœuds, machines de production (avancer le lot, ranger le produit fini si la sortie a de la place, démarrer un lot si toutes les entrées sont là), sorties des machines, puis validation du jalon actif s’il est complet (récompense créditée).
+- Entrées : une machine de production n’accepte que les ingrédients de sa recette, dans la limite de deux lots ; la Direction n’accepte que les pièces encore nécessaires à l’objectif ; un stockage accepte tout dans sa capacité. Une machine de production ne libère que ses produits finis.
+- Déblocages : `unlockedMachines` et `orderableItems` (module `progress.ts`) limitent la construction (`locked`) et les commandes. La Direction est unique (`unique`). `checkIntegrity` rejoue l’ordre des jalons et refuse un bâtiment non débloqué.
+- Interface : outils filtrés par déblocage (raccourcis 1 à 9 puis 0 dans l’ordre affiché), panneau de progression, détail de production et objectif de la Direction dans l’inspecteur, voyants d’état dessinés par Phaser.
+
 ## Langues (v0.2.3)
 
 - `apps/web/src/i18n/fr.ts` est le dictionnaire de référence ; son type `Messages` impose les mêmes clés et signatures aux autres langues (`en`, `es`, `de`, `zh`, `ja`). Les phrases variables sont des fonctions, ce qui place les valeurs selon la grammaire de chaque langue.

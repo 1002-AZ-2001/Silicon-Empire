@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 — Production et progression par paliers
+
+- Progression inspirée des jeux d’automatisation : une **Direction** reçoit par convoyeur les pièces demandées par des **jalons**. Chaque jalon terminé débloque des équipements ou des composants et verse une récompense en capital, toujours supérieure au prix des pièces demandées.
+- Palier 0 (Poste de montage, Contrôle qualité, Flux maîtrisés) à terminer dans l’ordre ; il ouvre les paliers 1 (Conditionnement, Entrepôt) et 2 (Convoyeurs rapides, Subvention régionale), dont les jalons se font dans n’importe quel ordre. Les livraisons d’un jalon sont gardées quand l’objectif change.
+- Production réelle : l’établi assemble un PC bureautique en 30 s à partir de six composants ; le banc de test le contrôle en 10 s ; la nouvelle emballeuse le conditionne en 8 s avec un carton. Entrées consommées d’un coup au démarrage, produit fini retenu si la sortie est pleine, voyants d’état sur la grille.
+- Nouveaux équipements : emballeuse, entrepôt (200 unités), convoyeur rapide (2 tuiles par seconde), Direction. Nouveaux articles : carton d’emballage et PC bureautique assemblé, testé puis emballé.
+- Nouvelle partie en progression par défaut, ou en **bac à sable** (tout débloqué). Les ateliers des versions précédentes s’ouvrent en bac à sable.
+- Une machine libère d’abord l’article dont elle a le plus en stock : un quai qui contient plusieurs composants les envoie en alternance, ce qui évite de bloquer un assembleur.
+- Sauvegarde v4 (production, progression, registre étendu) et migration des versions 1 à 3. Conservation vérifiée : achetés + produits = détenus + rebut + consommés + livrés.
+- Interface et nouveaux textes dans les six langues ; panneau de progression, détail de production et objectif de la Direction dans l’inspecteur.
+
 ## 0.2.3 — Langues
 
 - Interface disponible en français, anglais, espagnol, allemand, chinois simplifié et japonais : menus, atelier, équipements, composants, messages d’erreur et mises à jour.

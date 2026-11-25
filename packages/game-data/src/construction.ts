@@ -35,8 +35,20 @@ export const ROUTER_TYPES = ['splitter', 'merger'] as const;
 /** Longest conveyor line placed in one drag. */
 export const MAX_LINE_LENGTH = 256;
 
-export const MACHINE_TYPES = ['storage', 'assembler', 'tester', 'receiving', 'conveyor', 'splitter', 'merger'] as const;
+/** Order of this list is the order of the construction bar. New types are appended to keep shortcuts stable. */
+export const MACHINE_TYPES = [
+  'storage', 'assembler', 'tester', 'receiving', 'conveyor', 'splitter', 'merger',
+  'packager', 'warehouse', 'conveyor-fast', 'headquarters',
+] as const;
 export type MachineType = (typeof MACHINE_TYPES)[number];
+
+/** Conveyor generations and their speed in belt units per tick. */
+export const CONVEYOR_SPEEDS = { conveyor: 1, 'conveyor-fast': 2 } as const;
+export type ConveyorType = keyof typeof CONVEYOR_SPEEDS;
+
+export function isConveyor(type: MachineType): type is ConveyorType {
+  return type in CONVEYOR_SPEEDS;
+}
 
 /** Directions and port sides: 0 north, 1 east, 2 south, 3 west. */
 export const DIRECTIONS = [0, 1, 2, 3] as const;
@@ -54,16 +66,13 @@ const port = z.strictObject({
 const machineDefinition = z.strictObject({
   width: z.int().min(1).max(WORKSHOP.columns),
   height: z.int().min(1).max(WORKSHOP.rows),
-  costCents: z.int().min(1).max(WORKSHOP.initialCapitalCents),
+  costCents: z.int().nonnegative().max(WORKSHOP.initialCapitalCents),
   /** Units held in the machine inventory. 0 means no inventory. */
   capacity: z.int().nonnegative(),
   ports: z.array(port.readonly()).readonly(),
 }).refine(
   machine => machine.ports.every(({ side, offset }) => offset < (side % 2 === 0 ? machine.width : machine.height)),
   'Un port est placé hors de l’emprise.',
-).refine(
-  machine => machine.capacity > 0 || machine.ports.length === 0,
-  'Une machine sans inventaire ne peut pas avoir de port.',
 );
 
 export type PortDefinition = z.infer<typeof port>;
@@ -84,14 +93,20 @@ export const MACHINES = z.record(z.enum(MACHINE_TYPES), machineDefinition.readon
     height: 2,
     costCents: 180_000,
     capacity: 0,
-    ports: [],
+    ports: [
+      { kind: 'input', side: 2, offset: 0 },
+      { kind: 'output', side: 0, offset: 1 },
+    ],
   },
   tester: {
     width: 2,
     height: 1,
     costCents: 240_000,
     capacity: 0,
-    ports: [],
+    ports: [
+      { kind: 'input', side: 2, offset: 0 },
+      { kind: 'output', side: 0, offset: 1 },
+    ],
   },
   receiving: {
     width: 3,
@@ -120,5 +135,43 @@ export const MACHINES = z.record(z.enum(MACHINE_TYPES), machineDefinition.readon
     costCents: 15_000,
     capacity: 0,
     ports: [],
+  },
+  packager: {
+    width: 2,
+    height: 1,
+    costCents: 300_000,
+    capacity: 0,
+    ports: [
+      { kind: 'input', side: 2, offset: 0 },
+      { kind: 'output', side: 0, offset: 1 },
+    ],
+  },
+  warehouse: {
+    width: 2,
+    height: 2,
+    costCents: 250_000,
+    capacity: 200,
+    ports: [
+      { kind: 'input', side: 2, offset: 0 },
+      { kind: 'output', side: 0, offset: 1 },
+    ],
+  },
+  'conveyor-fast': {
+    width: 1,
+    height: 1,
+    costCents: 12_000,
+    capacity: 0,
+    ports: [],
+  },
+  /** Receives milestone deliveries. Only one per workshop; free to build. */
+  headquarters: {
+    width: 3,
+    height: 2,
+    costCents: 0,
+    capacity: 0,
+    ports: [
+      { kind: 'input', side: 2, offset: 0 },
+      { kind: 'input', side: 2, offset: 2 },
+    ],
   },
 } satisfies Record<MachineType, z.input<typeof machineDefinition>>);

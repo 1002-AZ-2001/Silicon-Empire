@@ -28,11 +28,12 @@ export function gameTime(tick: number): string {
   return `${Math.floor(seconds / 3600)}:${pad(Math.floor(seconds / 60) % 60)}:${pad(seconds % 60)}`;
 }
 
-export function Dialog({ title, children, actions, onDismiss }: {
+export function Dialog({ title, children, actions, onDismiss, wide = false }: {
   title: string;
   children: ReactNode;
   actions: ReactNode;
   onDismiss: () => void;
+  wide?: boolean;
 }) {
   const titleId = useId();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -46,7 +47,7 @@ export function Dialog({ title, children, actions, onDismiss }: {
   return (
     <dialog
       ref={dialog}
-      className="dialog"
+      className={wide ? 'dialog dialog-wide' : 'dialog'}
       aria-labelledby={titleId}
       onCancel={event => {
         event.preventDefault();

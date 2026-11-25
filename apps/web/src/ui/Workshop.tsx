@@ -1,5 +1,5 @@
 import { contentsOf, demolitionRefund, inventoryTotal, sameContents, Simulation } from '@silicon-empire/simulation';
-import { TIME } from '@silicon-empire/game-data';
+import { MILESTONES, TIME } from '@silicon-empire/game-data';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import { createWorkshopControls } from '../game/controls';
@@ -8,6 +8,7 @@ import { SAVE_VERSION } from '../persistence/save-data';
 import { ConstructionBar, getShortcut } from './ConstructionBar';
 import { Inspector } from './Inspector';
 import { useI18n } from '../i18n';
+import { ProgressionPanel } from './ProgressionPanel';
 import { Dialog, Icon, gameTime } from './shared';
 import { useWorld } from './use-world';
 import type { World } from '@silicon-empire/simulation';
@@ -29,6 +30,8 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
   const world = useWorld(simulation);
   const demolitionId = useStore(controls.store, state => state.demolitionId);
   const speed = useStore(controls.store, state => state.speed);
+  const progressionOpen = useStore(controls.store, state => state.progressionOpen);
+  const completedCount = useRef(world.progress.completed.length);
   const [savedWorld, setSavedWorld] = useState<World | null>(session.savedAt === null ? null : session.world);
   const [saving, setSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
@@ -39,6 +42,23 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
   const dirty = !savedWorld || !sameContents(savedWorld, world);
   const toDemolish = world.machines.find(machine => machine.id === demolitionId);
   const unitsLost = toDemolish ? inventoryTotal(contentsOf(world, toDemolish.id)) : 0;
+
+  // Announce each milestone completed while playing.
+  useEffect(() => {
+    const { completed } = world.progress;
+    if (completed.length > completedCount.current) {
+      const done = completed[completed.length - 1];
+      if (done) {
+        controls.store.setState({
+          feedback: {
+            kind: 'success',
+            message: ({ t: text, money: format }) => text.feedback.milestoneDone(text.progression.milestones[done], format(MILESTONES[done].rewardCents)),
+          },
+        });
+      }
+    }
+    completedCount.current = completed.length;
+  }, [world.progress, controls]);
 
   useEffect(() => {
     let frame = 0;
@@ -56,7 +76,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
     const handleKey = (event: KeyboardEvent) => {
       if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || document.querySelector('dialog[open]')) return;
       const key = event.key.toLowerCase();
-      const tool = getShortcut(event.code.startsWith('Digit') ? event.code.slice(5) : key);
+      const tool = getShortcut(simulation.getSnapshot(), event.code.startsWith('Digit') ? event.code.slice(5) : key);
       if (key === 'escape') {
         event.preventDefault();
         controls.selectTool('inspect');
@@ -141,6 +161,12 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
             >{option === 0 ? t.workshop.pause : `×${option}`}</button>
           ))}
         </div>
+        {!world.progress.sandbox && (
+          <button type="button" className="button progression-button" onClick={() => controls.store.setState({ progressionOpen: true })}>
+            <Icon name="chip" /> {t.workshop.progression}
+            <small>{world.progress.active ? t.progression.milestones[world.progress.active] : t.progression.none}</small>
+          </button>
+        )}
         <div className="workshop-actions">
           <span className={`save-status${saveFailed ? ' text-error' : ''}`} role="status">
             {saveFailed ? t.workshop.saveFailed : saving ? t.workshop.saving : dirty ? t.workshop.unsaved : t.workshop.saved}
@@ -161,7 +187,11 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
         <Inspector controls={controls} world={world} />
       </main>
 
-      <ConstructionBar controls={controls} />
+      <ConstructionBar controls={controls} world={world} />
+
+      {progressionOpen && (
+        <ProgressionPanel world={world} controls={controls} onClose={() => controls.store.setState({ progressionOpen: false })} />
+      )}
 
       {toDemolish && (
         <Dialog

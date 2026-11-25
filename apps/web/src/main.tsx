@@ -12,9 +12,9 @@ import type { WorkshopSession } from './ui/Workshop';
 function App() {
   const [session, setSession] = useState<WorkshopSession | null>(null);
 
-  function startWorkshop(name: string) {
+  function startWorkshop(name: string, sandbox: boolean) {
     const id = Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
-    setSession({ id, name, createdAt: Date.now(), savedAt: null, world: createWorld() });
+    setSession({ id, name, createdAt: Date.now(), savedAt: null, world: createWorld(sandbox ? 'sandbox' : 'progression') });
   }
 
   return session

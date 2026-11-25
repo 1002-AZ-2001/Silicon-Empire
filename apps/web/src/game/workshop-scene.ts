@@ -1,10 +1,10 @@
-import { CONVEYOR, ITEM_TYPES, MACHINE_TYPES, WORKSHOP } from '@silicon-empire/game-data';
+import { CONVEYOR, ITEM_TYPES, MACHINE_TYPES, WORKSHOP, isConveyor, recipeOf } from '@silicon-empire/game-data';
 import {
-  checkBuild, checkLine, fitsMap, footprintOf, linksOf, machineAt, neighbour, portsOf, previewTarget,
+  checkBuild, checkLine, fitsMap, footprintOf, linksOf, machineAt, neighbour, portsOf, previewTarget, productionStatus,
 } from '@silicon-empire/simulation';
 import Phaser from 'phaser';
 import { ITEM_ART } from '../art/items';
-import { CONVEYOR_TURN_ART, MACHINE_ART } from '../art/machines';
+import { CONVEYOR_FAST_TURN_ART, CONVEYOR_TURN_ART, MACHINE_ART } from '../art/machines';
 import { currentTranslator } from '../i18n';
 import { isBuildTool } from './controls';
 import { createFloor } from './floor';
@@ -86,6 +86,8 @@ export class WorkshopScene extends Phaser.Scene {
   private equipment!: Phaser.GameObjects.Container;
   private ports!: Phaser.GameObjects.Graphics;
   private alerts!: Phaser.GameObjects.Graphics;
+  private statusLights!: Phaser.GameObjects.Graphics;
+  private litWorld: World | null = null;
   private units!: Phaser.GameObjects.Container;
   private outline!: Phaser.GameObjects.Graphics;
   private ghost!: Phaser.GameObjects.Image;
@@ -105,6 +107,7 @@ export class WorkshopScene extends Phaser.Scene {
     for (const type of MACHINE_TYPES) this.load.image(type, MACHINE_ART[type]);
     for (const item of ITEM_TYPES) this.load.image(itemKey(item), ITEM_ART[item]);
     this.load.image('conveyor-turn', CONVEYOR_TURN_ART);
+    this.load.image('conveyor-fast-turn', CONVEYOR_FAST_TURN_ART);
   }
 
   create() {
@@ -114,6 +117,7 @@ export class WorkshopScene extends Phaser.Scene {
     this.units = this.add.container(0, 0).setDepth(1.5);
     this.ports = this.add.graphics().setDepth(1.8);
     this.alerts = this.add.graphics().setDepth(1.9);
+    this.statusLights = this.add.graphics().setDepth(1.95);
     this.ghost = this.add.image(0, 0, MACHINE_TYPES[0]).setDepth(2).setAlpha(0.55);
     this.outline = this.add.graphics().setDepth(3);
     this.ready = true;
@@ -147,6 +151,7 @@ export class WorkshopScene extends Phaser.Scene {
 
   update(_time: number, delta: number) {
     this.drawUnits();
+    this.drawLights();
     const hasKey = (keys: string[]) => Number(keys.some(key => this.keys.has(key)));
     const x = hasKey(RIGHT) - hasKey(LEFT);
     const y = hasKey(DOWN) - hasKey(UP);
@@ -250,7 +255,8 @@ export class WorkshopScene extends Phaser.Scene {
       if (!event.isPrimary || this.gesture || event.button > 2) return;
       const point = this.canvasPoint(event);
       const click = event.button === 0 && !this.keys.has(' ');
-      const drawing = click && event.pointerType !== 'touch' && this.controls.store.getState().tool === 'conveyor';
+      const { tool } = this.controls.store.getState();
+      const drawing = click && event.pointerType !== 'touch' && isBuildTool(tool) && isConveyor(tool);
       this.gesture = {
         id: event.pointerId,
         start: point,
@@ -334,10 +340,10 @@ export class WorkshopScene extends Phaser.Scene {
     for (const machine of world.machines) {
       const sprite = this.add.image(0, 0, machine.type);
       this.positionSprite(sprite, machine);
-      if (machine.type === 'conveyor') {
+      if (isConveyor(machine.type)) {
         const entry = entryDirection(world, machine);
         // The turn sprite brings units in from the west of a north-facing belt; it is mirrored for the east.
-        if (entry !== machine.rotation) sprite.setTexture('conveyor-turn').setFlipX(entry === (machine.rotation + 3) % 4);
+        if (entry !== machine.rotation) sprite.setTexture(`${machine.type}-turn`).setFlipX(entry === (machine.rotation + 3) % 4);
         if (!links.conveyors.find(conveyor => conveyor.id === machine.id)?.target) this.drawDeadEnd(this.alerts, machine);
       }
       this.equipment.add(sprite);
@@ -383,6 +389,24 @@ export class WorkshopScene extends Phaser.Scene {
   }
 
   /** Units are drawn between their previous and current tick positions. */
+  /** Status light on each production machine: green working, amber waiting for parts, red output full. */
+  private drawLights() {
+    const world = this.simulation.getSnapshot();
+    if (world === this.litWorld) return;
+    this.litWorld = world;
+    this.statusLights.clear();
+    for (const machine of world.machines) {
+      if (!recipeOf(machine.type)) continue;
+      const status = productionStatus(world, machine.id);
+      const color = status === 'working' ? 0xbde778 : status === 'blocked' ? 0xff8267 : 0xf0b24a;
+      const { x, y, width } = footprintOf(machine);
+      const cx = (x + width) * TILE - 7;
+      const cy = y * TILE + 8;
+      this.statusLights.fillStyle(0x101615, 0.9).fillCircle(cx, cy, 5);
+      this.statusLights.fillStyle(color, 1).fillCircle(cx, cy, 3);
+    }
+  }
+
   private drawUnits() {
     const world = this.simulation.getSnapshot();
     const current = this.positionsOf(world);
@@ -458,7 +482,7 @@ export class WorkshopScene extends Phaser.Scene {
       const error = checkBuild(world, placement);
       this.markFootprint(footprintOf(placement), error ? 0xff8267 : 0xbde778, 0.2);
       for (const port of portsOf(placement)) this.drawPort(this.outline, port);
-      if (tool === 'conveyor' && !previewTarget(world, placement, rotation)) this.drawDeadEnd(this.outline, placement);
+      if (isConveyor(tool) && !previewTarget(world, placement, rotation)) this.drawDeadEnd(this.outline, placement);
       return;
     }
 

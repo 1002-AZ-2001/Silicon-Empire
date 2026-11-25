@@ -2,7 +2,7 @@
 
 *From components to an industrial empire.*
 
-Jeu de gestion industrielle informatique en 2D, solo et jouable dans un navigateur. On construit un atelier de 64 × 64 tuiles avec un capital initial de 25 000 €, on commande des composants au quai de réception et on les achemine par convoyeurs jusqu’aux casiers de stockage.
+Jeu de gestion industrielle informatique en 2D, solo et jouable dans un navigateur. On construit un atelier de 64 × 64 tuiles avec un capital initial de 25 000 €, on commande des composants, on assemble, teste et emballe des PC sur des chaînes de convoyeurs, et on livre des pièces à la Direction pour débloquer de nouveaux équipements, palier après palier. Le mode bac à sable débloque tout dès le départ.
 
 ## Langues
 
@@ -25,10 +25,12 @@ Ouvrir l’adresse affichée par Vite, puis choisir **Nouvelle partie**. Les ate
 
 | Action | Commande |
 |---|---|
-| Construire | Choisir un équipement dans la barre basse ou avec les touches 1 à 5, puis cliquer sur la grille |
-| Poser un convoyeur | **Convoyeur** ou **5** ; **R** change son sens avant la pose |
+| Construire | Choisir un équipement dans la barre basse ou avec les touches 1 à 9 et 0 (dans l’ordre de la barre), puis cliquer sur la grille |
+| Poser un convoyeur | **Convoyeur** ; **R** change son sens avant la pose |
 | Tracer une ligne de convoyeurs | Avec l’outil **Convoyeur**, maintenir le clic gauche et glisser ; relâcher pour construire |
-| Répartir ou fusionner | **Répartiteur** (**6**) ou **Fusionneur** (**7**) ; le filtre du répartiteur se règle dans l’inspection |
+| Progresser | Construire la **Direction**, y acheminer par convoyeur les pièces du jalon choisi dans **Progression** |
+| Produire | Alimenter l’établi, le banc de test ou l’emballeuse par leur entrée ; leur voyant indique l’état |
+| Répartir ou fusionner | **Répartiteur** ou **Fusionneur** ; le filtre du répartiteur se règle dans l’inspection |
 | Commander des composants | Inspecter un quai de réception, choisir un composant, puis **Commander 10 unités** |
 | Régler le temps | **Pause**, **×1**, **×2**, **×5** dans la barre haute ; **P** met en pause ou reprend |
 | Inspecter | **Inspecter** ou **I**, puis cliquer sur l’équipement |

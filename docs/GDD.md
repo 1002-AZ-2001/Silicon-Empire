@@ -14,6 +14,10 @@ Inspirations : Satisfactory (automatisation), Factorio (flux physiques), SimCity
 | 4 — Semi-conducteurs | Architectures CPU/GPU, wafers, lithographie, salles blanches. |
 | 5 — Multinationale | Plusieurs sites, R&D, datacenters, contrats publics, export et concurrence. |
 
+## 2 bis. Progression jouable (v0.3)
+
+Inspirée des jeux d’automatisation, sans en reprendre noms ni univers : la **Direction** de l’entreprise fixe des **jalons**. Le joueur y achemine par convoyeur des pièces achetées ou fabriquées ; chaque jalon terminé débloque des équipements ou des composants et verse une subvention. Les paliers 1 et 2 s’ouvrent après le palier 0. Des **contrats phares** — grandes commandes institutionnelles — ouvriront ensuite les paliers suivants deux par deux. Le mode bac à sable débloque tout.
+
 ## 3. Piliers et boucle de jeu
 Construire librement, automatiser des flux physiques, gérer les finances, concevoir des produits et débloquer des technologies. Le joueur identifie les goulots d’étranglement, augmente les débits et arbitre entre coût, qualité, délais et investissement.
 

@@ -2,7 +2,7 @@ import { CONVEYOR, ITEMS, MACHINES, PURCHASE, TIME } from '@silicon-empire/game-
 import type { ItemType } from '@silicon-empire/game-data';
 import { describe, expect, it, vi } from 'vitest';
 import {
-  FixedStepClock, Simulation, applyCommand, beltStatus, checkIntegrity, contentsOf, createWorld,
+  EMPTY_LEDGER, FixedStepClock, Simulation, applyCommand, beltStatus, checkIntegrity, contentsOf, createWorld,
   inventoryTotal, portConnections, portsOf, sameContents, step,
 } from '../src';
 import type { Command, World } from '../src';
@@ -58,10 +58,10 @@ describe('ports', () => {
 describe('achats au quai', () => {
   it('débite le lot, remplit le quai et inscrit l’achat', () => {
     const world = run(line.reduce(run, createWorld()), order());
-    const cost = ITEMS['cpu-8c'].unitCostCents * PURCHASE.lotSize;
+    const cost = (ITEMS['cpu-8c'].unitCostCents ?? 0) * PURCHASE.lotSize;
     expect(world.capitalCents).toBe(line.reduce(run, createWorld()).capitalCents - cost);
     expect(world.stocks[1]).toEqual({ 'cpu-8c': PURCHASE.lotSize });
-    expect(world.ledger).toEqual({ purchased: { 'cpu-8c': 10 }, discarded: {}, purchaseSpentCents: cost });
+    expect(world.ledger).toEqual({ ...EMPTY_LEDGER, purchased: { 'cpu-8c': 10 }, purchaseSpentCents: cost });
     expect(checkIntegrity(world)).toBe(true);
   });
 

@@ -6,12 +6,16 @@ const equipment = (page: Page) => page.getByLabel('Équipements installés', { e
 const inspector = (page: Page) => page.getByRole('complementary', { name: 'Inspection' });
 const canvas = (page: Page) => page.getByRole('region', { name: 'Grille interactive de l’atelier' });
 const coordinates = (page: Page) => page.getByLabel('Case survolée');
+/** Value of the Orientation row in the inspector (ports also list directions). */
+const orientation = (page: Page) => inspector(page).locator('.machine-stats > div', { has: page.getByText('Orientation', { exact: true }) }).locator('dd');
 const euros = (amount: number) => new Intl.NumberFormat('fr-FR', {
   style: 'currency', currency: 'EUR', maximumFractionDigits: 0,
 }).format(amount);
 
-async function startWorkshop(page: Page, name: string) {
+/** Sandbox games unlock every building; `progression: true` starts at tier 0. */
+async function startWorkshop(page: Page, name: string, { progression = false } = {}) {
   await page.getByLabel('Nom de l’atelier').fill(name);
+  await page.getByRole('checkbox', { name: /Bac à sable/ }).setChecked(!progression);
   await page.getByRole('button', { name: 'Nouvelle partie' }).click();
   await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
   await expect(canvas(page)).toBeVisible();
@@ -58,7 +62,7 @@ test('construit et pivote sur la grille, refuse une collision et inspecte toute 
   await expect(inspector(page).getByText('Placement possible')).toBeVisible();
   await expect.poll(() => readPixel(page, point.x, point.y)).not.toEqual(floor);
   await page.keyboard.press('r');
-  await expect(inspector(page).getByText('Est', { exact: true })).toBeVisible();
+  await expect(orientation(page)).toHaveText('Est');
   await expect(inspector(page).getByText('1 × 2')).toBeVisible();
   await page.mouse.click(point.x, point.y);
   await expect(capital(page)).toHaveText(euros(22_600));
@@ -73,9 +77,9 @@ test('construit et pivote sur la grille, refuse une collision et inspecte toute 
   await clickTile(page, 32, 33);
   await expect(inspector(page).getByRole('heading', { name: 'Banc de test' })).toBeVisible();
   await expect(inspector(page).getByText('33, 33')).toBeVisible();
-  await expect(inspector(page).getByText('Est', { exact: true })).toBeVisible();
+  await expect(orientation(page)).toHaveText('Est');
   await page.getByRole('button', { name: /^Pivoter/ }).click();
-  await expect(inspector(page).getByText('Sud', { exact: true })).toBeVisible();
+  await expect(orientation(page)).toHaveText('Sud');
   await expect(inspector(page).getByText('2 × 1')).toBeVisible();
   await expect(capital(page)).toHaveText(euros(22_600));
   expect(pageErrors).toEqual([]);
@@ -188,7 +192,7 @@ test('restaure après rechargement et conserve les sauvegardes d’ateliers dist
   await expect(canvas(page)).toBeVisible();
   await clickTile(page, 32, 33);
   await expect(inspector(page).getByRole('heading', { name: 'Banc de test' })).toBeVisible();
-  await expect(inspector(page).getByText('Est', { exact: true })).toBeVisible();
+  await expect(orientation(page)).toHaveText('Est');
   await expect(inspector(page).getByText('33, 33')).toBeVisible();
 
   await page.getByRole('button', { name: 'Menu', exact: true }).click();
@@ -396,4 +400,60 @@ test.describe('langue du navigateur', () => {
     await expect(page.getByLabel('Sprache')).toHaveValue('de');
     await expect(page.getByText('Startkapital')).toBeVisible();
   });
+});
+
+test('valide le premier jalon à la Direction, débloque l’établi et le garde après reprise', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await page.goto('/');
+  await startWorkshop(page, 'Atelier progressif', { progression: true });
+  await expect(page.getByRole('button', { name: /^Assemblage/ })).toHaveCount(0);
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: 'Pause' }).click();
+
+  await page.getByRole('button', { name: /^Direction/ }).click();
+  await clickTile(page, 30, 30);
+  await expect(inspector(page).getByRole('heading', { name: 'Direction' })).toBeVisible();
+  await page.getByRole('button', { name: /^Réception/ }).click();
+  await clickTile(page, 28, 36);
+  await page.getByRole('button', { name: /^Convoyeur/ }).click();
+  const start = await tileAtCenterZoom(page, 29, 35);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  for (const [x, y] of [[29, 33], [30, 33], [30, 32]] as const) {
+    const point = await tileAtCenterZoom(page, x, y);
+    await page.mouse.move(point.x, point.y, { steps: 6 });
+  }
+  await page.mouse.up();
+  await expect(capital(page)).toHaveText(euros(25_000 - 4_200 - 200));
+
+  await page.getByRole('button', { name: /^Progression/ }).click();
+  const panel = page.getByRole('dialog', { name: 'Progression' });
+  await panel.getByRole('listitem', { name: 'Poste de montage' }).getByRole('button', { name: 'Définir comme objectif' }).click();
+  await expect(panel.getByRole('listitem', { name: 'Poste de montage' })).toContainText('Objectif en cours');
+  await panel.getByRole('button', { name: 'Fermer' }).click();
+  await expect(page.getByRole('button', { name: /^Progression/ })).toContainText('Poste de montage');
+
+  await page.keyboard.press('Escape');
+  await clickTile(page, 29, 37);
+  for (const item of ['psu-650', 'case-standard']) {
+    await inspector(page).getByLabel('Composant').selectOption(item);
+    await inspector(page).getByRole('button', { name: /^Commander 10 unités/ }).click();
+  }
+  await expect(capital(page)).toHaveText(euros(25_000 - 4_200 - 200 - 1_000));
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: '×5' }).click();
+
+  await expect(page.getByRole('button', { name: /^Assemblage/ })).toBeVisible({ timeout: 20_000 });
+  await expect(capital(page)).toHaveText(euros(25_000 - 4_200 - 200 - 1_000 + 1_500));
+  await expect(page.getByRole('button', { name: /^Progression/ })).toContainText('Aucun objectif choisi.');
+
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: 'Pause' }).click();
+  await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+  await expect(page.getByText('Atelier enregistré', { exact: true })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Reprendre Atelier progressif' }).click();
+  await expect(page.getByRole('button', { name: /^Assemblage/ })).toBeVisible();
+  await page.getByRole('button', { name: /^Progression/ }).click();
+  await expect(page.getByRole('dialog', { name: 'Progression' }).getByRole('listitem', { name: 'Poste de montage' })).toContainText('Terminé');
+  await expect(page.getByRole('dialog', { name: 'Progression' }).getByRole('listitem', { name: 'Contrôle qualité' })).toContainText('Disponible');
+  expect(pageErrors).toEqual([]);
 });
