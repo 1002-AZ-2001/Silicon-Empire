@@ -1,8 +1,9 @@
 import { WORKSHOP } from '@silicon-empire/game-data';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import workshopArt from '../art/workshop-menu.webp';
-import { listSaves, loadSave, removeSave } from '../persistence/indexed-saves';
-import { MAX_WORKSHOP_NAME } from '../persistence/save-data';
+import { BACKUP_LIMIT_BYTES, downloadBackup, parseBackup } from '../persistence/backup';
+import { addSave, listSaves, loadSave, removeSave } from '../persistence/indexed-saves';
+import { MAX_WORKSHOP_NAME, createSaveId } from '../persistence/save-data';
 import { LOCALES, LOCALE_NAMES, setLocale, useI18n } from '../i18n';
 import { Dialog, Icon } from './shared';
 import { UpdatePanel } from './UpdatePanel';
@@ -18,6 +19,8 @@ export function MainMenu({ onNewGame, onResume }: {
   const [busy, setBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<SaveRecord | null>(null);
   const [deleteFailed, setDeleteFailed] = useState(false);
+  const [backupStatus, setBackupStatus] = useState<'invalid' | 'tooLarge' | 'failed' | 'imported' | null>(null);
+  const filePicker = useRef<HTMLInputElement>(null);
   const { t, money, date, locale } = useI18n();
 
   useEffect(() => {
@@ -67,6 +70,46 @@ export function MainMenu({ onNewGame, onResume }: {
     }
   }
 
+  async function importWorkshop(file: File) {
+    setBackupStatus(null);
+    if (file.size > BACKUP_LIMIT_BYTES) {
+      setBackupStatus('tooLarge');
+      return;
+    }
+    setBusy(true);
+    try {
+      const original = parseBackup(await file.text());
+      if (!original) {
+        setBackupStatus('invalid');
+        return;
+      }
+      const name = original.name.slice(0, MAX_WORKSHOP_NAME - t.backup.copySuffix.length).trimEnd() + t.backup.copySuffix;
+      const record = { ...original, id: createSaveId(), name, savedAt: Math.max(Date.now(), original.createdAt) };
+      await addSave(record);
+      setSaves(previous => [record, ...(previous ?? [])]);
+      setStorageError(null);
+      setBackupStatus('imported');
+    } catch {
+      setBackupStatus('failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function exportWorkshop(id: string) {
+    setBackupStatus(null);
+    setBusy(true);
+    try {
+      const record = await loadSave(id);
+      if (!record) setBackupStatus('invalid');
+      else if (!downloadBackup(record)) setBackupStatus('tooLarge');
+    } catch {
+      setBackupStatus('failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="menu-shell">
       <div className="menu-visual" aria-hidden="true">
@@ -75,15 +118,12 @@ export function MainMenu({ onNewGame, onResume }: {
 
       <header className="menu-header menu-frame">
         <span className="menu-identity"><span className="brand-mark"><Icon name="chip" /></span> {t.tagline}</span>
-        <span className="menu-header-tools">
-          <label className="language-select">
-            <span>{t.menu.language}</span>
-            <select value={locale} onChange={event => setLocale(event.target.value as typeof locale)}>
-              {LOCALES.map(option => <option key={option} value={option} lang={option}>{LOCALE_NAMES[option]}</option>)}
-            </select>
-          </label>
-          <span className="version">{t.version(__APP_VERSION__.split('.').slice(0, 2).join('.'))}</span>
-        </span>
+        <label className="language-select">
+          <span>{t.menu.language}</span>
+          <select value={locale} onChange={event => setLocale(event.target.value as typeof locale)}>
+            {LOCALES.map(option => <option key={option} value={option} lang={option}>{LOCALE_NAMES[option]}</option>)}
+          </select>
+        </label>
       </header>
 
       <main className="menu-main menu-frame">
@@ -114,6 +154,8 @@ export function MainMenu({ onNewGame, onResume }: {
             {unreadable > 0 && <p role="status" className="text-error">{t.menu.unreadable(unreadable)}</p>}
             {saves === null && !storageError && <p role="status">{t.menu.loading}</p>}
             {saves?.length === 0 && !storageError && <p>{t.menu.empty}</p>}
+            {backupStatus && <p role={backupStatus === 'imported' ? 'status' : 'alert'}
+              className={backupStatus === 'imported' ? undefined : 'text-error'}>{t.backup[backupStatus]}</p>}
             {saves && saves.length > 0 && (
               <ul className="save-list">
                 {saves.map(record => (
@@ -131,9 +173,13 @@ export function MainMenu({ onNewGame, onResume }: {
                       </span>
                       <Icon name="arrow" />
                     </button>
+                    <button type="button" className="icon-button save-action" title={t.backup.export}
+                      aria-label={`${t.backup.export} · ${record.name}`} disabled={busy} onClick={() => void exportWorkshop(record.id)}>
+                      <Icon name="save" />
+                    </button>
                     <button
                       type="button"
-                      className="icon-button delete-save"
+                      className="icon-button save-action delete-save"
                       title={t.menu.deleteSave}
                       aria-label={t.menu.deleteNamed(record.name)}
                       disabled={busy}
@@ -146,6 +192,17 @@ export function MainMenu({ onNewGame, onResume }: {
                 ))}
               </ul>
             )}
+            <div className="backup-actions">
+              <input ref={filePicker} type="file" accept=".json,application/json" hidden aria-label={t.backup.file}
+                onChange={event => {
+                  const file = event.currentTarget.files?.[0];
+                  event.currentTarget.value = '';
+                  if (file) void importWorkshop(file);
+                }} />
+              <button type="button" className="button" disabled={busy || saves === null} onClick={() => filePicker.current?.click()}>
+                {t.backup.import}
+              </button>
+            </div>
           </section>
         </div>
       </main>

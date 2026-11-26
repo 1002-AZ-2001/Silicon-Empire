@@ -136,12 +136,12 @@ Systèmes : World, Construction, Inventory, Logistics, Production, Economy, Cont
 Performance : mesurer avant d’optimiser. Culling caméra, atlas de textures, pooling de sprites, indexation spatiale, mises à jour différentielles, systèmes actifs seulement, publications UI regroupées, workers si utile. Objectif progressif : centaines de machines et milliers de convoyeurs/items, à valider par profilage.
 
 ## 17. Sauvegardes
-Cible MVP pour IndexedDB : nouvelle partie, plusieurs slots, sauvegarde manuelle/automatique, export/import JSON, suppression confirmée. La v0.1 fournit la sauvegarde manuelle, la reprise et la suppression confirmée par atelier. Enregistrer version du schéma, ID de partie, seed et état RNG, dates, ticks, capital, carte, machines, stocks, ressources en transit et en cours, produits et révisions, commandes, recherches débloquées. Conserver un état cohérent en milieu de cycle. Valider à l’import, migrer les anciennes versions explicitement et signaler les erreurs sans écraser la sauvegarde existante. Aucun progrès hors ligne dans le MVP.
+IndexedDB conserve plusieurs ateliers. Le joueur peut enregistrer, reprendre, supprimer après confirmation, exporter et importer depuis le menu. La v0.5 utilise le format v8, qui contient l’identité de l’atelier, ses dates et le monde de simulation, y compris les lots en cours, les révisions vendues et les livraisons en attente. Import et lecture locale partagent la vérification de cohérence et les migrations. L’import attribue un nouvel identifiant et utilise une insertion IndexedDB qui échoue en cas de collision. Le guide lit les mêmes données du monde pour reprendre au bon endroit après un chargement.
 
 Futur : persistance serveur et reprise multi-appareils via API. Les sauvegardes locales sont modifiables ; acceptable en solo, insuffisant pour la compétition. Le multijoueur compétitif exigerait un serveur faisant autorité.
 
 ## 18. Déploiement et sécurité
-Cibles : Docker, Compose, Linux, TrueNAS SCALE ou VM Proxmox, reverse proxy HTTPS. MVP : image statique, port HTTP hôte configurable (8080 proposé), aucun compte ni backend obligatoire. Commande cible après implémentation : `docker compose up -d --build`. Le conteneur Docker et la composition sont prévus au jalon v0.5.
+La v0.5 se lance avec `docker compose up -d --build`. Une image multi-étape copie les fichiers web compilés dans une image Caddy. Compose publie le port HTTP et vérifie la disponibilité de la page d’accueil. Les ateliers sont stockés dans le profil du navigateur. [Guide de déploiement](DEPLOYMENT.md)
 
 Navigateur → reverse proxy Caddy → frontend. Domaine configurable, pas de domaine privé en dur. Plus tard : Node/Fastify, API REST, SQLite, comptes, administration, sauvegardes distantes, volume `/data`, endpoint de santé, même origine frontend/API si possible.
 

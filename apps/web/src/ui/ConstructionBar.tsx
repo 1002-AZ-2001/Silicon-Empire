@@ -27,7 +27,11 @@ export function getShortcut(world: World, key: string): Tool | undefined {
   return toolsFor(world).find(item => item.key?.toLowerCase() === key)?.tool;
 }
 
-export function ConstructionBar({ controls, world }: { controls: WorkshopControls; world: World }) {
+export function ConstructionBar({ controls, world, onGuide }: {
+  controls: WorkshopControls;
+  world: World;
+  onGuide: () => void;
+}) {
   const tool = useStore(controls.store, state => state.tool);
   const { t, money } = useI18n();
   const tools = toolsFor(world);
@@ -40,7 +44,10 @@ export function ConstructionBar({ controls, world }: { controls: WorkshopControl
     <section className="construction-bar" aria-labelledby="construction-heading">
       <div className="construction-header">
         <h2 id="construction-heading">{t.construction.title}</h2>
-        <div className="camera-help"><Icon name="move" /> <span><kbd>ZQSD</kbd> / <kbd>WASD</kbd> {t.construction.pan}</span><span>{t.construction.zoom}</span></div>
+        <div className="construction-help">
+          <div className="camera-help"><Icon name="move" /> <span><kbd>ZQSD</kbd> / <kbd>WASD</kbd> {t.construction.pan}</span><span>{t.construction.zoom}</span></div>
+          <button type="button" className="button" onClick={onGuide}>{t.guide.title}</button>
+        </div>
       </div>
       <div className="tool-list" role="group" aria-label={t.construction.tools}>
         {tools.map(item => (

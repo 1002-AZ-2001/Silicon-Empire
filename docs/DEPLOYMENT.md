@@ -1,10 +1,23 @@
 # Déploiement
 
-La v0.1 est un site statique. `pnpm build` produit les fichiers dans `dist/`. Pour tester cette version sur la machine de développement, lancer `pnpm preview` et ouvrir l’adresse affichée. Les fichiers de `dist/` peuvent être servis par un hébergeur statique ou derrière un reverse proxy HTTPS. Les notices des dépendances distribuées accompagnent le site dans `LICENCES-TIERCE-PARTIE.txt`.
+`pnpm build` produit le site statique dans `dist/`. Pour le tester sur la machine de développement, lancer `pnpm preview` et ouvrir l’adresse affichée. Un hébergeur statique ou un reverse proxy HTTPS peut servir les fichiers de `dist/`. Les notices des dépendances distribuées accompagnent le site dans `LICENCES-TIERCE-PARTIE.txt`.
 
-IndexedDB rattache les sauvegardes à l’origine du site et au profil du navigateur. Conserver le même schéma, le même hôte et le même port pour retrouver les ateliers. Les sauvegardes sont enregistrées dans IndexedDB à la demande du joueur. Le format v3 contient aussi l’horloge, les stocks, les unités sur les convoyeurs, les répartiteurs et les fusionneurs ; les ateliers enregistrés avec les versions 0.1.0 et 0.2.0 sont migrés à la lecture. L’export JSON est prévu pour transférer les sauvegardes entre origines ou profils.
+## Docker Compose
 
-Objectif v0.5 pour l’auto-hébergement sur TrueNAS SCALE ou VM Linux/Proxmox. Construire une image statique et lancer `docker compose up -d --build` sur un port hôte configurable. Plus tard, le backend ajoutera la persistance dans `/data`, les sauvegardes SQLite et une API de même origine.
+Avec Docker et le plugin Compose, lancer ces commandes à la racine du dépôt sur l’hôte Linux, par exemple une VM Proxmox.
+
+```sh
+docker compose up -d --build
+docker compose ps
+```
+
+Compose publie le port 8080 de l’hôte par défaut. Ouvrir `http://localhost:8080` depuis l’hôte, ou utiliser son adresse depuis un autre poste. Pour choisir un autre port, définir `SILICON_EMPIRE_PORT` dans le fichier `.env` à la racine du dépôt ou dans le shell avant `docker compose up`. Pour un accès en HTTPS, faire pointer le reverse proxy vers le port hôte choisi.
+
+L’image compile le jeu avec les dépendances verrouillées et le sert via Caddy, sous un utilisateur non privilégié. Compose vérifie que la page d’accueil répond. `docker compose down` arrête le service.
+
+## Sauvegardes et changement d’adresse
+
+IndexedDB rattache les ateliers à l’origine du site et au profil du navigateur. Pour changer de domaine, de port ou passer de HTTP à HTTPS, enregistrer l’atelier puis l’exporter en JSON depuis le menu principal. À la nouvelle adresse, **Importer une sauvegarde** crée une copie indépendante. La même procédure fonctionne entre le navigateur et le jeu installé. Le menu accepte les sauvegardes des formats v1 à v8 dans la limite de 10 Mio par fichier.
 
 ## Application de bureau
 

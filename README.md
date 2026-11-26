@@ -23,6 +23,8 @@ pnpm dev
 
 Ouvrir l’adresse affichée par Vite, puis choisir **Nouvelle partie**. Les ateliers enregistrés apparaissent dans le menu. IndexedDB conserve les sauvegardes dans le profil du navigateur et pour l’adresse exacte du jeu. Garder le même port et le même nom d’hôte pour retrouver ses ateliers.
 
+Le **Guide d’atelier**, dans la barre de construction, suit les étapes jusqu’à la première vente. Pour transférer un atelier, enregistrer la partie puis revenir au menu. Le bouton **Exporter en JSON** télécharge le fichier. **Importer une sauvegarde** crée une copie dans le profil qui ouvre ce fichier.
+
 | Action | Commande |
 |---|---|
 | Construire | Choisir un équipement dans la barre basse ou avec les touches 1 à 9 et 0 (dans l’ordre de la barre), puis cliquer sur la grille |
@@ -51,6 +53,10 @@ Pour une ligne d’emballage, raccorder les PC testés et les cartons aux deux e
 Le contrôle professionnel écarte un PC sur huit. La flèche orange alimente la ligne d’emballage avec les PC conformes. La flèche rouge évacue les rebuts. Chaque sortie peut mettre deux unités en attente.
 
 Le quai de réception propose une livraison immédiate et un fournisseur à prix réduit avec un délai simulé de 90 secondes. Un lot en attente est débité à la commande et réserve sa place au quai.
+
+## Auto-héberger le jeu
+
+Depuis le dépôt, lancer `docker compose up -d --build`, puis ouvrir `http://localhost:8080`. La variable `SILICON_EMPIRE_PORT` permet de choisir le port hôte. [Documentation de déploiement](docs/DEPLOYMENT.md)
 
 ## Vérifier le projet
 
