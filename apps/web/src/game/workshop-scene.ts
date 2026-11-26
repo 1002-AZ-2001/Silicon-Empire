@@ -25,7 +25,7 @@ const MOVE_KEYS = new Set([...UP, ...LEFT, ...DOWN, ...RIGHT, ' ']);
 
 interface Point { x: number; y: number }
 
-const PORT_COLORS = { input: 0xbde778, output: 0xf0b24a } as const;
+const PORT_COLORS = { input: 0xbde778, output: 0xf0b24a, reject: 0xff8267 } as const;
 const itemKey = (item: string) => `item:${item}`;
 
 /**
@@ -360,7 +360,7 @@ export class WorkshopScene extends Phaser.Scene {
     graphics.lineStyle(2, 0xff8267, 1).lineBetween(x - 3, y - 3, x + 3, y + 3).lineBetween(x - 3, y + 3, x + 3, y - 3);
   }
 
-  /** Outward amber arrow for an output, inward green arrow for an input, on the edge of the port tile. */
+  /** Output and reject arrows point outward. Input arrows point inward. */
   private drawPort(graphics: Phaser.GameObjects.Graphics, port: WorldPort) {
     const direction = neighbour({ x: 0, y: 0 }, port.side);
     const across = { x: -direction.y, y: direction.x };
@@ -368,7 +368,7 @@ export class WorkshopScene extends Phaser.Scene {
       x: (port.tile.x + 0.5 + direction.x / 2) * TILE,
       y: (port.tile.y + 0.5 + direction.y / 2) * TILE,
     };
-    const sign = port.kind === 'output' ? 1 : -1;
+    const sign = port.kind === 'input' ? -1 : 1;
     const tip = { x: edge.x + direction.x * 4 * sign, y: edge.y + direction.y * 4 * sign };
     const base = { x: edge.x - direction.x * 3 * sign, y: edge.y - direction.y * 3 * sign };
     graphics.fillStyle(0x101615, 0.85).fillCircle(edge.x, edge.y, 6);
@@ -398,7 +398,7 @@ export class WorkshopScene extends Phaser.Scene {
     for (const machine of world.machines) {
       if (!recipeOf(machine.type)) continue;
       const status = productionStatus(world, machine.id);
-      const color = status === 'working' ? 0xbde778 : status === 'blocked' ? 0xff8267 : 0xf0b24a;
+      const color = status === 'working' ? 0xbde778 : status === 'starved' ? 0xf0b24a : 0xff8267;
       const { x, y, width } = footprintOf(machine);
       const cx = (x + width) * TILE - 7;
       const cy = y * TILE + 8;

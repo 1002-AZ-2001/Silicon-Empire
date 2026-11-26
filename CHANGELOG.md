@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.2 — Postes professionnels et contrôle qualité
+
+- Le tournoi de Valmont ouvre le palier 4, la gamme professionnelle, le kit mémoire de 32 Go et le SSD de 2 To.
+- Le contrôle professionnel écarte un PC sur huit. Les PC conformes sortent par la flèche orange, les rebuts par la flèche rouge. Chaque sortie possède son propre tampon.
+- L’Institut Sorel verse 20 000 € contre 10 PC professionnels conformes et emballés.
+- La sauvegarde v6 lit les ateliers des versions précédentes et conserve les contrôles en cours, les rebuts et les modèles choisis.
+
 ## 0.3.1 — Contrat de Valmont et gamme gaming
 
 - Le contrat de l’Université de Valmont demande 50 PC bureautiques emballés après les deux jalons initiaux du palier 2. La livraison complète verse 38 000 € et ouvre le palier 3.

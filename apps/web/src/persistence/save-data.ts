@@ -3,7 +3,7 @@ import { ROTATIONS, ROUTER_SIDES, checkIntegrity } from '@silicon-empire/simulat
 import { z } from 'zod';
 import type { World } from '@silicon-empire/simulation';
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 export const MAX_WORKSHOP_NAME = 40;
 
 export interface SaveRecord {
@@ -135,6 +135,16 @@ const saveV4 = z.strictObject({
 
 /** Version 5: the model chosen for each production machine. */
 const saveV5 = z.strictObject({
+  version: z.literal(5),
+  ...header,
+  world: z.strictObject({
+    ...worldV4,
+    machines: z.array(machine.extend({ model: z.enum(['office', 'gaming']).optional() })).max(WORKSHOP.columns * WORKSHOP.rows),
+  }),
+});
+
+/** Version 6 supports professional models and PCs routed to the reject output. */
+const saveV6 = z.strictObject({
   version: z.literal(SAVE_VERSION),
   ...header,
   world: z.strictObject({
@@ -189,7 +199,12 @@ function migrateV4(value: unknown): z.input<typeof saveV5> | null {
   const v4 = saveV4.safeParse(value);
   if (!v4.success) return null;
   // Unconfigured machines continue their office recipes, including batches already in progress.
-  return { ...v4.data, version: SAVE_VERSION };
+  return { ...v4.data, version: 5 };
+}
+
+function migrateV5(value: unknown): z.input<typeof saveV6> | null {
+  const v5 = saveV5.safeParse(value);
+  return v5.success ? { ...v5.data, version: SAVE_VERSION } : null;
 }
 
 function versionOf(value: unknown): unknown {
@@ -203,8 +218,8 @@ export function decodeSave(value: unknown): SaveRecord | null {
     : version === 2 ? migrateV3(migrateV2(value))
       : version === 3 ? migrateV3(value)
         : value;
-  const current = version === SAVE_VERSION ? value : migrateV4(legacy);
-  const decoded = saveV5.safeParse(current);
+  const current = version === SAVE_VERSION ? value : migrateV5(version === 5 ? value : migrateV4(legacy));
+  const decoded = saveV6.safeParse(current);
   if (!decoded.success) return null;
 
   const { data } = decoded;

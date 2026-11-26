@@ -46,6 +46,12 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - L’emballeuse accueille deux flux indépendants. Les cartons peuvent attendre sur leur convoyeur pendant que les PC testés arrivent par l’autre entrée.
 - La sauvegarde v5 stocke le modèle et reprend les versions 1 à 4. Les machines existantes continuent en bureautique par défaut, y compris au milieu d’un lot. Les unités livrées dans le registre correspondent aux jalons terminés et aux livraisons partielles.
 
+## Contrôle qualité professionnel (v0.3.2)
+
+- Le banc de test professionnel attribue le résultat à l’ouverture du lot. Le nombre de contrôles lancés est la somme des compteurs de produits conformes et rejetés dans le registre. Tous les bancs partagent cette séquence, dans leur ordre de traitement habituel.
+- La sortie rouge du banc pivote avec son emprise et transporte uniquement les rebuts. Chaque résultat a un tampon de deux unités. Un résultat attend au banc si son tampon est plein. L’emballeuse reçoit les postes conformes.
+- La sauvegarde v6 reprend les formats v1 à v5. Elle conserve le résultat de tout contrôle en cours et les PC présents dans chacun des tampons. Le registre compte aussi les rebuts transportés, stockés ou mis au rebut après démolition.
+
 ## Langues (v0.2.3)
 
 - `apps/web/src/i18n/fr.ts` est le dictionnaire de référence ; son type `Messages` impose les mêmes clés et signatures aux autres langues (`en`, `es`, `de`, `zh`, `ja`). Les phrases variables sont des fonctions, ce qui place les valeurs selon la grammaire de chaque langue.

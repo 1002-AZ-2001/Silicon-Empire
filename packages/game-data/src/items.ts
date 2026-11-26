@@ -8,8 +8,10 @@ export type ItemCategory = (typeof ITEM_CATEGORIES)[number];
 /** Order of this list is the stable order used when a machine releases mixed stock. */
 export const ITEM_TYPES = [
   'cpu-8c', 'gpu-8g', 'ram-16g', 'ssd-1t', 'motherboard-atx', 'psu-650', 'case-standard', 'carton',
+  'ram-32g', 'ssd-2t',
   'pc-office', 'pc-office-tested', 'pc-office-packaged',
   'pc-gaming', 'pc-gaming-tested', 'pc-gaming-packaged',
+  'pc-professional', 'pc-professional-tested', 'pc-professional-packaged', 'pc-professional-rejected',
 ] as const;
 export type ItemType = (typeof ITEM_TYPES)[number];
 
@@ -66,6 +68,16 @@ export const ITEMS = z.record(z.enum(ITEM_TYPES), itemDefinition.readonly()).rea
     manufacturer: 'Embalis',
     unitCostCents: 300,
   },
+  'ram-32g': {
+    category: 'ram',
+    manufacturer: 'Mnemora',
+    unitCostCents: 9_500,
+  },
+  'ssd-2t': {
+    category: 'storage',
+    manufacturer: 'Stratavault',
+    unitCostCents: 10_000,
+  },
   'pc-office': {
     category: 'product',
     manufacturer: 'Silicon Empire',
@@ -92,6 +104,26 @@ export const ITEMS = z.record(z.enum(ITEM_TYPES), itemDefinition.readonly()).rea
     unitCostCents: null,
   },
   'pc-gaming-packaged': {
+    category: 'product',
+    manufacturer: 'Silicon Empire',
+    unitCostCents: null,
+  },
+  'pc-professional': {
+    category: 'product',
+    manufacturer: 'Silicon Empire',
+    unitCostCents: null,
+  },
+  'pc-professional-tested': {
+    category: 'product',
+    manufacturer: 'Silicon Empire',
+    unitCostCents: null,
+  },
+  'pc-professional-packaged': {
+    category: 'product',
+    manufacturer: 'Silicon Empire',
+    unitCostCents: null,
+  },
+  'pc-professional-rejected': {
     category: 'product',
     manufacturer: 'Silicon Empire',
     unitCostCents: null,

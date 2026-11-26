@@ -81,27 +81,32 @@ function ProductionDetails({ world, machine, controls }: { world: World; machine
   const model = machine.model ?? 'office';
   const recipe = recipeOf(machine.type, model);
   if (!recipe) return null;
-  const models = PRODUCT_MODELS.filter(option => modelUnlocked(world.progress, option));
-  const alternative = models.find(option => option !== model);
-  const changeBlocked = alternative && checkProductModel(world, machine, alternative);
+  const options = PRODUCT_MODELS.filter(option => modelUnlocked(world.progress, option))
+    .map(value => ({ value, error: checkProductModel(world, machine, value) }));
+  const canChange = options.some(option => option.value !== model && option.error === null);
+  const changeBlocked = canChange ? null : options.find(option => option.error !== null)?.error;
   const stock = world.stocks[machine.id] ?? {};
   const state = world.production[machine.id];
   const done = state?.batch ? recipe.ticks - state.batch.remaining : 0;
-  const output = inventoryTotal(state?.output ?? {});
+  const output = state?.output[recipe.output] ?? 0;
+  const rejection = recipe.rejection;
+  const rejectPort = rejection && portConnections(world, machine).find(port => port.kind === 'reject');
   const status = productionStatus(world, machine.id);
   return (
     <>
-      {alternative && (
+      {options.length > 1 && (
         <div className="order-form">
           <label>
             <span>{t.production.model}</span>
             <select
               value={model}
-              disabled={Boolean(changeBlocked)}
+              disabled={!canChange}
               aria-describedby={changeBlocked ? 'model-switch-help' : undefined}
               onChange={event => controls.setProductModel(machine.id, event.target.value as ProductModel)}
             >
-              {models.map(option => <option key={option} value={option}>{t.production.models[option]}</option>)}
+              {options.map(({ value, error }) => (
+                <option key={value} value={value} disabled={error !== null}>{t.production.models[value]}</option>
+              ))}
             </select>
           </label>
           {changeBlocked && <p className="order-hint" id="model-switch-help">{t.errors[changeBlocked]}</p>}
@@ -114,7 +119,19 @@ function ProductionDetails({ world, machine, controls }: { world: World; machine
           <dd><progress max={recipe.ticks} value={done} aria-label={t.production.progress} /> {Math.floor(done * 100 / recipe.ticks)}&#8201;%</dd>
         </div>
         <div><dt>{t.production.output}</dt><dd>{t.items[recipe.output]} · {output} / {PRODUCTION.outputCapacity}</dd></div>
+        {rejectPort && (
+          <div>
+            <dt>{t.production.rejectPort}</dt>
+            <dd className={rejectPort.connected ? undefined : 'text-error'}>
+              {t.directions[rejectPort.side]} · {rejectPort.connected ? t.inspector.connected : t.inspector.notConnected}
+            </dd>
+          </div>
+        )}
+        {rejection && (
+          <div><dt>{t.production.rejectBuffer}</dt><dd>{state?.output[rejection.item] ?? 0} / {PRODUCTION.outputCapacity}</dd></div>
+        )}
       </dl>
+      {rejection && <p className="placement-status">{t.production.rejectRate(rejection.every)}</p>}
       <h4 className="inspector-subtitle">{t.production.recipe}</h4>
       {machine.type === 'packager' && <p className="placement-status">{t.production.packagerInputs}</p>}
       <ul className="stock-list" aria-label={t.production.recipe}>

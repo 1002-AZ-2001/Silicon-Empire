@@ -37,7 +37,9 @@ L’assembleur et le banc de test restent sans ports ni inventaire jusqu’à la
 
 **v0.3.1** livre le contrat phare de l’Université de Valmont. La Direction reçoit 50 PC bureautiques emballés et débloque la gamme gaming et son premier objectif au palier 3.
 
-**Suite proposée** pour la progression. Ajouter le palier 4 avec des PC professionnels, des défauts au test et le tri des rebuts. La v0.4 introduira les ventes, les commandes et les finances.
+**v0.3.2** ouvre le palier 4 après le tournoi de Valmont. La gamme professionnelle ajoute le contrôle qualité et le tri des rebuts. L’Institut Sorel commande 10 PC professionnels conformes et emballés.
+
+La v0.4 introduira les ventes, les commandes et les finances.
 
 La version 0.2.0 publie la tranche 1 avec l’application de bureau (Windows, Debian, Arch, AppImage) et ses mises à jour. La version 0.2.1 publie la tranche 2. L’image Docker est prévue en v0.5.
 

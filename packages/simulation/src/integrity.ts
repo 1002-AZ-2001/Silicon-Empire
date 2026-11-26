@@ -86,13 +86,17 @@ export function checkIntegrity(world: World): boolean {
     const machine = machines.get(id);
     const recipe = machine && recipeOf(machine.type, machine.model);
     if (!recipe) return false;
-    const outputs = inventoryTotal(state.output);
-    if (outputs > PRODUCTION.outputCapacity || (!state.batch && outputs === 0)) return false;
-    if (ITEM_TYPES.some(item => item !== recipe.output && (state.output[item] ?? 0) > 0)) return false;
+    const rejected = recipe.rejection?.item;
+    if (!state.batch && inventoryTotal(state.output) === 0) return false;
+    for (const item of ITEM_TYPES) {
+      const count = state.output[item] ?? 0;
+      if (count > PRODUCTION.outputCapacity || (count > 0 && item !== recipe.output && item !== rejected)) return false;
+    }
     held = mergeInventories(held, state.output);
     if (state.batch) {
       const { item, remaining } = state.batch;
-      if (item !== recipe.output || !Number.isInteger(remaining) || remaining < 0 || remaining > recipe.ticks) return false;
+      if (item !== recipe.output && item !== rejected) return false;
+      if (!Number.isInteger(remaining) || remaining < 0 || remaining > recipe.ticks) return false;
       held = addItems(held, item, 1);
     }
   }

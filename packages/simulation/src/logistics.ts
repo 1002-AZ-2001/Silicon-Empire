@@ -1,7 +1,7 @@
 import {
   CONVEYOR, CONVEYOR_SPEEDS, ITEM_TYPES, MACHINES, MILESTONES, PRODUCTION, isConveyor, recipeOf,
 } from '@silicon-empire/game-data';
-import type { Direction, ItemType, Recipe } from '@silicon-empire/game-data';
+import type { Direction, ItemType, PortDefinition, Recipe } from '@silicon-empire/game-data';
 import { addItems, inputRoom, inventoryTotal, mergeInventories, mostStocked } from './inventory';
 import type { Inventory } from './inventory';
 import { milestoneDone, stillNeeded } from './progress';
@@ -21,7 +21,7 @@ export function neighbour(tile: Tile, direction: Direction): Tile {
 }
 
 export interface WorldPort {
-  readonly kind: 'input' | 'output';
+  readonly kind: PortDefinition['kind'];
   /** Footprint tile holding the port. */
   readonly tile: Tile;
   /** Direction the port faces, outward from the machine. */
@@ -29,9 +29,10 @@ export interface WorldPort {
 }
 
 /** Ports of a placed machine, rotated with it. Rotation turns the footprint clockwise around its centre. */
-export function portsOf(placement: Placement): WorldPort[] {
+export function portsOf(placement: Placement & Pick<Machine, 'model'>): WorldPort[] {
   const definition = MACHINES[placement.type];
-  return definition.ports.map(port => {
+  const rejects = recipeOf(placement.type, placement.model)?.rejection;
+  return definition.ports.filter(port => port.kind !== 'reject' || rejects).map(port => {
     let width: number = definition.width;
     let height: number = definition.height;
     let x = port.side === 1 ? width - 1 : port.side === 3 ? 0 : port.offset;
@@ -71,7 +72,7 @@ interface Links {
   /** Every conveyor in ascending id order with its speed and the place its front unit goes to. */
   readonly conveyors: readonly { readonly id: number; readonly speed: number; readonly target: BeltTarget | null }[];
   /** Connected output ports in ascending machine id, then catalogue port order. */
-  readonly outputs: readonly { readonly id: number; readonly belt: number }[];
+  readonly outputs: readonly { readonly id: number; readonly belt: number; readonly product?: ItemType }[];
   /** Splitters and mergers in ascending id order. */
   readonly routers: readonly RouterLinks[];
   /** Production machines in ascending id order with their recipe. */
@@ -134,14 +135,17 @@ function computeLinks(world: Pick<World, 'machines' | 'columns' | 'rows'>): Link
     return [{ id: conveyor.id, speed, target }];
   });
 
-  const outputs = world.machines.flatMap(machine => portsOf(machine)
-    .filter(port => port.kind === 'output')
-    .flatMap(port => {
+  const outputs = world.machines.flatMap(machine => {
+    const recipe = recipeOf(machine.type, machine.model);
+    return portsOf(machine).flatMap(port => {
+      if (port.kind === 'input') return [];
       const target = targetFrom(port.tile, port.side);
       if (target?.kind !== 'belt') return [];
       feed(target, port.side);
-      return [{ id: machine.id, belt: target.id }];
-    }));
+      const product = port.kind === 'reject' ? recipe?.rejection?.item : recipe?.output;
+      return [{ id: machine.id, belt: target.id, product }];
+    });
+  });
 
   const routers = world.machines.filter(isRouter).map(router => {
     const [left, front, right] = routerSides(router.rotation);
@@ -209,6 +213,13 @@ function beltHasRoom(belt: readonly BeltItem[] | undefined, entry = 0): boolean 
 
 const EMPTY_ROUTER: RouterState = { held: null, cursor: 0 };
 const IDLE: ProductionState = { batch: null, output: {} };
+
+function batchOutput(recipe: Recipe, produced: Inventory): ItemType {
+  const rejection = recipe.rejection;
+  if (!rejection) return recipe.output;
+  const started = (produced[recipe.output] ?? 0) + (produced[rejection.item] ?? 0);
+  return (started + 1) % rejection.every === 0 ? rejection.item : recipe.output;
+}
 
 /**
  * Advances the workshop by one tick.
@@ -360,32 +371,33 @@ export function step(world: World): World {
     const previous = production[id] ?? IDLE;
     let { batch, output } = previous;
     if (batch && batch.remaining > 0) batch = { ...batch, remaining: batch.remaining - 1 };
-    if (batch && batch.remaining === 0 && inventoryTotal(output) < PRODUCTION.outputCapacity) {
+    if (batch && batch.remaining === 0 && (output[batch.item] ?? 0) < PRODUCTION.outputCapacity) {
       output = addItems(output, batch.item, 1);
       batch = null;
     }
     const stock = stocks[id] ?? {};
     const ready = Object.entries(recipe.inputs).every(([item, count]) => (stock[item as ItemType] ?? 0) >= (count ?? 0));
     if (!batch && ready) {
+      const item = batchOutput(recipe, ledger.produced);
       setStock(id, current => ITEM_TYPES.reduce(
         (remaining, item) => (recipe.inputs[item] ? addItems(remaining, item, -(recipe.inputs[item] ?? 0)) : remaining),
         current,
       ));
       record({
         consumed: mergeInventories(ledger.consumed, recipe.inputs),
-        produced: addItems(ledger.produced, recipe.output, 1),
+        produced: addItems(ledger.produced, item, 1),
       });
-      batch = { item: recipe.output, remaining: recipe.ticks };
+      batch = { item, remaining: recipe.ticks };
     }
     if (batch !== previous.batch || output !== previous.output) setProduction(id, { batch, output });
   }
 
-  const producers = new Set(links.producers.map(producer => producer.id));
-  for (const { id, belt } of links.outputs) {
-    // A production machine releases only finished units, never its input buffer.
-    const fromProduction = producers.has(id) ? production[id] ?? IDLE : null;
-    const source = fromProduction ? fromProduction.output : stocks[id] ?? {};
-    const item = mostStocked(source);
+  for (const { id, belt, product } of links.outputs) {
+    // Each production port releases its own finished item. Ordinary storage releases mixed stock.
+    const fromProduction = product ? production[id] ?? IDLE : null;
+    const item = product
+      ? (fromProduction?.output[product] ?? 0) > 0 ? product : undefined
+      : mostStocked(stocks[id] ?? {});
     if (!item || !beltHasRoom(belts[belt]) || nextItemId >= Number.MAX_SAFE_INTEGER) continue;
     if (fromProduction) setProduction(id, { ...fromProduction, output: addItems(fromProduction.output, item, -1) });
     else setStock(id, current => addItems(current, item, -1));
@@ -425,14 +437,16 @@ export function beltStatus(world: World, id: number): BeltStatus {
   return accepts ? 'moving' : 'blocked';
 }
 
-export type ProductionStatus = 'working' | 'starved' | 'blocked';
+export type ProductionStatus = 'working' | 'starved' | 'blocked' | 'reject-blocked';
 
 /** Working while a batch runs; blocked when a finished unit cannot leave; starved when inputs are missing. */
 export function productionStatus(world: World, id: number): ProductionStatus {
-  const state = world.production[id];
-  if (state?.batch && state.batch.remaining > 0) return 'working';
-  if (state?.batch) return 'blocked';
-  return 'starved';
+  const batch = world.production[id]?.batch;
+  if (!batch) return 'starved';
+  if (batch.remaining > 0) return 'working';
+  const machine = world.machines.find(candidate => candidate.id === id);
+  const rejected = machine && recipeOf(machine.type, machine.model)?.rejection?.item;
+  return batch.item === rejected ? 'reject-blocked' : 'blocked';
 }
 
 /** Connected outputs and inputs of a splitter or merger. */

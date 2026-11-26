@@ -21,6 +21,25 @@ async function startWorkshop(page: Page, name: string, { progression = false } =
   await expect(canvas(page)).toBeVisible();
 }
 
+async function resumeFixture(page: Page, saved: { name: string }) {
+  await page.goto('/');
+  await expect(page.getByText('Aucun atelier enregistré')).toBeVisible();
+  await page.evaluate(value => new Promise<void>((resolve, reject) => {
+    const opening = indexedDB.open('silicon-empire', 1);
+    opening.onerror = () => reject(opening.error);
+    opening.onsuccess = () => {
+      const db = opening.result;
+      const transaction = db.transaction('workshops', 'readwrite');
+      transaction.objectStore('workshops').put(value);
+      transaction.oncomplete = () => { db.close(); resolve(); };
+      transaction.onabort = () => { db.close(); reject(transaction.error); };
+    };
+  }), saved);
+  await page.reload();
+  await page.getByRole('button', { name: `Reprendre ${saved.name}` }).click();
+  await expect(canvas(page)).toBeVisible();
+}
+
 async function tileAtCenterZoom(page: Page, x: number, y: number) {
   const box = await canvas(page).boundingBox();
   if (!box) throw new Error('La grille est invisible.');
@@ -492,6 +511,13 @@ test('choisit la gamme gaming sur les trois machines et garde les modèles aprè
     await expect(model).toHaveValue('gaming');
     await expect(ingredients).toContainText(station.input);
   }
+  await clickTile(page, 32, 32);
+  await expect(inspector(page).getByText('Sortie des rebuts')).toHaveCount(0);
+  await model.selectOption('professional');
+  await expect(inspector(page)).toContainText('Est · Non raccordée');
+  await expect(inspector(page)).toContainText('Un PC sur 8 est écarté au contrôle.');
+  await page.keyboard.press('r');
+  await expect(inspector(page)).toContainText('Sud · Non raccordée');
 });
 
 test('livre le dernier PC du contrat de Valmont, crédite la récompense et débloque la gamme', async ({ page }) => {
@@ -529,22 +555,7 @@ test('livre le dernier PC du contrat de Valmont, crédite la récompense et déb
       },
     },
   };
-  await page.goto('/');
-  await expect(page.getByText('Aucun atelier enregistré')).toBeVisible();
-  await page.evaluate(value => new Promise<void>((resolve, reject) => {
-    const opening = indexedDB.open('silicon-empire', 1);
-    opening.onerror = () => reject(opening.error);
-    opening.onsuccess = () => {
-      const db = opening.result;
-      const transaction = db.transaction('workshops', 'readwrite');
-      transaction.objectStore('workshops').put(value);
-      transaction.oncomplete = () => { db.close(); resolve(); };
-      transaction.onabort = () => { db.close(); reject(transaction.error); };
-    };
-  }), saved);
-  await page.reload();
-  await page.getByRole('button', { name: 'Reprendre Contrat Valmont' }).click();
-  await expect(canvas(page)).toBeVisible();
+  await resumeFixture(page, saved);
   await clickTile(page, 32, 31);
   const model = inspector(page).getByLabel('Modèle de PC');
   await expect(model).toHaveCount(0);
@@ -563,4 +574,57 @@ test('livre le dernier PC du contrat de Valmont, crédite la récompense et déb
   await page.getByRole('button', { name: /^Progression/ }).click();
   await expect(contract).toContainText('Terminé');
   await expect(panel.getByRole('listitem', { name: 'Tournoi de Valmont' })).toContainText('Disponible');
+  await expect(panel.getByRole('listitem', { name: /Institut Sorel/ })).toContainText('Verrouillé');
+});
+
+test('reprend un contrôle professionnel et stocke séparément le PC conforme et le rebut', async ({ page }) => {
+  const saved = {
+    version: 6,
+    id: '534f52454c0000000000000000000001',
+    name: 'Atelier Sorel',
+    createdAt: 1000,
+    savedAt: 2000,
+    world: {
+      columns: 64, rows: 64, tick: 7050, capitalCents: 1_000_000, nextMachineId: 6, nextItemId: 24,
+      machines: [
+        { id: 1, type: 'tester', x: 31, y: 32, rotation: 0, paidCents: 240000, model: 'professional' },
+        { id: 2, type: 'conveyor', x: 32, y: 31, rotation: 0, paidCents: 4000 },
+        { id: 3, type: 'storage', x: 32, y: 30, rotation: 0, paidCents: 60000 },
+        { id: 4, type: 'conveyor', x: 33, y: 32, rotation: 1, paidCents: 4000 },
+        { id: 5, type: 'storage', x: 34, y: 32, rotation: 1, paidCents: 60000 },
+      ],
+      stocks: {},
+      belts: {},
+      routers: {},
+      production: {
+        1: {
+          batch: { item: 'pc-professional-rejected', remaining: 1 },
+          output: { 'pc-professional-tested': 1 },
+        },
+      },
+      progress: { sandbox: true, completed: [], active: null, delivered: {} },
+      ledger: {
+        purchased: {}, purchaseSpentCents: 0,
+        produced: { 'pc-professional': 8, 'pc-professional-tested': 7, 'pc-professional-rejected': 1 },
+        consumed: { 'pc-professional': 8 },
+        discarded: { 'pc-professional-tested': 6 },
+        delivered: {},
+      },
+    },
+  };
+  await resumeFixture(page, saved);
+  await clickTile(page, 31, 32);
+  await expect(inspector(page).getByLabel('Modèle de PC')).toHaveValue('professional');
+  await expect(inspector(page)).toContainText('Est · raccordée');
+  await expect(inspector(page)).toContainText('PC professionnel conforme · 1 / 2');
+  const clock = page.getByRole('group', { name: 'Vitesse de simulation' });
+  await clock.getByRole('button', { name: '×5' }).click();
+
+  const stock = inspector(page).getByRole('list', { name: 'Contenu du stock' });
+  await clickTile(page, 32, 30);
+  await expect(stock.getByRole('listitem')).toHaveCount(1);
+  await expect(stock).toContainText('PC professionnel conforme');
+  await clickTile(page, 34, 32);
+  await expect(stock.getByRole('listitem')).toHaveCount(1);
+  await expect(stock).toContainText('PC professionnel non conforme');
 });

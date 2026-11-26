@@ -55,7 +55,7 @@ export const DIRECTIONS = [0, 1, 2, 3] as const;
 export type Direction = (typeof DIRECTIONS)[number];
 
 const port = z.strictObject({
-  kind: z.enum(['input', 'output']),
+  kind: z.enum(['input', 'output', 'reject']),
   /** Side of the footprint when the machine faces north. */
   side: z.union(DIRECTIONS.map(direction => z.literal(direction))),
   /** Tile along that side, counted from the west for north and south, from the north for east and west. */
@@ -106,6 +106,7 @@ export const MACHINES = z.record(z.enum(MACHINE_TYPES), machineDefinition.readon
     ports: [
       { kind: 'input', side: 2, offset: 0 },
       { kind: 'output', side: 0, offset: 1 },
+      { kind: 'reject', side: 1, offset: 0 },
     ],
   },
   receiving: {

@@ -59,6 +59,12 @@ Le contrat ouvre le palier 3. Cinquante PC correspondent à cinq lots par compos
 
 Le modèle gaming ajoute une carte graphique 8 Go aux pièces de la recette bureautique. Il prend 45 s à assembler, 15 s à tester et 8 s à emballer. Un PC gaming emballé coûte 703 € en pièces et carton.
 
+## Postes professionnels v0.3.2
+
+Le tournoi de Valmont débloque le kit mémoire 32 Go (95 €) et le SSD 2 To (100 €). Ces composants remplacent la barrette 16 Go et le SSD 1 To de la recette gaming. Un poste professionnel coûte 800 € en pièces. Il prend 60 s à assembler, 20 s à tester et 8 s à emballer avec un carton à 3 €.
+
+Le contrôle écarte chaque huitième poste à l’échelle de l’atelier. Chaque sortie possède un tampon de deux unités. Une ligne qui démarre produit ses dix premiers PC conformes à partir de onze postes assemblés. L’Institut Sorel paie 20 000 € pour ces dix produits emballés.
+
 ## Logistique v0.2 (tranche 1)
 
 | Paramètre | Valeur |
