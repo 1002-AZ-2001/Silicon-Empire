@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0 — Boutique de composants
+
+- Le bouton **Boutique** ouvre le catalogue des composants, filtrable par catégorie, avec le prix unitaire et le prix du lot de 10 chez le fournisseur choisi. Les composants verrouillés indiquent le jalon qui les débloque.
+- Le panier regroupe plusieurs composants et plusieurs lots, jusqu’à 20 lots par composant. Il reste rempli quand on ferme la boutique.
+- Remise de volume par composant : −5 % dès 5 lots, −10 % dès 10 lots. Elle se cumule avec le tarif de Relais Fret.
+- La commande vise un quai de réception choisi. Tout le panier passe ou rien ne passe : capital, place libre au quai et composants débloqués sont vérifiés d’un coup. Les lots de Relais Fret réservent leur place jusqu’à leur arrivée.
+- La commande d’un lot depuis l’inspecteur du quai reste disponible. Le format de sauvegarde ne change pas.
+
 ## 0.6.1 — Monnaies
 
 - Les montants s’affichent dans la monnaie de la langue : euro en français, espagnol et allemand, dollar ou livre en anglais selon la région du système (euro pour l’Irlande et Malte), yuan en chinois, yen en japonais.

@@ -39,7 +39,7 @@ Le **Guide d’atelier**, dans la barre de construction, suit les étapes jusqu�
 | Vendre | Construire un **Quai d’expédition** après Conditionnement, accepter une commande dans **Ventes**, puis acheminer dix PC emballés jusqu’au quai |
 | Concevoir un PC | Ouvrir **Conception de PC** après Conditionnement, choisir mémoire, stockage, graphismes et alimentation, puis sélectionner le modèle sur les trois machines de la ligne |
 | Répartir ou fusionner | **Répartiteur** ou **Fusionneur** ; le filtre du répartiteur se règle dans l’inspection |
-| Commander des composants | Inspecter un quai de réception, choisir un composant, puis **Commander 10 unités** |
+| Commander des composants | **Boutique** : remplir le panier (lots de 10, remise dès 5 lots), choisir le quai, puis **Commander** ; ou inspecter un quai de réception et **Commander 10 unités** |
 | Régler le temps | **Pause**, **×1**, **×2**, **×5** dans la barre haute ; **P** met en pause ou reprend |
 | Inspecter | **Inspecter** ou **I**, puis cliquer sur l’équipement |
 | Pivoter de 90° | **R** ou **Pivoter**, sur l’aperçu ou sur l’équipement inspecté |

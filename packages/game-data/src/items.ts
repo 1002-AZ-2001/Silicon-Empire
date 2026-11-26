@@ -18,8 +18,16 @@ export const ITEM_TYPES = [
 ] as const;
 export type ItemType = (typeof ITEM_TYPES)[number];
 
-/** Purchases are delivered at once to a receiving dock, in lots of `lotSize` identical units. */
-export const PURCHASE = { lotSize: 10 } as const;
+/**
+ * Purchases are delivered to a receiving dock in lots of `lotSize` identical units. A shop order may
+ * hold up to `maxLots` lots per line; a line of many lots of one component earns a volume discount,
+ * the largest threshold reached applying. Discounts are listed from the largest threshold down.
+ */
+export const PURCHASE = {
+  lotSize: 10,
+  maxLots: 20,
+  volumeDiscounts: [{ lots: 10, percent: 10 }, { lots: 5, percent: 5 }],
+} as const;
 
 /** Display names are translated in the game interface (apps/web/src/i18n). */
 const itemDefinition = z.strictObject({
