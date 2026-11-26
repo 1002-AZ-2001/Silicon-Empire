@@ -1,10 +1,11 @@
 import {
-  CONVEYOR, ITEM_TYPES, MACHINES, MILESTONES, MILESTONE_IDS, PRODUCTION, WORKSHOP, isConveyor, recipeOf,
+  CONVEYOR, ITEM_TYPES, MACHINES, MILESTONES, MILESTONE_IDS, PRODUCTION, PURCHASE, SUPPLIERS, WORKSHOP,
+  designParts, designPower, isConveyor, recipeOf, sameDesign,
 } from '@silicon-empire/game-data';
 import type { ItemType, MilestoneId } from '@silicon-empire/game-data';
 import { addItems, fitsInputStock, inventoryTotal, mergeInventories } from './inventory';
 import type { Inventory } from './inventory';
-import { createProgress, milestoneAvailable, milestoneDone, modelUnlocked, rewardsEarned, unlockedMachines } from './progress';
+import { createProgress, milestoneAvailable, milestoneDone, modelUnlocked, orderableItems, rewardsEarned, unlockedMachines } from './progress';
 import type { Progress } from './progress';
 import { salesAccounts, validSaleTerms } from './sales';
 import { fitsMap, footprintOf } from './world';
@@ -42,7 +43,15 @@ export function checkIntegrity(world: World): boolean {
   const { active, completed } = world.sales;
   if (active && (!validSaleTerms(active.terms) || !modelUnlocked(world.progress, active.terms.model) ||
     !Number.isInteger(active.delivered) || active.delivered < 0 || active.delivered >= active.terms.units)) return false;
+  if (active?.terms.design && (!world.design || !sameDesign(active.terms.design, world.design))) return false;
   if (completed.some(terms => !validSaleTerms(terms) || !modelUnlocked(world.progress, terms.model))) return false;
+  const orderable = orderableItems(world.progress);
+  if (world.design) {
+    const power = designPower(world.design.spec);
+    const parts = designParts(world.design.spec);
+    if (!modelUnlocked(world.progress, 'custom') || power.required > power.available ||
+      ITEM_TYPES.some(item => parts[item] && !orderable.has(item))) return false;
+  }
   const { revenueCents, shipped } = salesAccounts(world.sales);
   const unlocked = unlockedMachines(world.progress);
   const occupiedTiles = new Set<number>();
@@ -57,7 +66,7 @@ export function checkIntegrity(world: World): boolean {
     const footprint = footprintOf(machine);
     if (machine.id <= previousId || machine.id >= world.nextMachineId || !fitsMap(world, footprint)) return false;
     if (!unlocked.has(machine.type)) return false;
-    if (machine.model && (!recipeOf(machine.type, machine.model) || !modelUnlocked(world.progress, machine.model))) {
+    if (machine.model && (!recipeOf(machine.type, machine.model, world.design) || !modelUnlocked(world.progress, machine.model))) {
       return false;
     }
     previousId = machine.id;
@@ -74,12 +83,23 @@ export function checkIntegrity(world: World): boolean {
     }
   }
 
+  const reserved = new Map<string, number>();
+  for (const delivery of world.deliveries) {
+    const id = String(delivery.dockId);
+    const lead = SUPPLIERS[delivery.supplier].leadTicks;
+    if (machines.get(id)?.type !== 'receiving' || !orderable.has(delivery.item) ||
+      delivery.dueTick <= world.tick || delivery.dueTick - world.tick > lead) return false;
+    const units = (reserved.get(id) ?? 0) + PURCHASE.lotSize;
+    if (inventoryTotal(world.stocks[id] ?? {}) + units > MACHINES.receiving.capacity) return false;
+    reserved.set(id, units);
+  }
+
   let held: Inventory = {};
   for (const [id, stock] of Object.entries(world.stocks)) {
     const machine = machines.get(id);
     const total = inventoryTotal(stock);
     if (!machine || total === 0) return false;
-    const recipe = recipeOf(machine.type, machine.model);
+    const recipe = recipeOf(machine.type, machine.model, world.design);
     if (recipe) {
       if (!fitsInputStock(recipe, stock)) return false;
     } else if (total > MACHINES[machine.type].capacity) {
@@ -90,7 +110,7 @@ export function checkIntegrity(world: World): boolean {
 
   for (const [id, state] of Object.entries(world.production)) {
     const machine = machines.get(id);
-    const recipe = machine && recipeOf(machine.type, machine.model);
+    const recipe = machine && recipeOf(machine.type, machine.model, world.design);
     if (!recipe) return false;
     const rejected = recipe.rejection?.item;
     if (!state.batch && inventoryTotal(state.output) === 0) return false;

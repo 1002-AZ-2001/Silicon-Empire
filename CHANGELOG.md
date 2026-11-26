@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.1 — Conception de PC et fournisseurs
+
+- Conception d’un PC avec mémoire, SSD, graphismes et alimentation configurables. La puissance requise inclut une marge de 20 %.
+- Les machines de production et les commandes clients utilisent la révision validée. L’historique garde le nom, les pièces et le tarif des modèles vendus.
+- Relais Fret facture 15 % de moins et livre après 90 secondes simulées. Circuit Direct livre immédiatement au prix catalogue.
+- Les lots en attente réservent leur place au quai. Le format v8 enregistre le modèle et les livraisons réservées.
+
 ## 0.4.0 — Expédition et ventes
 
 - Le quai d’expédition, débloqué par le jalon Conditionnement, reçoit les PC emballés pour les commandes clients répétables.

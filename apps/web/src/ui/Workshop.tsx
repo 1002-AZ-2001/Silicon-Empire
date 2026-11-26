@@ -1,4 +1,4 @@
-import { contentsOf, demolitionRefund, inventoryTotal, sameContents, Simulation } from '@silicon-empire/simulation';
+import { contentsOf, demolitionRefund, inventoryTotal, modelUnlocked, sameContents, Simulation } from '@silicon-empire/simulation';
 import { MILESTONES, TIME } from '@silicon-empire/game-data';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
@@ -6,6 +6,7 @@ import { createWorkshopControls } from '../game/controls';
 import { writeSave } from '../persistence/indexed-saves';
 import { SAVE_VERSION } from '../persistence/save-data';
 import { ConstructionBar, getShortcut } from './ConstructionBar';
+import { DesignerPanel } from './DesignerPanel';
 import { Inspector } from './Inspector';
 import { useI18n } from '../i18n';
 import { ProgressionPanel } from './ProgressionPanel';
@@ -33,6 +34,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
   const speed = useStore(controls.store, state => state.speed);
   const progressionOpen = useStore(controls.store, state => state.progressionOpen);
   const salesOpen = useStore(controls.store, state => state.salesOpen);
+  const [designerOpen, setDesignerOpen] = useState(false);
   const completedCount = useRef(world.progress.completed.length);
   const [savedWorld, setSavedWorld] = useState<World | null>(session.savedAt === null ? null : session.world);
   const [saving, setSaving] = useState(false);
@@ -170,6 +172,9 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
           </button>
         )}
         <button type="button" className="button" onClick={() => controls.store.setState({ salesOpen: true })}>{t.trade.title}</button>
+        {modelUnlocked(world.progress, 'custom') && (
+          <button type="button" className="button" onClick={() => setDesignerOpen(true)}>{t.design.title}</button>
+        )}
         <div className="workshop-actions">
           <span className={`save-status${saveFailed ? ' text-error' : ''}`} role="status">
             {saveFailed ? t.workshop.saveFailed : saving ? t.workshop.saving : dirty ? t.workshop.unsaved : t.workshop.saved}
@@ -196,6 +201,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
         <ProgressionPanel world={world} controls={controls} onClose={() => controls.store.setState({ progressionOpen: false })} />
       )}
       {salesOpen && <SalesPanel world={world} controls={controls} />}
+      {designerOpen && <DesignerPanel world={world} controls={controls} onClose={() => setDesignerOpen(false)} />}
 
       {toDemolish && (
         <Dialog

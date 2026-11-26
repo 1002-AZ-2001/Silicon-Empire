@@ -669,3 +669,48 @@ test('accepte une commande au quai et affiche le paiement de la dernière livrai
   await expect(sales).toContainText('0 / 10');
   await expect(capital(page)).toHaveText(euros(16_500));
 });
+
+test('valide un modèle sur mesure et garde une commande fournisseur réservée', async ({ page }) => {
+  await page.goto('/');
+  await startWorkshop(page, 'Atelier Nacre');
+  await page.getByRole('button', { name: 'Conception de PC' }).click();
+  const designer = page.getByRole('dialog', { name: 'Conception de PC' });
+  await designer.getByLabel('Nom du modèle').fill('Nacre');
+  await designer.getByLabel('Carte graphique').selectOption('gpu-8g');
+  await expect(designer.getByRole('alert')).toContainText('puissance requise');
+  const publish = designer.getByRole('button', { name: 'Valider le modèle' });
+  await expect(publish).toBeDisabled();
+  await designer.getByLabel('Alimentation', { exact: true }).selectOption('psu-650');
+  await publish.click();
+  await expect(designer.getByRole('status')).toHaveText('Révision active 1 · Nacre');
+  await designer.getByRole('button', { name: 'Fermer' }).click();
+
+  await page.getByRole('button', { name: /^Assemblage/ }).click();
+  await clickTile(page, 31, 32);
+  await page.keyboard.press('Escape');
+  await clickTile(page, 31, 32);
+  await inspector(page).getByLabel('Modèle de PC').selectOption('custom');
+  await expect(inspector(page).getByRole('list', { name: 'Recette' })).toContainText('Carte graphique 8 Go');
+
+  await page.getByRole('button', { name: /^Réception/ }).click();
+  await clickTile(page, 35, 34);
+  await page.keyboard.press('Escape');
+  await clickTile(page, 35, 34);
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: 'Pause' }).click();
+  await inspector(page).getByLabel('Composant').selectOption('ram-16g');
+  await inspector(page).getByLabel('Fournisseur').selectOption('economy');
+  const order = inspector(page).getByRole('button', { name: /^Commander 10 unités/ });
+  await expect(order).toContainText(euros(340));
+  await order.click();
+  const pending = inspector(page).getByRole('list', { name: 'Livraisons attendues' });
+  await expect(pending).toContainText('10 × Barrette 16 Go');
+  await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+  await expect(page.getByText('Atelier enregistré', { exact: true })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Reprendre Atelier Nacre' }).click();
+  await expect(canvas(page)).toBeVisible();
+  await clickTile(page, 35, 34);
+  await expect(pending).toContainText('10 × Barrette 16 Go');
+  await clickTile(page, 31, 32);
+  await expect(inspector(page).getByLabel('Modèle de PC')).toHaveValue('custom');
+});

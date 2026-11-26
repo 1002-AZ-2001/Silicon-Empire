@@ -720,7 +720,7 @@ kbd {
 .order-form h4 { font: 600 1.05rem var(--heading); letter-spacing: .04em; text-transform: uppercase; }
 .order-form label { display: grid; gap: 4px; color: var(--muted); font-size: .76rem; }
 
-.order-form select {
+.order-form select, .order-form input {
   min-height: 34px;
   padding: 0 8px;
   border: 1px solid var(--line);

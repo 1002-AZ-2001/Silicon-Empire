@@ -1,5 +1,10 @@
-import { ITEMS, MACHINES, MAX_LINE_LENGTH, PURCHASE, WORKSHOP, isConveyor, recipeOf, saleOffer } from '@silicon-empire/game-data';
-import type { ConveyorType, Direction, ItemType, MachineType, MilestoneId, ProductModel } from '@silicon-empire/game-data';
+import {
+  CUSTOM_ITEMS, ITEMS, ITEM_TYPES, MACHINES, MAX_LINE_LENGTH, PURCHASE, SUPPLIERS, WORKSHOP,
+  designParts, designPower, isConveyor, pcDesignSchema, recipeOf, saleOffer,
+} from '@silicon-empire/game-data';
+import type {
+  ConveyorType, Direction, ItemType, MachineType, MilestoneId, PcDesign, ProductModel, PublishedDesign, SupplierId,
+} from '@silicon-empire/game-data';
 import { addItems, fitsInputStock, inventoryTotal, mergeInventories } from './inventory';
 import type { Inventory } from './inventory';
 import { createProgress, milestoneAvailable, modelUnlocked, orderableItems, unlockedMachines } from './progress';
@@ -81,6 +86,13 @@ export interface ProductionState {
   readonly output: Inventory;
 }
 
+export interface PendingDelivery {
+  readonly dockId: number;
+  readonly item: ItemType;
+  readonly supplier: SupplierId;
+  readonly dueTick: number;
+}
+
 export interface World {
   readonly columns: number;
   readonly rows: number;
@@ -100,6 +112,8 @@ export interface World {
   readonly production: Readonly<Record<string, ProductionState>>;
   readonly progress: Progress;
   readonly sales: Sales;
+  readonly design: PublishedDesign | null;
+  readonly deliveries: readonly PendingDelivery[];
   readonly ledger: Ledger;
 }
 
@@ -114,18 +128,21 @@ export type Command =
   | { readonly kind: 'select-milestone'; readonly milestone: MilestoneId | null }
   | { readonly kind: 'start-sale'; readonly model: ProductModel }
   | { readonly kind: 'cancel-sale' }
+  | { readonly kind: 'publish-design'; readonly spec: PcDesign }
   | { readonly kind: 'configure'; readonly id: number; readonly filter: RouterFilter | null }
   | { readonly kind: 'set-product-model'; readonly id: number; readonly model: ProductModel }
   | { readonly kind: 'rotate'; readonly id: number }
   | { readonly kind: 'demolish'; readonly id: number }
-  | { readonly kind: 'order'; readonly id: number; readonly item: ItemType };
+  | { readonly kind: 'order'; readonly id: number; readonly item: ItemType; readonly supplier?: SupplierId };
 
 type FootprintError = 'out-of-bounds' | 'occupied';
 type BuildError = FootprintError | 'insufficient-funds' | 'id-limit' | 'invalid-line' | 'locked' | 'unique';
 type OrderError = 'not-a-dock' | 'insufficient-funds' | 'dock-full' | 'id-limit' | 'locked';
-type ModelError = 'not-a-producer' | 'locked' | 'production-busy' | 'incompatible-inputs';
+type ModelError = 'not-a-producer' | 'locked' | 'production-busy' | 'incompatible-inputs' | 'design-required';
 type SaleError = 'no-shipping-dock' | 'sale-in-progress' | 'sale-already-shipped';
-export type CommandError = BuildError | OrderError | ModelError | SaleError | 'missing-machine' | 'not-a-splitter' | 'milestone-unavailable';
+type DesignError = 'design-invalid' | 'design-power' | 'design-in-use';
+export type CommandError = BuildError | OrderError | ModelError | SaleError | DesignError |
+  'missing-machine' | 'not-a-splitter' | 'milestone-unavailable' | 'deliveries-pending';
 
 export type CommandResult =
   | { readonly ok: true; readonly world: World; readonly machine: Machine | null }
@@ -151,6 +168,8 @@ export function createWorld(mode: 'sandbox' | 'progression' = 'sandbox'): World 
     production: {},
     progress: createProgress(mode === 'sandbox'),
     sales: { active: null, completed: [] },
+    design: null,
+    deliveries: [],
     ledger: EMPTY_LEDGER,
   };
 }
@@ -248,23 +267,25 @@ export function lineCost(length: number, type: ConveyorType = 'conveyor'): numbe
 }
 
 /** Price of a lot; 0 for items that cannot be bought. */
-export function orderCost(item: ItemType): number {
-  return (ITEMS[item].unitCostCents ?? 0) * PURCHASE.lotSize;
+export function orderCost(item: ItemType, supplier: SupplierId = 'express'): number {
+  return Math.floor((ITEMS[item].unitCostCents ?? 0) * PURCHASE.lotSize * SUPPLIERS[supplier].pricePercent / 100);
 }
 
-export function checkOrder(world: World, id: number, item: ItemType): CommandError | null {
+export function checkOrder(world: World, id: number, item: ItemType, supplier: SupplierId = 'express'): CommandError | null {
   const dock = world.machines.find(machine => machine.id === id);
   if (!dock) return 'missing-machine';
   if (dock.type !== 'receiving') return 'not-a-dock';
   if (!orderableItems(world.progress).has(item)) return 'locked';
-  if (world.capitalCents < orderCost(item)) return 'insufficient-funds';
-  if (inventoryTotal(world.stocks[id] ?? {}) + PURCHASE.lotSize > MACHINES.receiving.capacity) return 'dock-full';
+  if (world.capitalCents < orderCost(item, supplier)) return 'insufficient-funds';
+  const reserved = world.deliveries.filter(delivery => delivery.dockId === id).length * PURCHASE.lotSize;
+  if (inventoryTotal(world.stocks[id] ?? {}) + reserved + PURCHASE.lotSize > MACHINES.receiving.capacity) return 'dock-full';
   return null;
 }
 
 /** A model switch keeps the existing stock and cannot change a running or finished batch. */
 export function checkProductModel(world: World, machine: Machine, model: ProductModel): ModelError | null {
-  const recipe = recipeOf(machine.type, model);
+  if (model === 'custom' && !world.design) return 'design-required';
+  const recipe = recipeOf(machine.type, model, world.design);
   if (!recipe) return 'not-a-producer';
   if (!modelUnlocked(world.progress, model)) return 'locked';
   if ((machine.model ?? 'office') === model) return null;
@@ -281,11 +302,39 @@ function withoutKey<T>(record: Readonly<Record<string, T>>, key: number): Readon
 }
 
 export function applyCommand(world: World, command: Command): CommandResult {
+  if (command.kind === 'publish-design') {
+    if (!modelUnlocked(world.progress, 'custom')) return { ok: false, reason: 'locked' };
+    const parsed = pcDesignSchema.safeParse(command.spec);
+    if (!parsed.success) return { ok: false, reason: 'design-invalid' };
+    const power = designPower(parsed.data);
+    if (power.required > power.available) return { ok: false, reason: 'design-power' };
+    const requirements = designParts(parsed.data);
+    const orderable = orderableItems(world.progress);
+    if (ITEM_TYPES.some(item => requirements[item] && !orderable.has(item))) return { ok: false, reason: 'locked' };
+    if (world.sales.active?.terms.model === 'custom' || world.machines.some(machine => {
+      const contents = contentsOf(world, machine.id);
+      return CUSTOM_ITEMS.some(item => contents[item]);
+    })) return { ok: false, reason: 'design-in-use' };
+    const revision = (world.design?.revision ?? 0) + 1;
+    if (!Number.isSafeInteger(revision)) return { ok: false, reason: 'id-limit' };
+    const design = { revision, spec: parsed.data };
+    for (const machine of world.machines) {
+      if (machine.model !== 'custom') continue;
+      const recipe = recipeOf(machine.type, machine.model, design);
+      if (recipe && !fitsInputStock(recipe, world.stocks[machine.id] ?? {})) {
+        return { ok: false, reason: 'incompatible-inputs' };
+      }
+    }
+    return { ok: true, world: { ...world, design }, machine: null };
+  }
+
   if (command.kind === 'start-sale') {
     if (world.sales.active) return { ok: false, reason: 'sale-in-progress' };
     if (!modelUnlocked(world.progress, command.model)) return { ok: false, reason: 'locked' };
     if (!world.machines.some(machine => machine.type === 'shipping')) return { ok: false, reason: 'no-shipping-dock' };
-    const sales = { ...world.sales, active: { terms: saleOffer(command.model), delivered: 0 } };
+    const terms = saleOffer(command.model, world.design);
+    if (!terms) return { ok: false, reason: 'design-required' };
+    const sales = { ...world.sales, active: { terms, delivered: 0 } };
     return { ok: true, world: { ...world, sales }, machine: null };
   }
 
@@ -372,9 +421,23 @@ export function applyCommand(world: World, command: Command): CommandResult {
   }
 
   if (command.kind === 'order') {
-    const reason = checkOrder(world, machine.id, command.item);
+    const supplier = command.supplier ?? 'express';
+    const reason = checkOrder(world, machine.id, command.item, supplier);
     if (reason) return { ok: false, reason };
-    const cost = orderCost(command.item);
+    const cost = orderCost(command.item, supplier);
+    const lead = SUPPLIERS[supplier].leadTicks;
+    if (lead > 0) {
+      const dueTick = world.tick + lead;
+      if (!Number.isSafeInteger(dueTick)) return { ok: false, reason: 'id-limit' };
+      const delivery: PendingDelivery = { dockId: machine.id, item: command.item, supplier, dueTick };
+      return {
+        ok: true, machine,
+        world: {
+          ...world, capitalCents: world.capitalCents - cost, deliveries: [...world.deliveries, delivery],
+          ledger: { ...world.ledger, purchaseSpentCents: world.ledger.purchaseSpentCents + cost },
+        },
+      };
+    }
     return {
       ok: true,
       world: {
@@ -392,6 +455,9 @@ export function applyCommand(world: World, command: Command): CommandResult {
   }
 
   if (command.kind === 'demolish') {
+    if (world.deliveries.some(delivery => delivery.dockId === machine.id)) {
+      return { ok: false, reason: 'deliveries-pending' };
+    }
     const lost = contentsOf(world, machine.id);
     return {
       ok: true,
@@ -429,5 +495,6 @@ export function applyCommand(world: World, command: Command): CommandResult {
 export function sameContents(a: World, b: World): boolean {
   return a.machines === b.machines && a.stocks === b.stocks && a.belts === b.belts && a.routers === b.routers &&
     a.production === b.production && a.progress === b.progress &&
-    a.ledger === b.ledger && a.sales === b.sales && a.capitalCents === b.capitalCents;
+    a.ledger === b.ledger && a.sales === b.sales && a.design === b.design && a.deliveries === b.deliveries &&
+    (a.deliveries.length === 0 || a.tick === b.tick) && a.capitalCents === b.capitalCents;
 }

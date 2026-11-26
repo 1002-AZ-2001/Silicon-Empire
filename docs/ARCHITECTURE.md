@@ -58,6 +58,13 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - Le format v7 garde les conditions, les livraisons partielles et les ventes soldées. La conservation compte les unités expédiées et distingue les livraisons à la Direction.
 - La trésorerie affiche les achats et recettes réels. La marge compare les recettes soldées au coût matière du catalogue, avec le coût moyen des rebuts professionnels.
 
+## Modèle sur mesure et fournisseurs (v0.4.1)
+
+- Le concepteur vérifie la disponibilité des pièces et la puissance de l’alimentation avec une marge de 20 %. Le processeur, la carte mère et le boîtier sont communs aux modèles de cet atelier.
+- Les machines utilisent la révision active du modèle sur mesure. Une nouvelle révision peut prendre le relais après la sortie des produits précédents et la fin des commandes associées. Les reçus de vente gardent leur propre copie de la nomenclature.
+- Les livraisons différées réservent la capacité du quai et débitent le capital à la commande. Elles entrent dans le stock et le registre des unités achetées au tick d’arrivée. Un quai qui attend des lots reste en place jusqu’à leur arrivée.
+- Le format v8 conserve les révisions, les délais et la réservation des stocks. Les commandes standard du format v7 gardent leurs conditions.
+
 ## Langues (v0.2.3)
 
 - `apps/web/src/i18n/fr.ts` est le dictionnaire de référence ; son type `Messages` impose les mêmes clés et signatures aux autres langues (`en`, `es`, `de`, `zh`, `ja`). Les phrases variables sont des fonctions, ce qui place les valeurs selon la grammaire de chaque langue.
