@@ -944,3 +944,8 @@ kbd {
 .production-working { color: var(--lime); }
 .production-starved { color: #f0b24a; }
 .production-blocked, .production-reject-blocked { color: var(--danger); }
+
+/* Research and Mk2 upgrades */
+.analysis-progress { display: flex; align-items: center; gap: 8px; font-size: .82rem; }
+.analysis-progress progress { flex: 1; min-width: 0; }
+.upgrade-box { display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid #364940; }

@@ -782,3 +782,43 @@ test('valide un modèle sur mesure et garde une commande fournisseur réservée'
   await clickTile(page, 31, 32);
   await expect(inspector(page).getByLabel('Modèle de PC')).toHaveValue('custom');
 });
+
+test('améliore un établi en Mk2 et garde le projet de recherche choisi après reprise', async ({ page }) => {
+  await page.goto('/');
+  await startWorkshop(page, 'Atelier Orme');
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: 'Pause' }).click();
+  await page.getByRole('button', { name: /^Assemblage/ }).click();
+  await clickTile(page, 31, 32);
+  await page.keyboard.press('Escape');
+  await clickTile(page, 31, 32);
+  const before = await capital(page).innerText();
+  const upgrade = inspector(page).getByRole('button', { name: /^Améliorer en Mk2/ });
+  await expect(upgrade).toContainText(euros(3000));
+  await upgrade.click();
+  await expect(page.getByText('Machine améliorée en Mk2.')).toBeVisible();
+  await expect(upgrade).toHaveCount(0);
+  await expect(inspector(page).locator('.machine-stats > div', { has: page.getByText('Niveau', { exact: true }) })).toContainText('Mk2');
+  await expect(capital(page)).not.toHaveText(before);
+
+  await page.getByRole('button', { name: /^Laboratoire/ }).click();
+  await clickTile(page, 36, 32);
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Recherche', exact: true }).click();
+  const research = page.getByRole('dialog', { name: 'Recherche' });
+  await expect(research.getByText('Construisez un laboratoire')).toHaveCount(0);
+  const dock = research.getByRole('listitem', { name: 'Quai agrandi' });
+  await dock.getByRole('button', { name: 'Lancer ce projet' }).click();
+  await expect(dock).toContainText('Projet en cours');
+  await expect(dock).toContainText('0 / 30');
+  await research.getByRole('button', { name: 'Fermer' }).click();
+
+  await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+  await expect(page.getByText('Atelier enregistré', { exact: true })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Reprendre Atelier Orme' }).click();
+  await expect(canvas(page)).toBeVisible();
+  await clickTile(page, 36, 32);
+  await expect(inspector(page)).toContainText('Quai agrandi');
+  await clickTile(page, 31, 32);
+  await expect(inspector(page).locator('.machine-stats > div', { has: page.getByText('Niveau', { exact: true }) })).toContainText('Mk2');
+});

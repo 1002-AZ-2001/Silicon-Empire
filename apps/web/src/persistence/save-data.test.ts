@@ -77,7 +77,7 @@ describe('schéma de sauvegarde', () => {
 
   it('migre une sauvegarde v0.2.0 avec ses unités en transit', () => {
     const v2 = JSON.parse(JSON.stringify({ ...inTransit, version: 2 }));
-    for (const key of ['routers', 'production', 'progress', 'sales', 'design', 'deliveries']) delete v2.world[key];
+    for (const key of ['routers', 'production', 'progress', 'sales', 'design', 'deliveries', 'research']) delete v2.world[key];
     for (const key of ['produced', 'consumed', 'delivered']) delete v2.world.ledger[key];
     expect(decodeSave(v2)).toEqual(inTransit);
     expect(decodeSave({ ...v2, world: { ...v2.world, routers: {} } })).toBeNull();
@@ -85,7 +85,7 @@ describe('schéma de sauvegarde', () => {
 
   it('migre une sauvegarde v0.2.x en bac à sable et refuse ses champs v4', () => {
     const v3 = JSON.parse(JSON.stringify({ ...inTransit, version: 3 }));
-    for (const key of ['production', 'progress', 'sales', 'design', 'deliveries']) delete v3.world[key];
+    for (const key of ['production', 'progress', 'sales', 'design', 'deliveries', 'research']) delete v3.world[key];
     for (const key of ['produced', 'consumed', 'delivered']) delete v3.world.ledger[key];
     const migrated = decodeSave(v3);
     expect(migrated?.world.progress).toEqual({ sandbox: true, completed: [], active: null, delivered: {} });
@@ -95,7 +95,9 @@ describe('schéma de sauvegarde', () => {
 
   it('migre un lot bureautique v4 en cours et poursuit la même recette', () => {
     const world = runningAssembler('office');
-    const { sales, design, deliveries, ...oldWorld } = world;
+    const { sales, design, deliveries } = world;
+    const oldWorld: Record<string, unknown> = { ...world };
+    for (const key of ['sales', 'design', 'deliveries', 'research']) delete oldWorld[key];
     const legacy = { ...record, version: 4, world: oldWorld };
     const restored = decodeSave(legacy);
     expect(restored).toEqual({ ...record, world });
@@ -117,7 +119,9 @@ describe('schéma de sauvegarde', () => {
 
   it('migre le modèle gaming et le lot en cours d’une sauvegarde v5', () => {
     const world = runningAssembler('gaming');
-    const { sales, design, deliveries, ...oldWorld } = world;
+    const { sales, design, deliveries } = world;
+    const oldWorld: Record<string, unknown> = { ...world };
+    for (const key of ['sales', 'design', 'deliveries', 'research']) delete oldWorld[key];
     const restored = decodeSave({ ...record, version: 5, world: oldWorld });
     expect(restored).toEqual({ ...record, world });
     expect(restored?.world).toMatchObject({ sales, design, deliveries });
@@ -211,6 +215,29 @@ describe('schéma de sauvegarde', () => {
       ...saved,
       world: { ...world, machines: world.machines.map(machine => ({ ...machine, filter: { item: 'cpu-8c', output: 'left' } })) },
     })).toBeNull();
+  });
+
+  it('restaure une analyse de recherche en cours et une machine Mk2, et migre la v8', () => {
+    let world = ([
+      { kind: 'build', type: 'storage', x: 10, y: 12, rotation: 0 },
+      { kind: 'build', type: 'conveyor', x: 10, y: 11, rotation: 0 },
+      { kind: 'build', type: 'lab', x: 10, y: 9, rotation: 0 },
+      { kind: 'build', type: 'assembler', x: 20, y: 20, rotation: 0 },
+      { kind: 'upgrade', id: 4 },
+      { kind: 'select-research', research: 'assembly-mk2' },
+    ] satisfies Command[]).reduce(run, createWorld());
+    world = { ...world, stocks: { 1: { 'pc-office-tested': 20 } }, ledger: { ...world.ledger, produced: { 'pc-office-tested': 20 } } };
+    for (let tick = 0; tick < 300; tick++) world = step(world);
+    expect(world.research.analysing?.id).toBe('assembly-mk2');
+    const saved: SaveRecord = { ...record, world };
+    expect(decodeSave(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+    expect(decodeSave({ ...saved, world: { ...world, research: { ...world.research, analysing: { id: 'assembly-mk2', remaining: 0 } } } })).toBeNull();
+    expect(decodeSave({ ...saved, world: { ...world, machines: world.machines.map(machine => ({ ...machine, level: 2 })) } })).toBeNull();
+
+    const v8 = JSON.parse(JSON.stringify({ ...record, version: 8 }));
+    delete v8.world.research;
+    expect(decodeSave(v8)?.world.research).toEqual({ active: null, delivered: {}, analysing: null, completed: [] });
+    expect(decodeSave({ ...v8, world: { ...v8.world, research: world.research } })).toBeNull();
   });
 
   it.each([

@@ -1,5 +1,5 @@
 import { MACHINES, MACHINE_TYPES } from '@silicon-empire/game-data';
-import { unlockedMachines } from '@silicon-empire/simulation';
+import { machineUnlocked } from '@silicon-empire/simulation';
 import { useStore } from 'zustand';
 import { MACHINE_ART } from '../art/machines';
 import { isBuildTool } from '../game/controls';
@@ -14,8 +14,7 @@ type ToolEntry =
 
 /** Unlocked tools only. Number keys follow the visible order: 1 to 9, then 0. */
 export function toolsFor(world: World): ToolEntry[] {
-  const unlocked = unlockedMachines(world.progress);
-  const machines = MACHINE_TYPES.filter(type => unlocked.has(type));
+  const machines = MACHINE_TYPES.filter(type => machineUnlocked(world, type));
   return [
     { tool: 'inspect', key: 'I', icon: 'target' },
     ...machines.map((tool, index) => ({ tool, key: index < 9 ? String(index + 1) : index === 9 ? '0' : null })),

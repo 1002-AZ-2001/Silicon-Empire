@@ -65,6 +65,13 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - Les livraisons différées réservent la capacité du quai et débitent le capital à la commande. Elles entrent dans le stock et le registre des unités achetées au tick d’arrivée. Un quai qui attend des lots reste en place jusqu’à leur arrivée.
 - Le format v8 conserve les révisions, les délais et la réservation des stocks. Les commandes standard du format v7 gardent leurs conditions.
 
+## Recherche et machines Mk2 (v0.6.0)
+
+- `ResearchState` (`packages/simulation/src/research.ts`) garde le projet actif, les pièces livrées par projet, l’analyse en cours et les projets terminés dans l’ordre. Les effets sont lus dans le catalogue `RESEARCH` (`packages/game-data/src/research.ts`) : déblocage de bâtiment, amélioration Mk2, capacité du quai, rythme des rebuts.
+- Un laboratoire accepte une unité seulement si le projet actif en a encore besoin. La livraison est comptée dans `ledger.delivered`, comme pour la Direction. En fin de tick, l’analyse avance si au moins un laboratoire existe, puis le projet actif complet démarre son analyse si aucune n’est en cours.
+- `upgrade` passe une machine de production au niveau 2 et ajoute le prix au montant payé. `batchTicks` divise la durée d’un lot par `MK2.speed` au démarrage du lot.
+- `checkIntegrity` rejoue l’ordre des recherches terminées, vérifie les niveaux et inclut le coût des projets terminés ou en analyse dans les livraisons. Le format v9 ajoute `research` et `level`. La migration v8 → v9 crée un état de recherche vide.
+
 ## Langues (v0.2.3)
 
 - `apps/web/src/i18n/fr.ts` est le dictionnaire de référence ; son type `Messages` impose les mêmes clés et signatures aux autres langues (`en`, `es`, `de`, `zh`, `ja`). Les phrases variables sont des fonctions, ce qui place les valeurs selon la grammaire de chaque langue.

@@ -5,3 +5,4 @@ export * from './simulation';
 export * from './world';
 export * from './progress';
 export * from './sales';
+export * from './research';
