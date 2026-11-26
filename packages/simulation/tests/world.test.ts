@@ -1,7 +1,7 @@
-import { MACHINES, WORKSHOP } from '@silicon-empire/game-data';
+import { MACHINES, STAFF, WORKSHOP } from '@silicon-empire/game-data';
 import { describe, expect, it, vi } from 'vitest';
 import {
-  Simulation, applyCommand, checkBuild, createWorld, demolitionRefund, footprintOf, machineAt,
+  Simulation, applyCommand, candidatesFor, checkBuild, createWorld, demolitionRefund, footprintOf, machineAt,
 } from '../src';
 import type { Command, World } from '../src';
 
@@ -21,6 +21,10 @@ describe('construction', () => {
       progress: { sandbox: true, completed: [], active: null, delivered: {} },
       sales: { active: null, completed: [] },
       design: null, deliveries: [], research: { active: null, delivered: {}, analysing: null, completed: [] },
+      staff: {
+        employees: [], candidates: candidatesFor(0), pool: 0, nextEmployeeId: 1, paidCents: 0,
+        nextPayday: STAFF.payPeriodTicks, nextPool: STAFF.poolRefreshTicks,
+      },
       ledger: {
         purchased: {}, discarded: {}, purchaseSpentCents: 0, produced: {}, consumed: {}, delivered: {},
       },

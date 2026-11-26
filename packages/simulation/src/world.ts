@@ -1,5 +1,5 @@
 import {
-  CUSTOM_ITEMS, ITEMS, ITEM_TYPES, MACHINES, MAX_LINE_LENGTH, MK2, PURCHASE, SUPPLIERS, WORKSHOP,
+  CUSTOM_ITEMS, ITEMS, ITEM_TYPES, MACHINES, MAX_LINE_LENGTH, MK2, PURCHASE, STAFF, SUPPLIERS, WORKSHOP,
   designParts, designPower, isConveyor, pcDesignSchema, recipeOf, saleOffer,
 } from '@silicon-empire/game-data';
 import type {
@@ -13,6 +13,8 @@ import type { Progress } from './progress';
 import { NO_RESEARCH, capacityOf, researchAvailable, researchMachines, upgradeUnlocked } from './research';
 import type { ResearchState } from './research';
 import type { Sales } from './sales';
+import { assignBaseOperators, createStaff, isStaffed, severance, staffRequired } from './staff';
+import type { Employee, StaffState } from './staff';
 
 export const ROTATIONS = [0, 1, 2, 3] as const satisfies readonly Direction[];
 export type Rotation = (typeof ROTATIONS)[number];
@@ -120,6 +122,7 @@ export interface World {
   readonly design: PublishedDesign | null;
   readonly deliveries: readonly PendingDelivery[];
   readonly research: ResearchState;
+  readonly staff: StaffState;
   readonly ledger: Ledger;
 }
 
@@ -142,7 +145,10 @@ export type Command =
   | { readonly kind: 'rotate'; readonly id: number }
   | { readonly kind: 'demolish'; readonly id: number }
   | { readonly kind: 'order'; readonly id: number; readonly item: ItemType; readonly supplier?: SupplierId }
-  | { readonly kind: 'purchase'; readonly id: number; readonly lines: readonly PurchaseLine[] };
+  | { readonly kind: 'purchase'; readonly id: number; readonly lines: readonly PurchaseLine[] }
+  | { readonly kind: 'hire'; readonly candidate: number }
+  | { readonly kind: 'fire'; readonly employee: number }
+  | { readonly kind: 'assign'; readonly employee: number; readonly machine: number | null };
 
 /** One line of a shop order: `lots` lots of one component from one supplier. */
 export interface PurchaseLine {
@@ -159,7 +165,7 @@ type SaleError = 'no-shipping-dock' | 'sale-in-progress' | 'sale-already-shipped
 type DesignError = 'design-invalid' | 'design-power' | 'design-in-use';
 export type CommandError = BuildError | OrderError | ModelError | SaleError | DesignError |
   'missing-machine' | 'not-a-splitter' | 'milestone-unavailable' | 'deliveries-pending' |
-  'research-unavailable' | 'not-upgradable';
+  'research-unavailable' | 'not-upgradable' | 'missing-candidate' | 'missing-employee' | 'staff-full' | 'not-staffed';
 
 export type CommandResult =
   | { readonly ok: true; readonly world: World; readonly machine: Machine | null }
@@ -188,6 +194,7 @@ export function createWorld(mode: 'sandbox' | 'progression' = 'sandbox'): World 
     design: null,
     deliveries: [],
     research: NO_RESEARCH,
+    staff: createStaff(),
     ledger: EMPTY_LEDGER,
   };
 }
@@ -399,6 +406,63 @@ export function applyCommand(world: World, command: Command): CommandResult {
     return { ok: true, world: { ...world, sales: { ...world.sales, active: null } }, machine: null };
   }
 
+  if (command.kind === 'hire') {
+    const { staff } = world;
+    const candidate = staff.candidates.find(person => person.id === command.candidate);
+    if (!candidate) return { ok: false, reason: 'missing-candidate' };
+    if (staff.employees.length >= STAFF.maxEmployees) return { ok: false, reason: 'staff-full' };
+    if (!Number.isSafeInteger(staff.nextEmployeeId + 1)) return { ok: false, reason: 'id-limit' };
+    const employee: Employee = {
+      id: staff.nextEmployeeId, name: candidate.name, skill: candidate.skill, salaryCents: candidate.salaryCents,
+      morale: STAFF.morale.initial, machineId: null,
+    };
+    return {
+      ok: true, machine: null,
+      world: {
+        ...world,
+        staff: {
+          ...staff,
+          employees: [...staff.employees, employee],
+          candidates: staff.candidates.filter(person => person !== candidate),
+          nextEmployeeId: staff.nextEmployeeId + 1,
+        },
+      },
+    };
+  }
+
+  if (command.kind === 'fire') {
+    const { staff } = world;
+    const employee = staff.employees.find(person => person.id === command.employee);
+    if (!employee) return { ok: false, reason: 'missing-employee' };
+    const cost = severance(employee);
+    if (world.capitalCents < cost) return { ok: false, reason: 'insufficient-funds' };
+    return {
+      ok: true, machine: null,
+      world: {
+        ...world,
+        capitalCents: world.capitalCents - cost,
+        staff: { ...staff, employees: staff.employees.filter(person => person !== employee), paidCents: staff.paidCents + cost },
+      },
+    };
+  }
+
+  if (command.kind === 'assign') {
+    const { staff } = world;
+    const employee = staff.employees.find(person => person.id === command.employee);
+    if (!employee) return { ok: false, reason: 'missing-employee' };
+    if (command.machine !== null) {
+      const target = world.machines.find(candidate => candidate.id === command.machine);
+      if (!target) return { ok: false, reason: 'missing-machine' };
+      if (!isStaffed(target.type)) return { ok: false, reason: 'not-staffed' };
+    }
+    // The previous operator of the target machine, if any, becomes free.
+    const employees = staff.employees.map(person => {
+      if (person === employee) return { ...person, machineId: command.machine };
+      return command.machine !== null && person.machineId === command.machine ? { ...person, machineId: null } : person;
+    });
+    return { ok: true, machine: null, world: { ...world, staff: { ...staff, employees } } };
+  }
+
   if (command.kind === 'select-research') {
     if (command.research !== null && !researchAvailable(world.progress, world.research, command.research)) {
       return { ok: false, reason: 'research-unavailable' };
@@ -551,6 +615,7 @@ export function applyCommand(world: World, command: Command): CommandResult {
         belts: withoutKey(world.belts, machine.id),
         routers: withoutKey(world.routers, machine.id),
         production: withoutKey(world.production, machine.id),
+        staff: unassign(world.staff, machine.id),
         ledger: inventoryTotal(lost) === 0
           ? world.ledger
           : { ...world.ledger, discarded: mergeInventories(world.ledger.discarded, lost) },
@@ -573,10 +638,21 @@ export function applyCommand(world: World, command: Command): CommandResult {
   };
 }
 
+function unassign(staff: StaffState, machineId: number): StaffState {
+  if (!staff.employees.some(employee => employee.machineId === machineId)) return staff;
+  return { ...staff, employees: staff.employees.map(employee => employee.machineId === machineId ? { ...employee, machineId: null } : employee) };
+}
+
+/** World as it should be once staffing applies: base operators for unstaffed production machines. */
+export function withRequiredStaff(world: World): World {
+  return staffRequired(world.progress) ? { ...world, staff: assignBaseOperators(world.staff, world.machines) } : world;
+}
+
 /** True when both worlds hold the same layout, money and units, whatever their tick. */
 export function sameContents(a: World, b: World): boolean {
   return a.machines === b.machines && a.stocks === b.stocks && a.belts === b.belts && a.routers === b.routers &&
     a.production === b.production && a.progress === b.progress && a.research === b.research &&
     a.ledger === b.ledger && a.sales === b.sales && a.design === b.design && a.deliveries === b.deliveries &&
+    a.staff.employees === b.staff.employees && a.staff.paidCents === b.staff.paidCents &&
     (a.deliveries.length === 0 || a.tick === b.tick) && a.capitalCents === b.capitalCents;
 }

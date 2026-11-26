@@ -10,6 +10,20 @@
 | Assemblage initial | 30 s simulées par PC |
 | Prix exemple Gaming X1 | 899 € |
 
+## Personnel v0.8.0
+
+| Niveau | Salaire de base / mois | Fourchette demandée | Durée d’un lot | Rebuts professionnels |
+|---:|---:|---:|---:|---:|
+| 1 | 600 € | 510 à 690 € | 125 % | 1 sur 8 |
+| 2 | 800 € | 680 à 920 € | 110 % | 1 sur 8 |
+| 3 | 1 000 € | 850 à 1 150 € | 100 % | 1 sur 8 |
+| 4 | 1 300 € | 1 105 à 1 495 € | 90 % | 1 sur 12 |
+| 5 | 1 700 € | 1 445 à 1 955 € | 80 % | 1 sur 16 |
+
+Un mois dure 5 minutes simulées. Le vivier compte 5 candidats et change toutes les 3 minutes ; les niveaux 2 à 4 sortent le plus souvent. L’effectif est limité à 40. Un établi tenu par un opérateur de niveau 5 produit un PC bureautique toutes les 24 s au lieu de 30 s (12 s en Mk2). Les rebuts suivent la recherche Maîtrise de la qualité puis le niveau : 1 sur 16 devient 1 sur 32 au niveau 5.
+
+En progression, le personnel devient obligatoire au jalon Conditionnement (récompense 12 000 €). Trois machines de production tenues par les opérateurs de base coûtent 2 400 € par mois. Hypothèse à vérifier en partie : les ventes de PC emballés, ouvertes au même jalon, couvrent cette charge.
+
 ## Boutique v0.7.0
 
 | Lots d’un même composant dans le panier | Remise |

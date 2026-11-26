@@ -875,3 +875,42 @@ test('remplit le panier de la boutique avec remise de volume et livre le quai en
   await expect(stock).toContainText('50');
   await expect(stock).toContainText('Barrette 16 Go');
 });
+
+test('embauche un candidat, l’affecte à l’établi depuis l’inspecteur puis le licencie', async ({ page }) => {
+  await page.goto('/');
+  await startWorkshop(page, 'Atelier Saule');
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: 'Pause' }).click();
+  await page.getByRole('button', { name: /^Assemblage/ }).click();
+  await clickTile(page, 31, 32);
+  await page.keyboard.press('Escape');
+
+  await page.getByRole('button', { name: 'Personnel', exact: true }).click();
+  const staff = page.getByRole('dialog', { name: 'Personnel' });
+  await expect(staff.getByText('Aucun employé.')).toBeVisible();
+  const candidates = staff.getByRole('region', { name: 'Candidats' });
+  await expect(candidates.getByRole('listitem')).toHaveCount(5);
+  const first = candidates.getByRole('listitem').first();
+  const name = await first.getAttribute('aria-label');
+  if (!name) throw new Error('Candidat sans nom.');
+  await first.getByRole('button', { name: /^Embaucher/ }).click();
+  await expect(page.getByText(`${name} rejoint l’atelier.`)).toBeVisible();
+  await expect(candidates.getByRole('listitem')).toHaveCount(4);
+  const employee = staff.getByRole('region', { name: 'Employés' }).getByRole('listitem', { name });
+  await expect(employee.getByLabel('Poste')).toHaveValue('');
+  await staff.getByRole('button', { name: 'Fermer' }).click();
+
+  await clickTile(page, 31, 32);
+  const operator = inspector(page).getByLabel('Opérateur');
+  const option = await operator.locator('option', { hasText: name }).getAttribute('value');
+  if (!option) throw new Error('Employé absent de la liste des opérateurs.');
+  await operator.selectOption(option);
+  await expect(operator).not.toHaveValue('');
+
+  await page.getByRole('button', { name: 'Personnel', exact: true }).click();
+  await expect(employee.getByLabel('Poste')).toHaveValue('1');
+  const before = await capital(page).innerText();
+  await employee.getByRole('button', { name: /^Licencier/ }).click();
+  await expect(page.getByText(`${name} quitte l’atelier.`)).toBeVisible();
+  await expect(staff.getByText('Aucun employé.')).toBeVisible();
+  await expect(capital(page)).not.toHaveText(before);
+});

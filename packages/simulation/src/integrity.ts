@@ -1,5 +1,6 @@
 import {
-  CONVEYOR, ITEM_TYPES, MILESTONES, MILESTONE_IDS, PRODUCTION, PURCHASE, RESEARCH, RESEARCH_IDS, SUPPLIERS, WORKSHOP,
+  CONVEYOR, ITEM_TYPES, MILESTONES, MILESTONE_IDS, PRODUCTION, PURCHASE, RESEARCH, RESEARCH_IDS, SKILL_LEVELS, STAFF, SUPPLIERS,
+  WORKSHOP,
   designParts, designPower, isConveyor, recipeOf, sameDesign,
 } from '@silicon-empire/game-data';
 import type { ItemType, MilestoneId, ResearchId } from '@silicon-empire/game-data';
@@ -10,6 +11,7 @@ import type { Progress } from './progress';
 import { NO_RESEARCH, capacityOf, researchAvailable, researchPartsDone, upgradeUnlocked } from './research';
 import type { ResearchState } from './research';
 import { salesAccounts, validSaleTerms } from './sales';
+import { candidatesFor, isStaffed } from './staff';
 import { fitsMap, footprintOf, machineUnlocked } from './world';
 import type { Machine, World } from './world';
 
@@ -61,12 +63,43 @@ function checkResearch(progress: Progress, research: ResearchState): boolean {
   });
 }
 
+/** Staff ids, pool, calendar and assignments are consistent with the machines of the world. */
+function checkStaff(world: World): boolean {
+  const { staff, tick } = world;
+  const pool = candidatesFor(staff.pool);
+  let rank = 0;
+  for (const candidate of staff.candidates) {
+    while (rank < pool.length && pool[rank]?.id !== candidate.id) rank += 1;
+    const original = pool[rank];
+    if (!original || original.name !== candidate.name || original.skill !== candidate.skill ||
+      original.salaryCents !== candidate.salaryCents) return false;
+    rank += 1;
+  }
+  if (!Number.isSafeInteger(staff.pool) || staff.pool < 0 || !Number.isSafeInteger(staff.paidCents) || staff.paidCents < 0 ||
+    staff.nextPayday <= tick || staff.nextPayday - tick > STAFF.payPeriodTicks ||
+    staff.nextPool <= tick || staff.nextPool - tick > STAFF.poolRefreshTicks ||
+    staff.employees.length > STAFF.maxEmployees) return false;
+  let previousId = 0;
+  const operated = new Set<number>();
+  for (const employee of staff.employees) {
+    if (!Number.isSafeInteger(employee.id) || employee.id <= previousId || employee.id >= staff.nextEmployeeId ||
+      !SKILL_LEVELS.includes(employee.skill) || !Number.isSafeInteger(employee.salaryCents) || employee.salaryCents <= 0 ||
+      employee.name.length === 0 || !Number.isInteger(employee.morale) || employee.morale < 1 || employee.morale > 100) return false;
+    previousId = employee.id;
+    if (employee.machineId === null) continue;
+    const machine = world.machines.find(candidate => candidate.id === employee.machineId);
+    if (!machine || !isStaffed(machine.type) || operated.has(machine.id)) return false;
+    operated.add(machine.id);
+  }
+  return true;
+}
+
 /**
  * Checks the rules a well-formed world always respects: unique ids, no overlap, unlocked buildings,
  * capacities, belt spacing, production states, progression, conservation of units and booked capital.
  */
 export function checkIntegrity(world: World): boolean {
-  if (!checkProgress(world.progress) || !checkResearch(world.progress, world.research)) return false;
+  if (!checkProgress(world.progress) || !checkResearch(world.progress, world.research) || !checkStaff(world)) return false;
   const { active, completed } = world.sales;
   if (active && (!validSaleTerms(active.terms) || !modelUnlocked(world.progress, active.terms.model) ||
     !Number.isInteger(active.delivered) || active.delivered < 0 || active.delivered >= active.terms.units)) return false;
@@ -85,7 +118,7 @@ export function checkIntegrity(world: World): boolean {
   const machines = new Map<string, Machine>();
   let previousId = 0;
   const capitalCeiling = WORKSHOP.initialCapitalCents + rewardsEarned(world.progress) + revenueCents;
-  let bookedCapital = world.capitalCents + world.ledger.purchaseSpentCents;
+  let bookedCapital = world.capitalCents + world.ledger.purchaseSpentCents + world.staff.paidCents;
   if (bookedCapital > capitalCeiling) return false;
   if (world.machines.filter(machine => machine.type === 'headquarters').length > 1) return false;
 

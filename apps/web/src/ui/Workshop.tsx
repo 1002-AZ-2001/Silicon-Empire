@@ -13,6 +13,7 @@ import { useI18n } from '../i18n';
 import { ProgressionPanel } from './ProgressionPanel';
 import { ResearchPanel } from './ResearchPanel';
 import { ShopPanel } from './ShopPanel';
+import { StaffPanel } from './StaffPanel';
 import { SalesPanel } from './SalesPanel';
 import { Dialog, Icon, gameTime } from './shared';
 import { useWorld } from './use-world';
@@ -38,10 +39,12 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
   const progressionOpen = useStore(controls.store, state => state.progressionOpen);
   const salesOpen = useStore(controls.store, state => state.salesOpen);
   const shopOpen = useStore(controls.store, state => state.shopOpen);
+  const staffOpen = useStore(controls.store, state => state.staffOpen);
   const [designerOpen, setDesignerOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const completedCount = useRef(world.progress.completed.length);
   const researchCount = useRef(world.research.completed.length);
+  const previousStaff = useRef(world.staff);
   const researchOpen = useStore(controls.store, state => state.researchOpen);
   const [savedWorld, setSavedWorld] = useState<World | null>(session.savedAt === null ? null : session.world);
   const [saving, setSaving] = useState(false);
@@ -82,6 +85,34 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
     }
     researchCount.current = completed.length;
   }, [world.research, controls]);
+
+  // Announce paydays and the base operators the Direction assigns when staffing becomes required.
+  useEffect(() => {
+    const before = previousStaff.current;
+    const { staff } = world;
+    previousStaff.current = staff;
+    if (staff === before) return;
+    const arrived = staff.nextEmployeeId - before.nextEmployeeId;
+    if (arrived > 0 && staff.candidates.length === before.candidates.length && staff.pool === before.pool) {
+      const done = world.progress.completed.at(-1);
+      controls.store.setState({
+        feedback: {
+          kind: 'success',
+          message: ({ t: text, money: format }) => [
+            done ? text.feedback.milestoneDone(text.progression.milestones[done], format(MILESTONES[done].rewardCents)) : '',
+            text.feedback.operatorsArrived(arrived),
+          ].join(' ').trim(),
+        },
+      });
+    } else if (staff.nextPayday !== before.nextPayday && before.employees.length > 0) {
+      const paid = staff.paidCents - before.paidCents;
+      controls.store.setState({
+        feedback: paid > 0
+          ? { kind: 'success', message: ({ t: text, money: format }) => text.feedback.wagesPaid(format(paid)) }
+          : { kind: 'error', message: ({ t: text }) => text.feedback.wagesUnpaid },
+      });
+    }
+  }, [world.staff, world.progress, controls]);
 
   useEffect(() => {
     let frame = 0;
@@ -184,6 +215,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
             >{option === 0 ? t.workshop.pause : `×${option}`}</button>
           ))}
         </div>
+        <nav className="workshop-panels" aria-label={t.workshop.panels}>
         {!world.progress.sandbox && (
           <button type="button" className="button progression-button" onClick={() => controls.store.setState({ progressionOpen: true })}>
             <Icon name="chip" /> {t.workshop.progression}
@@ -197,10 +229,12 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
           </button>
         )}
         <button type="button" className="button" onClick={() => controls.store.setState({ shopOpen: true })}>{t.workshop.shop}</button>
+        <button type="button" className="button" onClick={() => controls.store.setState({ staffOpen: true })}>{t.workshop.staff}</button>
         <button type="button" className="button" onClick={() => controls.store.setState({ salesOpen: true })}>{t.trade.title}</button>
         {modelUnlocked(world.progress, 'custom') && (
           <button type="button" className="button" onClick={() => setDesignerOpen(true)}>{t.design.title}</button>
         )}
+        </nav>
         <div className="workshop-actions">
           <span className={`save-status${saveFailed ? ' text-error' : ''}`} role="status">
             {saveFailed ? t.workshop.saveFailed : saving ? t.workshop.saving : dirty ? t.workshop.unsaved : t.workshop.saved}
@@ -228,6 +262,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
         <ProgressionPanel world={world} controls={controls} onClose={() => controls.store.setState({ progressionOpen: false })} />
       )}
       {salesOpen && <SalesPanel world={world} controls={controls} />}
+      {staffOpen && <StaffPanel world={world} controls={controls} onClose={() => controls.store.setState({ staffOpen: false })} />}
       {shopOpen && <ShopPanel world={world} controls={controls} onClose={() => controls.store.setState({ shopOpen: false })} />}
       {researchOpen && (
         <ResearchPanel world={world} controls={controls} onClose={() => controls.store.setState({ researchOpen: false })} />

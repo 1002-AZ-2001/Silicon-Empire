@@ -1,12 +1,12 @@
 import {
-  CONVEYOR, ITEM_TYPES, MACHINE_TYPES, MILESTONE_IDS, PRODUCT_MODELS, RESEARCH_IDS, STANDARD_MODELS, SUPPLIER_IDS, WORKSHOP,
+  CONVEYOR, ITEM_TYPES, MACHINE_TYPES, MILESTONE_IDS, PRODUCT_MODELS, RESEARCH_IDS, STAFF, STANDARD_MODELS, SUPPLIER_IDS, WORKSHOP,
   publishedDesignSchema,
 } from '@silicon-empire/game-data';
-import { ROTATIONS, ROUTER_SIDES, checkIntegrity } from '@silicon-empire/simulation';
+import { ROTATIONS, ROUTER_SIDES, checkIntegrity, createStaff, withRequiredStaff } from '@silicon-empire/simulation';
 import { z } from 'zod';
 import type { World } from '@silicon-empire/simulation';
 
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 export const MAX_WORKSHOP_NAME = 40;
 
 export function createSaveId(): string {
@@ -270,7 +270,7 @@ const researchId = z.enum(RESEARCH_IDS);
 
 /** Version 9 (v0.6.0): research and Mk2 machines. */
 const saveV9 = z.strictObject({
-  version: z.literal(SAVE_VERSION),
+  version: z.literal(9),
   ...header,
   world: z.strictObject({
     ...saveV8.shape.world.shape,
@@ -287,6 +287,33 @@ const saveV9 = z.strictObject({
   }),
 });
 
+const person = {
+  name: z.string().min(1).max(60),
+  skill: z.literal([1, 2, 3, 4, 5]),
+  salaryCents: count,
+};
+const tick = z.int().positive().max(Number.MAX_SAFE_INTEGER);
+
+/** Version 10 (v0.8.0): staff, candidate pool and salaries. */
+const saveV10 = z.strictObject({
+  version: z.literal(SAVE_VERSION),
+  ...header,
+  world: z.strictObject({
+    ...saveV9.shape.world.shape,
+    staff: z.strictObject({
+      employees: z.array(z.strictObject({
+        id: count, ...person, morale: z.int().min(1).max(100), machineId: count.nullable(),
+      })).max(STAFF.maxEmployees),
+      candidates: z.array(z.strictObject({ id: z.int().nonnegative().max(Number.MAX_SAFE_INTEGER), ...person })).max(STAFF.poolSize),
+      pool: z.int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+      nextEmployeeId: count,
+      paidCents: z.int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+      nextPayday: tick,
+      nextPool: tick,
+    }),
+  }),
+});
+
 function migrateV7(value: unknown): z.input<typeof saveV8> | null {
   const v7 = saveV7.safeParse(value);
   return v7.success
@@ -299,13 +326,25 @@ function migrateV8(value: unknown): z.input<typeof saveV9> | null {
   return v8.success
     ? {
       ...v8.data,
-      version: SAVE_VERSION,
+      version: 9,
       world: { ...v8.data.world, research: { active: null, delivered: {}, analysing: null, completed: [] } },
     }
     : null;
 }
 
-const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8];
+/**
+ * Older workshops start with no staff and the first candidate pool. In progression past the staffing
+ * milestone, the Direction assigns a base operator to each production machine so that lines keep running.
+ */
+/** Returns a version 10 record, checked again by the version 10 schema when decoded. */
+function migrateV9(value: unknown): unknown {
+  const v9 = saveV9.safeParse(value);
+  if (!v9.success) return null;
+  const world = withRequiredStaff({ ...v9.data.world, staff: createStaff(v9.data.world.tick) });
+  return { ...v9.data, version: SAVE_VERSION, world };
+}
+
+const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9];
 
 function versionOf(value: unknown): unknown {
   return typeof value === 'object' && value !== null && 'version' in value ? value.version : undefined;
@@ -318,7 +357,7 @@ export function decodeSave(value: unknown): SaveRecord | null {
   if (typeof version === 'number' && Number.isInteger(version) && version >= 1) {
     for (const migrate of migrations.slice(version - 1)) current = migrate(current);
   }
-  const decoded = saveV9.safeParse(current);
+  const decoded = saveV10.safeParse(current);
   if (!decoded.success) return null;
 
   const { data } = decoded;
