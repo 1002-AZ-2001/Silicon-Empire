@@ -39,7 +39,7 @@ export const MILESTONES: Readonly<Record<MilestoneId, Milestone>> = {
   'quality-control': {
     tier: 0,
     cost: { 'pc-office': 5 },
-    unlocks: { machines: ['tester'], items: [] },
+    unlocks: { machines: ['tester', 'lab'], items: [] },
     rewardCents: 500_000,
   },
   'flow-control': {

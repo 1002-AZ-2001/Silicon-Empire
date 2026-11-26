@@ -4,7 +4,7 @@ import {
 } from '@silicon-empire/simulation';
 import Phaser from 'phaser';
 import { ITEM_ART } from '../art/items';
-import { CONVEYOR_FAST_TURN_ART, CONVEYOR_TURN_ART, MACHINE_ART } from '../art/machines';
+import { CONVEYOR_EXPRESS_TURN_ART, CONVEYOR_FAST_TURN_ART, CONVEYOR_TURN_ART, MACHINE_ART } from '../art/machines';
 import { currentTranslator } from '../i18n';
 import { isBuildTool } from './controls';
 import { createFloor } from './floor';
@@ -108,6 +108,7 @@ export class WorkshopScene extends Phaser.Scene {
     for (const item of ITEM_TYPES) this.load.image(itemKey(item), ITEM_ART[item]);
     this.load.image('conveyor-turn', CONVEYOR_TURN_ART);
     this.load.image('conveyor-fast-turn', CONVEYOR_FAST_TURN_ART);
+    this.load.image('conveyor-express-turn', CONVEYOR_EXPRESS_TURN_ART);
   }
 
   create() {
@@ -348,6 +349,20 @@ export class WorkshopScene extends Phaser.Scene {
       }
       this.equipment.add(sprite);
       for (const port of portsOf(machine)) this.drawPort(this.ports, port);
+      if (machine.level === 2) this.drawMk2Badge(machine);
+    }
+  }
+
+  /** Small amber plate with two chevrons on the south-west corner of an upgraded machine. */
+  private drawMk2Badge(machine: Machine) {
+    const { x, y, height } = footprintOf(machine);
+    const left = x * TILE + 3;
+    const bottom = (y + height) * TILE - 3;
+    this.alerts.fillStyle(0x101615, 0.92).fillRect(left, bottom - 9, 14, 9);
+    this.alerts.lineStyle(1.5, 0xf0b24a, 1);
+    for (const offset of [0, 5]) {
+      this.alerts.lineBetween(left + 3 + offset, bottom - 2, left + 5 + offset, bottom - 7);
+      this.alerts.lineBetween(left + 5 + offset, bottom - 7, left + 7 + offset, bottom - 2);
     }
   }
 

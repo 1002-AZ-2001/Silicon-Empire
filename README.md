@@ -29,6 +29,8 @@ Ouvrir l’adresse affichée par Vite, puis choisir **Nouvelle partie**. Les ate
 | Poser un convoyeur | **Convoyeur** ; **R** change son sens avant la pose |
 | Tracer une ligne de convoyeurs | Avec l’outil **Convoyeur**, maintenir le clic gauche et glisser ; relâcher pour construire |
 | Progresser | Construire la **Direction**, y acheminer par convoyeur les pièces du jalon choisi dans **Progression** |
+| Rechercher | Construire un **Laboratoire R&D**, choisir un projet dans **Recherche**, puis y acheminer ses pièces par convoyeur |
+| Améliorer en Mk2 | Sélectionner un établi, un banc de test ou une emballeuse, puis **Améliorer en Mk2** dans l’inspecteur |
 | Produire | Alimenter l’établi, le banc de test ou l’emballeuse par leur entrée ; leur voyant indique l’état |
 | Fabriquer des PC gaming | Livrer 50 PC bureautiques emballés pour le contrat de Valmont. Dans **Inspection**, choisir **Gaming** sur chaque machine de la ligne. En bac à sable, le modèle est disponible dès le départ |
 | Fabriquer des PC professionnels | Terminer le tournoi de Valmont et sélectionner **Professionnel** pour la ligne. Raccorder la sortie rouge du banc de test à un casier ou à un entrepôt pour les rebuts |

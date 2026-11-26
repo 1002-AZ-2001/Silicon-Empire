@@ -5,3 +5,4 @@ export * from './progression';
 export * from './market';
 export * from './design';
 export * from './suppliers';
+export * from './research';

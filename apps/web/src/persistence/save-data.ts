@@ -1,12 +1,12 @@
 import {
-  CONVEYOR, ITEM_TYPES, MACHINE_TYPES, MILESTONE_IDS, PRODUCT_MODELS, STANDARD_MODELS, SUPPLIER_IDS, WORKSHOP,
+  CONVEYOR, ITEM_TYPES, MACHINE_TYPES, MILESTONE_IDS, PRODUCT_MODELS, RESEARCH_IDS, STANDARD_MODELS, SUPPLIER_IDS, WORKSHOP,
   publishedDesignSchema,
 } from '@silicon-empire/game-data';
 import { ROTATIONS, ROUTER_SIDES, checkIntegrity } from '@silicon-empire/simulation';
 import { z } from 'zod';
 import type { World } from '@silicon-empire/simulation';
 
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 export const MAX_WORKSHOP_NAME = 40;
 
 export interface SaveRecord {
@@ -185,7 +185,7 @@ const saleTerms = standardTerms.extend({
 });
 
 const saveV8 = z.strictObject({
-  version: z.literal(SAVE_VERSION),
+  version: z.literal(8),
   ...header,
   world: z.strictObject({
     ...worldV6,
@@ -262,14 +262,46 @@ function migrateV6(value: unknown): z.input<typeof saveV7> | null {
     : null;
 }
 
+const researchId = z.enum(RESEARCH_IDS);
+
+/** Version 9 (v0.6.0): research and Mk2 machines. */
+const saveV9 = z.strictObject({
+  version: z.literal(SAVE_VERSION),
+  ...header,
+  world: z.strictObject({
+    ...saveV8.shape.world.shape,
+    machines: z.array(machine.extend({
+      model: z.enum(PRODUCT_MODELS).optional(),
+      level: z.literal(2).optional(),
+    })).max(WORKSHOP.columns * WORKSHOP.rows),
+    research: z.strictObject({
+      active: researchId.nullable(),
+      delivered: z.partialRecord(researchId, inventory),
+      analysing: z.strictObject({ id: researchId, remaining: z.int().positive() }).nullable(),
+      completed: z.array(researchId).max(RESEARCH_IDS.length),
+    }),
+  }),
+});
+
 function migrateV7(value: unknown): z.input<typeof saveV8> | null {
   const v7 = saveV7.safeParse(value);
   return v7.success
-    ? { ...v7.data, version: SAVE_VERSION, world: { ...v7.data.world, design: null, deliveries: [] } }
+    ? { ...v7.data, version: 8, world: { ...v7.data.world, design: null, deliveries: [] } }
     : null;
 }
 
-const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7];
+function migrateV8(value: unknown): z.input<typeof saveV9> | null {
+  const v8 = saveV8.safeParse(value);
+  return v8.success
+    ? {
+      ...v8.data,
+      version: SAVE_VERSION,
+      world: { ...v8.data.world, research: { active: null, delivered: {}, analysing: null, completed: [] } },
+    }
+    : null;
+}
+
+const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8];
 
 function versionOf(value: unknown): unknown {
   return typeof value === 'object' && value !== null && 'version' in value ? value.version : undefined;
@@ -282,7 +314,7 @@ export function decodeSave(value: unknown): SaveRecord | null {
   if (typeof version === 'number' && Number.isInteger(version) && version >= 1) {
     for (const migrate of migrations.slice(version - 1)) current = migrate(current);
   }
-  const decoded = saveV8.safeParse(current);
+  const decoded = saveV9.safeParse(current);
   if (!decoded.success) return null;
 
   const { data } = decoded;

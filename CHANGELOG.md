@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0 — Laboratoire R&D et machines Mk2
+
+- Le laboratoire R&D (5 000 €, 2 × 2 tuiles) s’ouvre au jalon Contrôle qualité. Il reçoit par convoyeur les pièces du projet choisi dans le panneau **Recherche**.
+- Six projets : Assemblage rapide, Tests automatisés, Emballage continu, Quai agrandi, Convoyeurs express et Maîtrise de la qualité. Une fois les pièces reçues, l’analyse dure de 60 à 120 secondes simulées et ne progresse que si un laboratoire est en place.
+- Les établis, bancs de test et emballeuses passent en Mk2 sur place depuis l’inspecteur. Une machine Mk2 fabrique deux fois plus vite. L’amélioration coûte 3 000 €, 3 500 € ou 4 000 € et la démolition rembourse la moitié du total payé.
+- Le convoyeur express (300 €) avance quatre fois plus vite que le convoyeur de base. Le quai agrandi stocke 200 unités. La maîtrise de la qualité réduit les rebuts professionnels à un poste sur seize.
+- En bac à sable, le laboratoire, le convoyeur express et les améliorations Mk2 sont disponibles d’emblée. Les bonus de quai et de qualité passent par la recherche, sans prérequis de jalon.
+- La sauvegarde v9 enregistre la recherche et le niveau des machines. Les ateliers v1 à v8 reprennent sans recherche, avec des machines Mk1.
+
 ## 0.4.1 — Conception de PC et fournisseurs
 
 - Conception d’un PC avec mémoire, SSD, graphismes et alimentation configurables. La puissance requise inclut une marge de 20 %.

@@ -1,14 +1,16 @@
 import {
-  CONVEYOR, ITEM_TYPES, MACHINES, MILESTONES, MILESTONE_IDS, PRODUCTION, PURCHASE, SUPPLIERS, WORKSHOP,
+  CONVEYOR, ITEM_TYPES, MILESTONES, MILESTONE_IDS, PRODUCTION, PURCHASE, RESEARCH, RESEARCH_IDS, SUPPLIERS, WORKSHOP,
   designParts, designPower, isConveyor, recipeOf, sameDesign,
 } from '@silicon-empire/game-data';
-import type { ItemType, MilestoneId } from '@silicon-empire/game-data';
+import type { ItemType, MilestoneId, ResearchId } from '@silicon-empire/game-data';
 import { addItems, fitsInputStock, inventoryTotal, mergeInventories } from './inventory';
 import type { Inventory } from './inventory';
 import { createProgress, milestoneAvailable, milestoneDone, modelUnlocked, orderableItems, rewardsEarned, unlockedMachines } from './progress';
 import type { Progress } from './progress';
+import { NO_RESEARCH, capacityOf, researchAvailable, researchPartsDone, upgradeUnlocked } from './research';
+import type { ResearchState } from './research';
 import { salesAccounts, validSaleTerms } from './sales';
-import { fitsMap, footprintOf } from './world';
+import { fitsMap, footprintOf, machineUnlocked } from './world';
 import type { Machine, World } from './world';
 
 /** Milestones were completed in an order the rules allow, and deliveries match the remaining costs. */
@@ -34,12 +36,37 @@ function checkProgress(progress: Progress): boolean {
   });
 }
 
+/** Projects were finished in an allowed order; the analysis and deliveries match project costs. */
+function checkResearch(progress: Progress, research: ResearchState): boolean {
+  if (new Set(research.completed).size !== research.completed.length) return false;
+  let replay: ResearchState = NO_RESEARCH;
+  for (const id of research.completed) {
+    if (!RESEARCH_IDS.includes(id) || !researchAvailable(progress, replay, id)) return false;
+    replay = { ...replay, completed: [...replay.completed, id] };
+  }
+  const { analysing, active } = research;
+  if (analysing) {
+    if (!RESEARCH_IDS.includes(analysing.id) || !researchAvailable(progress, { ...research, analysing: null }, analysing.id)) return false;
+    if (!Number.isInteger(analysing.remaining) || analysing.remaining < 1 || analysing.remaining > RESEARCH[analysing.id].ticks) return false;
+  }
+  if (active && (active === analysing?.id || !researchAvailable(progress, research, active))) return false;
+  return Object.entries(research.delivered).every(([id, delivered]) => {
+    const project = id as ResearchId;
+    if (!RESEARCH_IDS.includes(project) || !delivered || !researchAvailable(progress, research, project)) return false;
+    const cost = RESEARCH[project].cost;
+    const units = ITEM_TYPES.filter(item => (delivered[item] ?? 0) > 0);
+    // Parts complete only while they wait for the running analysis to finish.
+    return units.length > 0 && (!researchPartsDone(research, project) || (project === active && analysing !== null)) &&
+      units.every(item => (delivered[item] ?? 0) <= (cost[item] ?? 0));
+  });
+}
+
 /**
  * Checks the rules a well-formed world always respects: unique ids, no overlap, unlocked buildings,
  * capacities, belt spacing, production states, progression, conservation of units and booked capital.
  */
 export function checkIntegrity(world: World): boolean {
-  if (!checkProgress(world.progress)) return false;
+  if (!checkProgress(world.progress) || !checkResearch(world.progress, world.research)) return false;
   const { active, completed } = world.sales;
   if (active && (!validSaleTerms(active.terms) || !modelUnlocked(world.progress, active.terms.model) ||
     !Number.isInteger(active.delivered) || active.delivered < 0 || active.delivered >= active.terms.units)) return false;
@@ -65,7 +92,10 @@ export function checkIntegrity(world: World): boolean {
   for (const machine of world.machines) {
     const footprint = footprintOf(machine);
     if (machine.id <= previousId || machine.id >= world.nextMachineId || !fitsMap(world, footprint)) return false;
-    if (!unlocked.has(machine.type)) return false;
+    if (!unlocked.has(machine.type) && !machineUnlocked(world, machine.type)) return false;
+    if (machine.level !== undefined && (machine.level !== 2 || !upgradeUnlocked(world.progress, world.research, machine.type))) {
+      return false;
+    }
     if (machine.model && (!recipeOf(machine.type, machine.model, world.design) || !modelUnlocked(world.progress, machine.model))) {
       return false;
     }
@@ -90,7 +120,7 @@ export function checkIntegrity(world: World): boolean {
     if (machines.get(id)?.type !== 'receiving' || !orderable.has(delivery.item) ||
       delivery.dueTick <= world.tick || delivery.dueTick - world.tick > lead) return false;
     const units = (reserved.get(id) ?? 0) + PURCHASE.lotSize;
-    if (inventoryTotal(world.stocks[id] ?? {}) + units > MACHINES.receiving.capacity) return false;
+    if (inventoryTotal(world.stocks[id] ?? {}) + units > capacityOf(world.progress, world.research, 'receiving')) return false;
     reserved.set(id, units);
   }
 
@@ -102,7 +132,7 @@ export function checkIntegrity(world: World): boolean {
     const recipe = recipeOf(machine.type, machine.model, world.design);
     if (recipe) {
       if (!fitsInputStock(recipe, stock)) return false;
-    } else if (total > MACHINES[machine.type].capacity) {
+    } else if (total > capacityOf(world.progress, world.research, machine.type)) {
       return false;
     }
     held = mergeInventories(held, stock);
@@ -159,7 +189,12 @@ export function checkIntegrity(world: World): boolean {
   const entered = mergeInventories(purchased, produced);
   const left = [held, discarded, consumed, delivered, shipped].reduce(mergeInventories, {});
   const completedCosts = world.progress.completed.map(id => MILESTONES[id].cost);
-  const deliveredToMilestones = [...completedCosts, ...Object.values(world.progress.delivered)]
+  const researchCosts = [
+    ...world.research.completed.map(id => RESEARCH[id].cost),
+    ...world.research.analysing ? [RESEARCH[world.research.analysing.id].cost] : [],
+    ...Object.values(world.research.delivered),
+  ];
+  const deliveredToMilestones = [...completedCosts, ...Object.values(world.progress.delivered), ...researchCosts]
     .reduce<Inventory>((total, inventory) => mergeInventories(total, inventory ?? {}), {});
   return ITEM_TYPES.every((item: ItemType) =>
     (entered[item] ?? 0) === (left[item] ?? 0) && (deliveredToMilestones[item] ?? 0) === (delivered[item] ?? 0));

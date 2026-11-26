@@ -38,12 +38,12 @@ export const MAX_LINE_LENGTH = 256;
 /** Order of this list is the order of the construction bar. New types are appended to keep shortcuts stable. */
 export const MACHINE_TYPES = [
   'storage', 'assembler', 'tester', 'receiving', 'conveyor', 'splitter', 'merger',
-  'packager', 'warehouse', 'conveyor-fast', 'headquarters', 'shipping',
+  'packager', 'warehouse', 'conveyor-fast', 'headquarters', 'shipping', 'lab', 'conveyor-express',
 ] as const;
 export type MachineType = (typeof MACHINE_TYPES)[number];
 
 /** Conveyor generations and their speed in belt units per tick. */
-export const CONVEYOR_SPEEDS = { conveyor: 1, 'conveyor-fast': 2 } as const;
+export const CONVEYOR_SPEEDS = { conveyor: 1, 'conveyor-fast': 2, 'conveyor-express': 4 } as const;
 export type ConveyorType = keyof typeof CONVEYOR_SPEEDS;
 
 export function isConveyor(type: MachineType): type is ConveyorType {
@@ -182,5 +182,23 @@ export const MACHINES = z.record(z.enum(MACHINE_TYPES), machineDefinition.readon
     costCents: 160_000,
     capacity: 0,
     ports: [{ kind: 'input', side: 2, offset: 0 }],
+  },
+  /** Receives the parts of the active research project. */
+  lab: {
+    width: 2,
+    height: 2,
+    costCents: 500_000,
+    capacity: 0,
+    ports: [
+      { kind: 'input', side: 2, offset: 0 },
+      { kind: 'input', side: 2, offset: 1 },
+    ],
+  },
+  'conveyor-express': {
+    width: 1,
+    height: 1,
+    costCents: 30_000,
+    capacity: 0,
+    ports: [],
   },
 } satisfies Record<MachineType, z.input<typeof machineDefinition>>);

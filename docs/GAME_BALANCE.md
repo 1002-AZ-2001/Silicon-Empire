@@ -65,6 +65,27 @@ Le tournoi de Valmont débloque le kit mémoire 32 Go (95 €) et le SSD 2 To (1
 
 Le contrôle écarte chaque huitième poste à l’échelle de l’atelier. Chaque sortie possède un tampon de deux unités. Une ligne qui démarre produit ses dix premiers PC conformes à partir de onze postes assemblés. L’Institut Sorel paie 20 000 € pour ces dix produits emballés.
 
+## Recherche et machines Mk2 v0.6.0
+
+Le laboratoire R&D coûte 5 000 € et s’ouvre au jalon Contrôle qualité. Il n’a pas de stock propre : il n’accepte que les pièces encore attendues par le projet actif. Un seul projet reçoit des pièces à la fois ; les pièces déjà livrées à un projet mis en pause restent acquises. Une seule analyse tourne à la fois. Un nouveau projet peut recevoir ses pièces pendant l’analyse du précédent.
+
+| Projet | Prérequis | Pièces | Coût des pièces | Analyse | Effet |
+|---|---|---|---:|---:|---|
+| Assemblage rapide | Flux maîtrisés | 20 PC bureautiques testés | 9 400 € | 60 s | Établi Mk2 |
+| Tests automatisés | Conditionnement, Assemblage rapide | 15 PC bureautiques emballés | 7 095 € | 60 s | Banc de test Mk2 |
+| Emballage continu | Tests automatisés | 25 PC bureautiques emballés | 11 825 € | 60 s | Emballeuse Mk2 |
+| Quai agrandi | Entrepôt | 30 PC bureautiques testés | 14 100 € | 90 s | Quai de réception : 100 → 200 unités |
+| Convoyeurs express | Contrat phare · Université de Valmont | 15 PC gaming emballés | 10 545 € | 120 s | Convoyeur express (300 €, 4 × la vitesse de base) |
+| Maîtrise de la qualité | Postes de travail de l’Institut Sorel | 8 PC professionnels emballés | 6 424 € | 120 s | Rebuts professionnels : 1 sur 8 → 1 sur 16 |
+
+| Amélioration Mk2 | Prix | Effet |
+|---|---:|---|
+| Établi d’assemblage | 3 000 € | Durée d’un lot divisée par deux (arrondi au tick supérieur) |
+| Banc de test | 3 500 € | Idem |
+| Emballeuse | 4 000 € | Idem |
+
+Le prix de l’amélioration s’ajoute au prix payé de la machine : la démolition d’une machine Mk2 rembourse la moitié du total. Les projets ne versent pas de récompense : leur valeur est le gain de débit. Un établi Mk2 double la cadence pour 3 000 €, moins qu’un second établi (1 800 €) plus sa chaîne d’alimentation et la place qu’elle occupe. Ces valeurs sont des hypothèses de départ, à ajuster après des parties de test.
+
 ## Logistique v0.2 (tranche 1)
 
 | Paramètre | Valeur |
