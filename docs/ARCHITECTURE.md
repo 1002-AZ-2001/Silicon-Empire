@@ -65,6 +65,13 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - Les livraisons différées réservent la capacité du quai et débitent le capital à la commande. Elles entrent dans le stock et le registre des unités achetées au tick d’arrivée. Un quai qui attend des lots reste en place jusqu’à leur arrivée.
 - Le format v8 conserve les révisions, les délais et la réservation des stocks. Les commandes standard du format v7 gardent leurs conditions.
 
+## Personnel (v0.8.0)
+
+- `StaffState` (`packages/simulation/src/staff.ts`) garde les employés, les candidats restants du vivier courant, le numéro du vivier, le total versé et les ticks de la prochaine paie et du prochain vivier. `candidatesFor(pool)` tire les candidats avec un générateur déterministe (mulberry32) ; l’intégrité vérifie que les candidats restants viennent bien de ce tirage.
+- Commandes `hire`, `fire` (indemnité débitée) et `assign` (l’ancien opérateur de la machine est libéré ; la démolition libère aussi). `batchTicks(recipe, machine, skill)` applique Mk2 puis le niveau ; `operatorRejection` ajuste le rythme des rebuts.
+- `step` : une machine sans opérateur ne démarre pas de lot quand `staffRequired(progress)` ; à la fin du tick, `advanceStaff` renouvelle le vivier puis verse la paie. La paie est entière ou nulle. Quand le jalon du personnel est atteint, `assignBaseOperators` crée les opérateurs de base.
+- Le capital comptabilisé inclut `staff.paidCents`. Le format v10 ajoute `staff` ; la migration v9 → v10 crée un vivier à partir du tick sauvegardé puis applique `withRequiredStaff`.
+
 ## Boutique (v0.7.0)
 
 - La commande `purchase { id, lines }` achète plusieurs lignes `{ item, supplier, lots }` pour un quai. `checkPurchase` valide tout avant d’appliquer : quai existant, lignes non vides, lots entiers de 1 à `PURCHASE.maxLots`, composants débloqués, capital et place (`dockSpace` déduit le stock et les lots attendus). La commande `order` historique passe par le même chemin avec une ligne d’un lot.

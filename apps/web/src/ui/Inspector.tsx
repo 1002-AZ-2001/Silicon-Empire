@@ -3,7 +3,8 @@ import {
 } from '@silicon-empire/game-data';
 import {
   ROUTER_SIDES, batchTicks, beltStatus, beltTarget, checkBuild, checkLine, checkOrder, checkProductModel, footprintOf,
-  inventoryTotal, lineCost, modelUnlocked, orderCost, orderableItems, portConnections, portsOf, productionStatus, rejectionEvery, routerLinks,
+  inventoryTotal, lineCost, modelUnlocked, operatorOf, operatorRejection, orderCost, orderableItems, portConnections, portsOf,
+  productionStatus, rejectionEvery, routerLinks,
   upgradeUnlocked,
 } from '@silicon-empire/simulation';
 import { useState } from 'react';
@@ -128,9 +129,10 @@ function ProductionDetails({ world, machine, controls }: { world: World; machine
   const stock = world.stocks[machine.id] ?? {};
   const state = world.production[machine.id];
   // Mk2 machines start their batches with half the recipe time.
-  const duration = batchTicks(recipe, machine);
+  const operator = operatorOf(world.staff, machine.id);
+  const duration = batchTicks(recipe, machine, operator?.skill);
   const done = state?.batch ? Math.max(0, duration - state.batch.remaining) : 0;
-  const every = rejectionEvery(world.progress, world.research, recipe);
+  const every = operatorRejection(rejectionEvery(world.progress, world.research, recipe), operator?.skill);
   const output = state?.output[recipe.output] ?? 0;
   const rejection = recipe.rejection;
   const rejectPort = rejection && portConnections(world, machine).find(port => port.kind === 'reject');
@@ -164,6 +166,25 @@ function ProductionDetails({ world, machine, controls }: { world: World; machine
           <dd><progress max={duration} value={done} aria-label={t.production.progress} /> {Math.floor(done * 100 / duration)}&#8201;%</dd>
         </div>
         <div><dt>{t.production.level}</dt><dd>{machine.level === 2 ? 'Mk2' : 'Mk1'}</dd></div>
+        <div>
+          <dt>{t.production.operator}</dt>
+          <dd>
+            <select
+              aria-label={t.production.operator}
+              value={operator?.id ?? ''}
+              onChange={event => {
+                const chosen = event.target.value;
+                if (chosen === '') { if (operator) controls.assign(operator.id, null); }
+                else controls.assign(Number(chosen), machine.id);
+              }}
+            >
+              <option value="">{t.production.noOperator}</option>
+              {world.staff.employees.map(employee => (
+                <option key={employee.id} value={employee.id}>{t.production.operatorOption(employee.name, employee.skill)}</option>
+              ))}
+            </select>
+          </dd>
+        </div>
         <div><dt>{t.production.output}</dt><dd>{t.items[recipe.output]} · {output} / {PRODUCTION.outputCapacity}</dd></div>
         {rejectPort && (
           <div>

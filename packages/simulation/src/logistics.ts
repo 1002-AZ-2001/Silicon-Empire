@@ -6,10 +6,11 @@ import { addItems, inputRoom, inventoryTotal, mergeInventories, mostStocked } fr
 import type { Inventory } from './inventory';
 import { milestoneDone, stillNeeded } from './progress';
 import type { Progress } from './progress';
-import { MK2, RESEARCH } from '@silicon-empire/game-data';
+import { RESEARCH } from '@silicon-empire/game-data';
 import { capacityOf, rejectionEvery, researchPartsDone, researchStillNeeded } from './research';
 import type { ResearchState } from './research';
 import { acceptsSale } from './sales';
+import { advanceStaff, assignBaseOperators, batchTicks, operatorOf, operatorRejection, staffRequired } from './staff';
 import { ROUTER_SIDES, footprintOf } from './world';
 import type { BeltItem, Ledger, Machine, Placement, ProductionState, RouterState, Tile, World } from './world';
 
@@ -227,10 +228,6 @@ function batchOutput(recipe: Recipe, produced: Inventory, every: number | null):
   return (started + 1) % every === 0 ? rejection.item : recipe.output;
 }
 
-/** Ticks a batch takes on this machine: Mk2 machines divide the recipe time. */
-export function batchTicks(recipe: Recipe, machine: Machine | undefined): number {
-  return machine?.level === 2 ? Math.ceil(recipe.ticks / MK2.speed) : recipe.ticks;
-}
 
 /**
  * Advances the workshop by one tick.
@@ -254,6 +251,7 @@ export function step(world: World): World {
   let progress = world.progress;
   let sales = world.sales;
   let research: ResearchState = world.research;
+  let staff = world.staff;
   let ledger = world.ledger;
   let capitalCents = world.capitalCents;
   let nextItemId = world.nextItemId;
@@ -407,8 +405,10 @@ export function step(world: World): World {
     if (held !== previous.held || cursor !== previous.cursor) setRouter(router.id, { held, cursor });
   }
 
+  const required = staffRequired(progress);
   for (const { id, recipe } of links.producers) {
     const previous = production[id] ?? IDLE;
+    const operator = operatorOf(staff, id);
     let { batch, output } = previous;
     if (batch && batch.remaining > 0) batch = { ...batch, remaining: batch.remaining - 1 };
     if (batch && batch.remaining === 0 && (output[batch.item] ?? 0) < PRODUCTION.outputCapacity) {
@@ -417,8 +417,9 @@ export function step(world: World): World {
     }
     const stock = stocks[id] ?? {};
     const ready = Object.entries(recipe.inputs).every(([item, count]) => (stock[item as ItemType] ?? 0) >= (count ?? 0));
-    if (!batch && ready) {
-      const item = batchOutput(recipe, ledger.produced, rejectionEvery(progress, research, recipe));
+    // Without an operator where staffing is required, the running batch ends but no new one starts.
+    if (!batch && ready && (operator || !required)) {
+      const item = batchOutput(recipe, ledger.produced, operatorRejection(rejectionEvery(progress, research, recipe), operator?.skill));
       setStock(id, current => ITEM_TYPES.reduce(
         (remaining, item) => (recipe.inputs[item] ? addItems(remaining, item, -(recipe.inputs[item] ?? 0)) : remaining),
         current,
@@ -427,7 +428,7 @@ export function step(world: World): World {
         consumed: mergeInventories(ledger.consumed, recipe.inputs),
         produced: addItems(ledger.produced, item, 1),
       });
-      batch = { item, remaining: batchTicks(recipe, machines.get(id)) };
+      batch = { item, remaining: batchTicks(recipe, machines.get(id), operator?.skill) };
     }
     if (batch !== previous.batch || output !== previous.output) setProduction(id, { batch, output });
   }
@@ -466,10 +467,13 @@ export function step(world: World): World {
     delete delivered[done];
     progress = { ...progress, completed: [...progress.completed, done], active: null, delivered };
     capitalCents += MILESTONES[done].rewardCents;
+    if (!required && staffRequired(progress)) staff = assignBaseOperators(staff, world.machines);
   }
 
+  ({ staff, capitalCents } = advanceStaff(staff, tick, capitalCents));
+
   return {
-    ...world, tick, capitalCents, belts, stocks, routers, production, progress, sales, deliveries, research, ledger, nextItemId,
+    ...world, tick, capitalCents, belts, stocks, routers, production, progress, sales, deliveries, research, staff, ledger, nextItemId,
   };
 }
 
@@ -492,12 +496,12 @@ export function beltStatus(world: World, id: number): BeltStatus {
   return accepts ? 'moving' : 'blocked';
 }
 
-export type ProductionStatus = 'working' | 'starved' | 'blocked' | 'reject-blocked';
+export type ProductionStatus = 'working' | 'starved' | 'blocked' | 'reject-blocked' | 'unstaffed';
 
 /** Working while a batch runs; blocked when a finished unit cannot leave; starved when inputs are missing. */
 export function productionStatus(world: World, id: number): ProductionStatus {
   const batch = world.production[id]?.batch;
-  if (!batch) return 'starved';
+  if (!batch) return staffRequired(world.progress) && !operatorOf(world.staff, id) ? 'unstaffed' : 'starved';
   if (batch.remaining > 0) return 'working';
   const machine = world.machines.find(candidate => candidate.id === id);
   const rejected = machine && recipeOf(machine.type, machine.model)?.rejection?.item;

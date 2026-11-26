@@ -381,10 +381,12 @@ kbd {
 
 .workshop-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 22px;
+  gap: 8px 22px;
   min-height: 78px;
+  padding-block: 8px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -405,6 +407,16 @@ kbd {
 .metric-label { color: var(--muted); font: 500 .68rem var(--mono); text-transform: uppercase; white-space: nowrap; }
 .metric strong { font: 600 1.8rem/1 var(--heading); white-space: nowrap; }
 .metric strong.capital { color: var(--lime); font-size: 2.1rem; }
+
+/* Panel buttons form a toolbar on their own line, so new panels never push the workspace off screen. */
+.workshop-panels {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  order: 10;
+  gap: 6px;
+}
+.workshop-panels .button { min-height: 34px; padding-inline: 12px; }
 
 .workshop-actions {
   display: flex;
@@ -980,3 +992,12 @@ kbd {
   .shop-layout { grid-template-columns: 1fr; }
   .shop-cart { position: static; order: -1; }
 }
+
+/* Staff */
+.staff-summary { margin-block: 8px; }
+.staff-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.staff-card { display: grid; gap: 6px; align-content: start; padding: 10px; border: 1px solid var(--line); border-radius: 4px; background: #121c19; font-size: .82rem; }
+.staff-card header { display: flex; justify-content: space-between; gap: 8px; }
+.staff-effect { color: var(--muted); }
+.staff-morale { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; }
+.staff-morale meter { width: 100%; }

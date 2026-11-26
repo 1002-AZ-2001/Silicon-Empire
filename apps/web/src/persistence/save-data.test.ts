@@ -1,11 +1,16 @@
 import { DEFAULT_DESIGN, PROFESSIONAL_RECIPES, SUPPLIERS, WORKSHOP, recipeOf } from '@silicon-empire/game-data';
-import { applyCommand, createWorld, step } from '@silicon-empire/simulation';
+import { applyCommand, createStaff, createWorld, step } from '@silicon-empire/simulation';
 import { describe, expect, it } from 'vitest';
 import { parseBackup } from './backup';
 import { SAVE_VERSION, decodeSave } from './save-data';
 import type { Command, World } from '@silicon-empire/simulation';
 import type { ItemType, ProductModel } from '@silicon-empire/game-data';
 import type { SaveRecord } from './save-data';
+
+/** A world as read from a save older than v10: no staff yet, the first pool from the saved tick. */
+function asMigrated(world: World): World {
+  return { ...world, staff: createStaff(world.tick) };
+}
 
 function run(world: World, command: Command): World {
   const result = applyCommand(world, command);
@@ -77,19 +82,19 @@ describe('schéma de sauvegarde', () => {
 
   it('migre une sauvegarde v0.2.0 avec ses unités en transit', () => {
     const v2 = JSON.parse(JSON.stringify({ ...inTransit, version: 2 }));
-    for (const key of ['routers', 'production', 'progress', 'sales', 'design', 'deliveries', 'research']) delete v2.world[key];
+    for (const key of ['routers', 'production', 'progress', 'sales', 'design', 'deliveries', 'research', 'staff']) delete v2.world[key];
     for (const key of ['produced', 'consumed', 'delivered']) delete v2.world.ledger[key];
-    expect(decodeSave(v2)).toEqual(inTransit);
+    expect(decodeSave(v2)).toEqual({ ...inTransit, world: asMigrated(inTransit.world) });
     expect(decodeSave({ ...v2, world: { ...v2.world, routers: {} } })).toBeNull();
   });
 
   it('migre une sauvegarde v0.2.x en bac à sable et refuse ses champs v4', () => {
     const v3 = JSON.parse(JSON.stringify({ ...inTransit, version: 3 }));
-    for (const key of ['production', 'progress', 'sales', 'design', 'deliveries', 'research']) delete v3.world[key];
+    for (const key of ['production', 'progress', 'sales', 'design', 'deliveries', 'research', 'staff']) delete v3.world[key];
     for (const key of ['produced', 'consumed', 'delivered']) delete v3.world.ledger[key];
     const migrated = decodeSave(v3);
     expect(migrated?.world.progress).toEqual({ sandbox: true, completed: [], active: null, delivered: {} });
-    expect(migrated).toEqual(inTransit);
+    expect(migrated).toEqual({ ...inTransit, world: asMigrated(inTransit.world) });
     expect(decodeSave({ ...v3, world: { ...v3.world, production: {} } })).toBeNull();
   });
 
@@ -97,14 +102,14 @@ describe('schéma de sauvegarde', () => {
     const world = runningAssembler('office');
     const { sales, design, deliveries } = world;
     const oldWorld: Record<string, unknown> = { ...world };
-    for (const key of ['sales', 'design', 'deliveries', 'research']) delete oldWorld[key];
+    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff']) delete oldWorld[key];
     const legacy = { ...record, version: 4, world: oldWorld };
     const restored = decodeSave(legacy);
-    expect(restored).toEqual({ ...record, world });
+    expect(restored).toEqual({ ...record, world: asMigrated(world) });
     expect(restored?.world).toMatchObject({ sales, design, deliveries });
     expect(restored?.world.production[3]?.batch?.item).toBe('pc-office');
     if (!restored) throw new Error('La sauvegarde v4 doit pouvoir être relue.');
-    expect(step(restored.world)).toEqual(step(world));
+    expect(step(restored.world)).toEqual(step(asMigrated(world)));
   });
 
   it('restaure un lot gaming en cours et rejette un modèle incohérent avec ce lot', () => {
@@ -121,9 +126,9 @@ describe('schéma de sauvegarde', () => {
     const world = runningAssembler('gaming');
     const { sales, design, deliveries } = world;
     const oldWorld: Record<string, unknown> = { ...world };
-    for (const key of ['sales', 'design', 'deliveries', 'research']) delete oldWorld[key];
+    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff']) delete oldWorld[key];
     const restored = decodeSave({ ...record, version: 5, world: oldWorld });
-    expect(restored).toEqual({ ...record, world });
+    expect(restored).toEqual({ ...record, world: asMigrated(world) });
     expect(restored?.world).toMatchObject({ sales, design, deliveries });
     expect(restored?.world.machines[2]?.model).toBe('gaming');
     expect(restored?.world.production[3]?.batch?.item).toBe('pc-gaming');
@@ -236,6 +241,7 @@ describe('schéma de sauvegarde', () => {
 
     const v8 = JSON.parse(JSON.stringify({ ...record, version: 8 }));
     delete v8.world.research;
+    delete v8.world.staff;
     expect(decodeSave(v8)?.world.research).toEqual({ active: null, delivered: {}, analysing: null, completed: [] });
     expect(decodeSave({ ...v8, world: { ...v8.world, research: world.research } })).toBeNull();
   });
@@ -301,5 +307,38 @@ describe('sauvegardes portables', () => {
     };
     const overflow = { ...record, world: { ...record.world, ledger } };
     expect(parseBackup(JSON.stringify(overflow))).toBeNull();
+  });
+});
+
+describe('personnel dans la sauvegarde', () => {
+  it('restaure les employés et le vivier, et donne des opérateurs de base aux ateliers v9 en progression', () => {
+    let world = run(createWorld(), { kind: 'build', type: 'assembler', x: 30, y: 30, rotation: 0 });
+    const [candidate] = world.staff.candidates;
+    if (!candidate) throw new Error('vivier vide');
+    world = run(run(world, { kind: 'hire', candidate: candidate.id }), { kind: 'assign', employee: 1, machine: 1 });
+    const saved: SaveRecord = { ...record, world };
+    expect(decodeSave(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+    const forged = world.staff.employees.map(employee => ({ ...employee, morale: 0 }));
+    expect(decodeSave({ ...saved, world: { ...world, staff: { ...world.staff, employees: forged } } })).toBeNull();
+
+    // A progression workshop past Conditionnement, saved before staff existed.
+    const completed = ['assembly-bench', 'quality-control', 'flow-control', 'packaging'] as const;
+    const delivered = { 'case-standard': 10, 'psu-650': 10, 'pc-office': 5, 'pc-office-tested': 30 };
+    const progression = createWorld('progression');
+    const legacyWorld: Record<string, unknown> = {
+      ...run(
+        { ...progression, progress: { ...progression.progress, completed: [...completed] } },
+        { kind: 'build', type: 'assembler', x: 30, y: 30, rotation: 0 },
+      ),
+      ledger: {
+        ...progression.ledger, delivered,
+        purchased: { 'case-standard': 10, 'psu-650': 10 },
+        produced: { 'pc-office': 5, 'pc-office-tested': 30 },
+      },
+    };
+    delete legacyWorld.staff;
+    const migrated = decodeSave({ ...record, version: 9, world: legacyWorld });
+    expect(migrated?.world.staff.employees).toMatchObject([{ id: 1, skill: 2, machineId: 1, morale: 70 }]);
+    expect(migrated?.world.staff.candidates).toHaveLength(5);
   });
 });

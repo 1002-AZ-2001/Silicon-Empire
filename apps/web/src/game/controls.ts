@@ -45,6 +45,7 @@ interface WorkshopUi {
   researchOpen: boolean;
   salesOpen: boolean;
   shopOpen: boolean;
+  staffOpen: boolean;
   cart: Cart;
 }
 
@@ -89,6 +90,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     researchOpen: false,
     salesOpen: false,
     shopOpen: false,
+    staffOpen: false,
     cart: EMPTY_CART,
   }));
   const clock = new FixedStepClock();
@@ -208,6 +210,35 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     return result.ok;
   }
 
+  function hire(candidate: number) {
+    const name = simulation.getSnapshot().staff.candidates.find(person => person.id === candidate)?.name ?? '';
+    const result = simulation.dispatch({ kind: 'hire', candidate });
+    store.setState({
+      feedback: result.ok
+        ? { kind: 'success', message: ({ t }) => t.feedback.hired(name) }
+        : { kind: 'error', message: errorMessage(result.reason) },
+    });
+  }
+
+  function fire(employee: number) {
+    const name = simulation.getSnapshot().staff.employees.find(person => person.id === employee)?.name ?? '';
+    const result = simulation.dispatch({ kind: 'fire', employee });
+    store.setState({
+      feedback: result.ok
+        ? { kind: 'success', message: ({ t }) => t.feedback.fired(name) }
+        : { kind: 'error', message: errorMessage(result.reason) },
+    });
+  }
+
+  function assign(employee: number, machine: number | null) {
+    const result = simulation.dispatch({ kind: 'assign', employee, machine });
+    store.setState({
+      feedback: result.ok
+        ? { kind: 'success', message: ({ t }) => t.feedback.assigned }
+        : { kind: 'error', message: errorMessage(result.reason) },
+    });
+  }
+
   function setCartLots(item: ItemType, lots: number) {
     store.setState(({ cart }) => {
       const next = { ...cart.lots };
@@ -289,7 +320,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
   }
 
   return {
-    store, clock, setSpeed, togglePause, order, checkout, setCartLots, configure, selectMilestone, selectResearch, upgrade, setProductModel,
+    store, clock, setSpeed, togglePause, order, checkout, setCartLots, hire, fire, assign, configure, selectMilestone, selectResearch, upgrade, setProductModel,
     startSale: (model: ProductModel) => changeSale(model), cancelSale: () => changeSale(),
     publishDesign,
     startLine, extendLine, cancelLine, finishLine,

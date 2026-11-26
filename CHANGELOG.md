@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0 — Personnel
+
+- Le panneau **Personnel** propose cinq candidats fictifs avec un niveau de 1 à 5 et un salaire demandé entre 85 % et 115 % du salaire de leur niveau. Le vivier se renouvelle toutes les 3 minutes simulées ; il est identique dans toutes les parties.
+- Un employé s’affecte à un établi, un banc de test ou une emballeuse, depuis le panneau ou l’inspecteur de la machine. Son niveau fixe la durée des lots, de 125 % (niveau 1) à 80 % (niveau 5). Aux niveaux 4 et 5, le contrôle professionnel écarte 1,5 et 2 fois moins de postes.
+- Les salaires sont prélevés toutes les 5 minutes simulées. Une paie versée augmente le moral ; une paie impossible le baisse de 40 points, et l’employé part à 0. Le licenciement coûte une demi-mensualité.
+- En progression, après le jalon Conditionnement, une machine de production sans opérateur termine son lot puis s’arrête et affiche « Sans opérateur ». À ce jalon, la Direction affecte un opérateur de niveau 2 à chaque machine de production déjà construite. Le bac à sable n’exige jamais d’opérateur.
+- La sauvegarde v10 enregistre le personnel, le vivier et le calendrier de paie. Les ateliers v1 à v9 reprennent sans employés ; ceux qui ont passé le Conditionnement en progression reçoivent les opérateurs de base.
+- Les boutons des panneaux forment une barre sous les indicateurs de l’en-tête : l’atelier ne déborde plus de l’écran.
+
 ## 0.7.0 — Boutique de composants
 
 - Le bouton **Boutique** ouvre le catalogue des composants, filtrable par catégorie, avec le prix unitaire et le prix du lot de 10 chez le fournisseur choisi. Les composants verrouillés indiquent le jalon qui les débloque.
