@@ -43,10 +43,12 @@ export function MilestoneParts({ world, id }: { world: World; id: MilestoneId })
 function MilestoneCard({ world, controls, id }: { world: World; controls: WorkshopControls; id: MilestoneId }) {
   const { t, money } = useI18n();
   const state = stateOf(world, id);
-  const { unlocks, rewardCents } = MILESTONES[id];
+  const { unlocks, rewardCents, requires } = MILESTONES[id];
+  const unmet = requires?.filter(required => !world.progress.completed.includes(required)) ?? [];
   const unlocked = [
     ...unlocks.machines.map(machine => t.machines[machine].name),
     ...unlocks.items.map(item => t.items[item]),
+    ...(unlocks.models ?? []).map(model => t.production.models[model]),
   ];
   const label = {
     completed: t.progression.completed,
@@ -60,6 +62,9 @@ function MilestoneCard({ world, controls, id }: { world: World; controls: Worksh
         <h4>{t.progression.milestones[id]}</h4>
         <span className="milestone-state">{label}</span>
       </header>
+      {unmet.length > 0 && (
+        <p className="tier-hint">{t.progression.requires(unmet.map(required => t.progression.milestones[required]).join(', '))}</p>
+      )}
       <MilestoneParts world={world} id={id} />
       <dl className="milestone-rewards">
         <div><dt>{t.progression.unlocks}</dt><dd>{unlocked.length > 0 ? unlocked.join(', ') : t.progression.nothing}</dd></div>

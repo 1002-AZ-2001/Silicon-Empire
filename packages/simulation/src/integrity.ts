@@ -2,10 +2,9 @@ import {
   CONVEYOR, ITEM_TYPES, MACHINES, MILESTONES, MILESTONE_IDS, PRODUCTION, WORKSHOP, isConveyor, recipeOf,
 } from '@silicon-empire/game-data';
 import type { ItemType, MilestoneId } from '@silicon-empire/game-data';
-import { addItems, inventoryTotal, mergeInventories } from './inventory';
+import { addItems, fitsInputStock, inventoryTotal, mergeInventories } from './inventory';
 import type { Inventory } from './inventory';
-import { inputRoom } from './logistics';
-import { createProgress, milestoneAvailable, rewardsEarned, unlockedMachines } from './progress';
+import { createProgress, milestoneAvailable, milestoneDone, modelUnlocked, rewardsEarned, unlockedMachines } from './progress';
 import type { Progress } from './progress';
 import { fitsMap, footprintOf } from './world';
 import type { Machine, World } from './world';
@@ -23,11 +22,13 @@ function checkProgress(progress: Progress): boolean {
   }
   if (progress.active && !milestoneAvailable(progress, progress.active)) return false;
   return Object.entries(progress.delivered).every(([id, delivered]) => {
-    if (!MILESTONE_IDS.includes(id as MilestoneId) || progress.completed.includes(id as MilestoneId) || !delivered) return false;
-    const cost = MILESTONES[id as MilestoneId].cost;
+    const milestone = id as MilestoneId;
+    if (!MILESTONE_IDS.includes(milestone) || !delivered || !milestoneAvailable(progress, milestone)) return false;
+    const cost = MILESTONES[milestone].cost;
     const units = ITEM_TYPES.filter(item => (delivered[item] ?? 0) > 0);
     // An unfinished milestone holds at least one delivery and never more than its cost.
-    return units.length > 0 && units.every(item => (delivered[item] ?? 0) <= (cost[item] ?? 0));
+    return units.length > 0 && !milestoneDone(progress, milestone) &&
+      units.every(item => (delivered[item] ?? 0) <= (cost[item] ?? 0));
   });
 }
 
@@ -50,6 +51,9 @@ export function checkIntegrity(world: World): boolean {
     const footprint = footprintOf(machine);
     if (machine.id <= previousId || machine.id >= world.nextMachineId || !fitsMap(world, footprint)) return false;
     if (!unlocked.has(machine.type)) return false;
+    if (machine.model && (!recipeOf(machine.type, machine.model) || !modelUnlocked(world.progress, machine.model))) {
+      return false;
+    }
     previousId = machine.id;
     machines.set(String(machine.id), machine);
     bookedCapital += machine.paidCents;
@@ -69,9 +73,9 @@ export function checkIntegrity(world: World): boolean {
     const machine = machines.get(id);
     const total = inventoryTotal(stock);
     if (!machine || total === 0) return false;
-    const recipe = recipeOf(machine.type);
+    const recipe = recipeOf(machine.type, machine.model);
     if (recipe) {
-      if (ITEM_TYPES.some(item => (stock[item] ?? 0) > 0 && inputRoom(recipe, stock, item) < 0)) return false;
+      if (!fitsInputStock(recipe, stock)) return false;
     } else if (total > MACHINES[machine.type].capacity) {
       return false;
     }
@@ -79,7 +83,8 @@ export function checkIntegrity(world: World): boolean {
   }
 
   for (const [id, state] of Object.entries(world.production)) {
-    const recipe = machines.get(id) && recipeOf(machines.get(id)?.type ?? 'storage');
+    const machine = machines.get(id);
+    const recipe = machine && recipeOf(machine.type, machine.model);
     if (!recipe) return false;
     const outputs = inventoryTotal(state.output);
     if (outputs > PRODUCTION.outputCapacity || (!state.batch && outputs === 0)) return false;
@@ -123,8 +128,9 @@ export function checkIntegrity(world: World): boolean {
   const { purchased, produced, consumed, delivered, discarded } = world.ledger;
   const entered = mergeInventories(purchased, produced);
   const left = [held, discarded, consumed, delivered].reduce(mergeInventories, {});
-  const deliveredToMilestones = Object.values(world.progress.delivered)
+  const completedCosts = world.progress.completed.map(id => MILESTONES[id].cost);
+  const deliveredToMilestones = [...completedCosts, ...Object.values(world.progress.delivered)]
     .reduce<Inventory>((total, inventory) => mergeInventories(total, inventory ?? {}), {});
   return ITEM_TYPES.every((item: ItemType) =>
-    (entered[item] ?? 0) === (left[item] ?? 0) && (deliveredToMilestones[item] ?? 0) <= (delivered[item] ?? 0));
+    (entered[item] ?? 0) === (left[item] ?? 0) && (deliveredToMilestones[item] ?? 0) === (delivered[item] ?? 0));
 }

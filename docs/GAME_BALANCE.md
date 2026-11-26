@@ -48,6 +48,17 @@ Chaque machine garde deux lots d’entrées et deux produits finis. Le PC bureau
 
 Au départ : Direction (gratuite, une seule), quai, casier, convoyeur, et les sept composants. Chaque récompense dépasse le prix des pièces demandées : un joueur qui garde de quoi acheter les pièces d’un jalon ne peut pas se bloquer. Il n’existe pas encore d’autre revenu (ventes en v0.4) : dépenser tout son capital en constructions peut bloquer la partie.
 
+## Contrat phare et production gaming v0.3.1
+
+| Objectif | Accès | Livraison | Coût des pièces | Récompense |
+|---|---|---:|---:|---:|
+| Contrat phare de l’Université de Valmont | Convoyeurs rapides et Subvention régionale terminés | 50 PC bureautiques emballés | 23 650 € | 38 000 € |
+| Tournoi de Valmont | Contrat phare terminé | 20 PC gaming emballés | 14 060 € | 22 000 € |
+
+Le contrat ouvre le palier 3. Cinquante PC correspondent à cinq lots par composant et demandent 25 minutes d’assemblage sur un seul établi à ×1. Plusieurs lignes réduisent le temps au prix d’un investissement supplémentaire.
+
+Le modèle gaming ajoute une carte graphique 8 Go aux pièces de la recette bureautique. Il prend 45 s à assembler, 15 s à tester et 8 s à emballer. Un PC gaming emballé coûte 703 € en pièces et carton.
+
 ## Logistique v0.2 (tranche 1)
 
 | Paramètre | Valeur |

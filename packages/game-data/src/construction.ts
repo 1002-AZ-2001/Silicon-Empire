@@ -143,6 +143,7 @@ export const MACHINES = z.record(z.enum(MACHINE_TYPES), machineDefinition.readon
     capacity: 0,
     ports: [
       { kind: 'input', side: 2, offset: 0 },
+      { kind: 'input', side: 2, offset: 1 },
       { kind: 'output', side: 0, offset: 1 },
     ],
   },

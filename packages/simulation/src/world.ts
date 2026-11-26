@@ -1,8 +1,8 @@
-import { ITEMS, MACHINES, MAX_LINE_LENGTH, PURCHASE, WORKSHOP, isConveyor } from '@silicon-empire/game-data';
-import type { ConveyorType, Direction, ItemType, MachineType, MilestoneId } from '@silicon-empire/game-data';
-import { addItems, inventoryTotal, mergeInventories } from './inventory';
+import { ITEMS, MACHINES, MAX_LINE_LENGTH, PURCHASE, WORKSHOP, isConveyor, recipeOf } from '@silicon-empire/game-data';
+import type { ConveyorType, Direction, ItemType, MachineType, MilestoneId, ProductModel } from '@silicon-empire/game-data';
+import { addItems, fitsInputStock, inventoryTotal, mergeInventories } from './inventory';
 import type { Inventory } from './inventory';
-import { createProgress, milestoneAvailable, orderableItems, unlockedMachines } from './progress';
+import { createProgress, milestoneAvailable, modelUnlocked, orderableItems, unlockedMachines } from './progress';
 import type { Progress } from './progress';
 
 export const ROTATIONS = [0, 1, 2, 3] as const satisfies readonly Direction[];
@@ -33,6 +33,8 @@ export interface Machine extends Placement {
   readonly paidCents: number;
   /** Splitters only. */
   readonly filter?: RouterFilter;
+  /** Production machines only. Defaults to office, including in older saved workshops. */
+  readonly model?: ProductModel;
 }
 
 /** Unit held by a splitter or merger, and the side it serves next. */
@@ -109,6 +111,7 @@ export type Command =
   | { readonly kind: 'build-line'; readonly tiles: readonly LineTile[]; readonly type?: ConveyorType }
   | { readonly kind: 'select-milestone'; readonly milestone: MilestoneId | null }
   | { readonly kind: 'configure'; readonly id: number; readonly filter: RouterFilter | null }
+  | { readonly kind: 'set-product-model'; readonly id: number; readonly model: ProductModel }
   | { readonly kind: 'rotate'; readonly id: number }
   | { readonly kind: 'demolish'; readonly id: number }
   | { readonly kind: 'order'; readonly id: number; readonly item: ItemType };
@@ -116,7 +119,8 @@ export type Command =
 type FootprintError = 'out-of-bounds' | 'occupied';
 type BuildError = FootprintError | 'insufficient-funds' | 'id-limit' | 'invalid-line' | 'locked' | 'unique';
 type OrderError = 'not-a-dock' | 'insufficient-funds' | 'dock-full' | 'id-limit' | 'locked';
-export type CommandError = BuildError | OrderError | 'missing-machine' | 'not-a-splitter' | 'milestone-unavailable';
+type ModelError = 'not-a-producer' | 'locked' | 'production-busy' | 'incompatible-inputs';
+export type CommandError = BuildError | OrderError | ModelError | 'missing-machine' | 'not-a-splitter' | 'milestone-unavailable';
 
 export type CommandResult =
   | { readonly ok: true; readonly world: World; readonly machine: Machine | null }
@@ -252,6 +256,17 @@ export function checkOrder(world: World, id: number, item: ItemType): CommandErr
   return null;
 }
 
+/** A model switch keeps the existing stock and cannot change a running or finished batch. */
+export function checkProductModel(world: World, machine: Machine, model: ProductModel): ModelError | null {
+  const recipe = recipeOf(machine.type, model);
+  if (!recipe) return 'not-a-producer';
+  if (!modelUnlocked(world.progress, model)) return 'locked';
+  if ((machine.model ?? 'office') === model) return null;
+  if (world.production[machine.id]) return 'production-busy';
+  if (!fitsInputStock(recipe, world.stocks[machine.id] ?? {})) return 'incompatible-inputs';
+  return null;
+}
+
 function withoutKey<T>(record: Readonly<Record<string, T>>, key: number): Readonly<Record<string, T>> {
   if (!(key in record)) return record;
   const copy = { ...record };
@@ -311,6 +326,18 @@ export function applyCommand(world: World, command: Command): CommandResult {
 
   const machine = world.machines.find(candidate => candidate.id === command.id);
   if (!machine) return { ok: false, reason: 'missing-machine' };
+
+  if (command.kind === 'set-product-model') {
+    const reason = checkProductModel(world, machine, command.model);
+    if (reason) return { ok: false, reason };
+    if ((machine.model ?? 'office') === command.model) return { ok: true, world, machine };
+    const configured = { ...machine, model: command.model };
+    return {
+      ok: true,
+      world: { ...world, machines: world.machines.map(candidate => candidate.id === machine.id ? configured : candidate) },
+      machine: configured,
+    };
+  }
 
   if (command.kind === 'configure') {
     if (machine.type !== 'splitter') return { ok: false, reason: 'not-a-splitter' };

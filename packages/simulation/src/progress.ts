@@ -1,5 +1,5 @@
 import { ITEMS, MACHINE_TYPES, MILESTONES, MILESTONE_IDS, STARTING_ITEMS, STARTING_MACHINES, TIERS } from '@silicon-empire/game-data';
-import type { ItemType, MachineType, MilestoneId } from '@silicon-empire/game-data';
+import type { ItemType, MachineType, MilestoneId, ProductModel } from '@silicon-empire/game-data';
 import type { Inventory } from './inventory';
 
 /** Progression state. In sandbox mode everything is unlocked and milestones are not used. */
@@ -35,12 +35,18 @@ export function tierOpen(progress: Progress, tier: number): boolean {
 /** A milestone can be chosen when its tier is open and, in a sequential tier, the previous ones are done. */
 export function milestoneAvailable(progress: Progress, id: MilestoneId): boolean {
   if (progress.sandbox || progress.completed.includes(id)) return false;
-  const { tier } = MILESTONES[id];
+  const { tier, requires } = MILESTONES[id];
   if (!tierOpen(progress, tier)) return false;
+  if (requires?.some(requirement => !progress.completed.includes(requirement))) return false;
   const definition = TIERS.find(candidate => candidate.tier === tier);
   if (!definition?.sequential) return true;
   const ordered = milestonesOf(tier);
   return ordered.slice(0, ordered.indexOf(id)).every(previous => progress.completed.includes(previous));
+}
+
+export function modelUnlocked(progress: Progress, model: ProductModel): boolean {
+  return model === 'office' || progress.sandbox ||
+    progress.completed.some(id => MILESTONES[id].unlocks.models?.includes(model));
 }
 
 export function unlockedMachines(progress: Progress): ReadonlySet<MachineType> {

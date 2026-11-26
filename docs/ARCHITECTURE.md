@@ -39,6 +39,13 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - Déblocages : `unlockedMachines` et `orderableItems` (module `progress.ts`) limitent la construction (`locked`) et les commandes. La Direction est unique (`unique`). `checkIntegrity` rejoue l’ordre des jalons et refuse un bâtiment non débloqué.
 - Interface : outils filtrés par déblocage (raccourcis 1 à 9 puis 0 dans l’ordre affiché), panneau de progression, détail de production et objectif de la Direction dans l’inspecteur, voyants d’état dessinés par Phaser.
 
+## Contrat phare et modèles de production (v0.3.1)
+
+- Valmont utilise le flux de livraison à la Direction. Le contrat requiert les deux jalons initiaux du palier 2. Une fois payé, il débloque le modèle gaming et le palier 3.
+- Le modèle sélectionné sur une machine détermine sa recette et ses entrées. Le moteur partage les mêmes règles de capacité pour le transfert, le changement de modèle et la validation d’une sauvegarde. Le changement conserve les ingrédients compatibles et attend que la fabrication et la sortie soient vides.
+- L’emballeuse accueille deux flux indépendants. Les cartons peuvent attendre sur leur convoyeur pendant que les PC testés arrivent par l’autre entrée.
+- La sauvegarde v5 stocke le modèle et reprend les versions 1 à 4. Les machines existantes continuent en bureautique par défaut, y compris au milieu d’un lot. Les unités livrées dans le registre correspondent aux jalons terminés et aux livraisons partielles.
+
 ## Langues (v0.2.3)
 
 - `apps/web/src/i18n/fr.ts` est le dictionnaire de référence ; son type `Messages` impose les mêmes clés et signatures aux autres langues (`en`, `es`, `de`, `zh`, `ja`). Les phrases variables sont des fonctions, ce qui place les valeurs selon la grammaire de chaque langue.

@@ -1,8 +1,18 @@
-import { ITEM_TYPES } from '@silicon-empire/game-data';
-import type { ItemType } from '@silicon-empire/game-data';
+import { ITEM_TYPES, PRODUCTION } from '@silicon-empire/game-data';
+import type { ItemType, Recipe } from '@silicon-empire/game-data';
 
 /** Unit counts by item type. Only positive counts are stored. */
 export type Inventory = Readonly<Partial<Record<ItemType, number>>>;
+
+/** Units of this ingredient a production machine can still accept. */
+export function inputRoom(recipe: Recipe, stock: Inventory, item: ItemType): number {
+  const perBatch = recipe.inputs[item] ?? 0;
+  return perBatch * PRODUCTION.inputBatches - (stock[item] ?? 0);
+}
+
+export function fitsInputStock(recipe: Recipe, stock: Inventory): boolean {
+  return ITEM_TYPES.every(item => inputRoom(recipe, stock, item) >= 0);
+}
 
 export function inventoryTotal(inventory: Inventory): number {
   return ITEM_TYPES.reduce((total, item) => total + (inventory[item] ?? 0), 0);
