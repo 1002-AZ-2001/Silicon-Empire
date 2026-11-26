@@ -327,6 +327,7 @@ kbd {
 .save-action.delete-save:hover { color: var(--danger); }
 .backup-actions { margin-top: 10px; }
 
+.menu-settings { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 16px; }
 .language-select { display: flex; align-items: center; gap: 8px; color: var(--muted); }
 .language-select select {
   min-height: 30px;
@@ -849,6 +850,10 @@ kbd {
 }
 
 @media (max-width: 760px) {
+  .menu-header { flex-wrap: wrap; padding-block: 10px; }
+  .menu-settings { width: 100%; justify-content: space-between; }
+  .language-select { min-width: 0; }
+  .language-select select { min-width: 0; max-width: 100%; }
   .menu-frame { width: calc(100% - 32px); }
   .menu-header { min-height: 60px; }
   .menu-visual { width: 100%; height: min(640px, 78svh); }

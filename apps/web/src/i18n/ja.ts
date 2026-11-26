@@ -49,6 +49,8 @@ export const ja: Messages = {
   },
   menu: {
     language: '言語',
+    currency: '通貨',
+    currencyAuto: (name: string) => `自動（${name}）`,
     intro: 'パソコン工房を作りましょう。自分のペースで設備を置き、スペースを整えられます。',
     nameLabel: '工房の名前',
     defaultName: '工房 01',

@@ -49,6 +49,8 @@ export const de: Messages = {
   },
   menu: {
     language: 'Sprache',
+    currency: 'Währung',
+    currencyAuto: (name: string) => `Automatisch (${name})`,
     intro: 'Baue deine Computerwerkstatt auf. Stelle deine Geräte auf und gestalte den Raum in deinem Tempo.',
     nameLabel: 'Name der Werkstatt',
     defaultName: 'Werkstatt 01',

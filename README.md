@@ -6,7 +6,7 @@ Jeu de gestion industrielle informatique en 2D, solo et jouable dans un navigate
 
 ## Langues
 
-Français, English, Español, Deutsch, 简体中文, 日本語. Le jeu suit la langue du système au premier lancement ; le sélecteur **Langue** du menu principal permet d’en changer.
+Français, English, Español, Deutsch, 简体中文, 日本語. Le jeu suit la langue du système au premier lancement ; le sélecteur **Langue** du menu principal permet d’en changer. Les montants s’affichent dans la monnaie de la langue (€, $, £, ¥ pour le yuan comme pour le yen) ; le sélecteur **Devise** en impose une autre.
 
 ## Installer le jeu
 
