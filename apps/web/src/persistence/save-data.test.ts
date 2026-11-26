@@ -1,4 +1,4 @@
-import { WORKSHOP, recipeOf } from '@silicon-empire/game-data';
+import { PROFESSIONAL_RECIPES, WORKSHOP, recipeOf } from '@silicon-empire/game-data';
 import { applyCommand, createWorld, step } from '@silicon-empire/simulation';
 import { describe, expect, it } from 'vitest';
 import { SAVE_VERSION, decodeSave } from './save-data';
@@ -109,6 +109,42 @@ describe('schéma de sauvegarde', () => {
     const machines = world.machines.map(machine => machine.id === 3 ? { ...machine, model: 'office' } : machine);
     expect(decodeSave({ ...saved, world: { ...world, machines } })).toBeNull();
     expect(decodeSave({ ...saved, version: 4 })).toBeNull();
+  });
+
+  it('migre le modèle gaming et le lot en cours d’une sauvegarde v5', () => {
+    const world = runningAssembler('gaming');
+    const restored = decodeSave({ ...record, version: 5, world });
+    expect(restored).toEqual({ ...record, world });
+    expect(restored?.world.machines[2]?.model).toBe('gaming');
+    expect(restored?.world.production[3]?.batch?.item).toBe('pc-gaming');
+  });
+
+  it('restaure un contrôle traitant un rebut, y compris quand les deux sorties contiennent des PC', () => {
+    let world = ([
+      { kind: 'build', type: 'tester', x: 15, y: 15, rotation: 0 },
+      { kind: 'set-product-model', id: 1, model: 'professional' },
+    ] satisfies Command[]).reduce(run, createWorld());
+    const { output, rejection, ticks } = PROFESSIONAL_RECIPES.tester;
+    world = {
+      ...world,
+      stocks: { 1: { 'pc-professional': 1 } },
+      ledger: {
+        ...world.ledger, produced: { 'pc-professional': 8, [output]: 7 },
+        consumed: { 'pc-professional': 7 }, discarded: { [output]: 5 },
+      },
+      production: { 1: { batch: null, output: { [output]: 2 } } },
+    };
+    const active = step(world);
+    expect(active.production[1]?.batch).toEqual({ item: rejection.item, remaining: ticks });
+    const saved = { ...record, world: active };
+    const restored = decodeSave(JSON.parse(JSON.stringify(saved)));
+    expect(restored).toEqual(saved);
+    expect(decodeSave({ ...saved, version: 5 })).toBeNull();
+    if (!restored) throw new Error('Le contrôle professionnel doit pouvoir reprendre.');
+    let finished = restored.world;
+    for (let tick = 0; tick < ticks; tick++) finished = step(finished);
+    expect(finished.production[1]?.output).toEqual({ [output]: 2, [rejection.item]: 1 });
+    expect(decodeSave({ ...record, world: finished })?.world).toEqual(finished);
   });
 
   it('restaure une partie en progression avec un jalon en cours et un lot en fabrication', () => {

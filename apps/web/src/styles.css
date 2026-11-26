@@ -939,4 +939,4 @@ kbd {
 .machine-stats progress { width: 70px; height: 6px; vertical-align: middle; accent-color: var(--lime); }
 .production-working { color: var(--lime); }
 .production-starved { color: #f0b24a; }
-.production-blocked { color: var(--danger); }
+.production-blocked, .production-reject-blocked { color: var(--danger); }

@@ -12,6 +12,7 @@ export const MILESTONE_IDS = [
   'packaging', 'warehouse',
   'fast-belts', 'regional-grant',
   'campus-contract', 'gaming-tournament',
+  'professional-rollout',
 ] as const;
 export type MilestoneId = (typeof MILESTONE_IDS)[number];
 
@@ -81,8 +82,14 @@ export const MILESTONES: Readonly<Record<MilestoneId, Milestone>> = {
   'gaming-tournament': {
     tier: 3,
     cost: { 'pc-gaming-packaged': 20 },
-    unlocks: { machines: [], items: [] },
+    unlocks: { machines: [], items: ['ram-32g', 'ssd-2t'], models: ['professional'] },
     rewardCents: 2_200_000,
+  },
+  'professional-rollout': {
+    tier: 4,
+    cost: { 'pc-professional-packaged': 10 },
+    unlocks: { machines: [], items: [] },
+    rewardCents: 2_000_000,
   },
 };
 
@@ -91,6 +98,7 @@ export const TIERS = [
   { tier: 1, sequential: false, openedBy: 0 },
   { tier: 2, sequential: false, openedBy: 0 },
   { tier: 3, sequential: false, openedBy: 2 },
+  { tier: 4, sequential: false, openedBy: 3 },
 ] as const satisfies readonly { tier: number; sequential: boolean; openedBy: number | null }[];
 
 /** Available in a new progression game before any milestone. */
