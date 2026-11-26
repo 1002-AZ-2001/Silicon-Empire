@@ -51,7 +51,7 @@ export const MILESTONES: Readonly<Record<MilestoneId, Milestone>> = {
   packaging: {
     tier: 1,
     cost: { 'pc-office-tested': 20 },
-    unlocks: { machines: ['packager'], items: ['carton'] },
+    unlocks: { machines: ['packager', 'shipping'], items: ['carton'] },
     rewardCents: 1_200_000,
   },
   warehouse: {

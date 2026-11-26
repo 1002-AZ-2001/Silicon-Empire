@@ -1,9 +1,10 @@
-import { ITEMS, MACHINES, MAX_LINE_LENGTH, PURCHASE, WORKSHOP, isConveyor, recipeOf } from '@silicon-empire/game-data';
+import { ITEMS, MACHINES, MAX_LINE_LENGTH, PURCHASE, WORKSHOP, isConveyor, recipeOf, saleOffer } from '@silicon-empire/game-data';
 import type { ConveyorType, Direction, ItemType, MachineType, MilestoneId, ProductModel } from '@silicon-empire/game-data';
 import { addItems, fitsInputStock, inventoryTotal, mergeInventories } from './inventory';
 import type { Inventory } from './inventory';
 import { createProgress, milestoneAvailable, modelUnlocked, orderableItems, unlockedMachines } from './progress';
 import type { Progress } from './progress';
+import type { Sales } from './sales';
 
 export const ROTATIONS = [0, 1, 2, 3] as const satisfies readonly Direction[];
 export type Rotation = (typeof ROTATIONS)[number];
@@ -98,6 +99,7 @@ export interface World {
   /** Production machine states by machine id. Idle machines with an empty output are absent. */
   readonly production: Readonly<Record<string, ProductionState>>;
   readonly progress: Progress;
+  readonly sales: Sales;
   readonly ledger: Ledger;
 }
 
@@ -110,6 +112,8 @@ export type Command =
   | ({ readonly kind: 'build' } & Placement)
   | { readonly kind: 'build-line'; readonly tiles: readonly LineTile[]; readonly type?: ConveyorType }
   | { readonly kind: 'select-milestone'; readonly milestone: MilestoneId | null }
+  | { readonly kind: 'start-sale'; readonly model: ProductModel }
+  | { readonly kind: 'cancel-sale' }
   | { readonly kind: 'configure'; readonly id: number; readonly filter: RouterFilter | null }
   | { readonly kind: 'set-product-model'; readonly id: number; readonly model: ProductModel }
   | { readonly kind: 'rotate'; readonly id: number }
@@ -120,7 +124,8 @@ type FootprintError = 'out-of-bounds' | 'occupied';
 type BuildError = FootprintError | 'insufficient-funds' | 'id-limit' | 'invalid-line' | 'locked' | 'unique';
 type OrderError = 'not-a-dock' | 'insufficient-funds' | 'dock-full' | 'id-limit' | 'locked';
 type ModelError = 'not-a-producer' | 'locked' | 'production-busy' | 'incompatible-inputs';
-export type CommandError = BuildError | OrderError | ModelError | 'missing-machine' | 'not-a-splitter' | 'milestone-unavailable';
+type SaleError = 'no-shipping-dock' | 'sale-in-progress' | 'sale-already-shipped';
+export type CommandError = BuildError | OrderError | ModelError | SaleError | 'missing-machine' | 'not-a-splitter' | 'milestone-unavailable';
 
 export type CommandResult =
   | { readonly ok: true; readonly world: World; readonly machine: Machine | null }
@@ -145,6 +150,7 @@ export function createWorld(mode: 'sandbox' | 'progression' = 'sandbox'): World 
     routers: {},
     production: {},
     progress: createProgress(mode === 'sandbox'),
+    sales: { active: null, completed: [] },
     ledger: EMPTY_LEDGER,
   };
 }
@@ -275,6 +281,19 @@ function withoutKey<T>(record: Readonly<Record<string, T>>, key: number): Readon
 }
 
 export function applyCommand(world: World, command: Command): CommandResult {
+  if (command.kind === 'start-sale') {
+    if (world.sales.active) return { ok: false, reason: 'sale-in-progress' };
+    if (!modelUnlocked(world.progress, command.model)) return { ok: false, reason: 'locked' };
+    if (!world.machines.some(machine => machine.type === 'shipping')) return { ok: false, reason: 'no-shipping-dock' };
+    const sales = { ...world.sales, active: { terms: saleOffer(command.model), delivered: 0 } };
+    return { ok: true, world: { ...world, sales }, machine: null };
+  }
+
+  if (command.kind === 'cancel-sale') {
+    if ((world.sales.active?.delivered ?? 0) > 0) return { ok: false, reason: 'sale-already-shipped' };
+    return { ok: true, world: { ...world, sales: { ...world.sales, active: null } }, machine: null };
+  }
+
   if (command.kind === 'select-milestone') {
     if (command.milestone !== null && !milestoneAvailable(world.progress, command.milestone)) {
       return { ok: false, reason: 'milestone-unavailable' };
@@ -410,5 +429,5 @@ export function applyCommand(world: World, command: Command): CommandResult {
 export function sameContents(a: World, b: World): boolean {
   return a.machines === b.machines && a.stocks === b.stocks && a.belts === b.belts && a.routers === b.routers &&
     a.production === b.production && a.progress === b.progress &&
-    a.ledger === b.ledger && a.capitalCents === b.capitalCents;
+    a.ledger === b.ledger && a.sales === b.sales && a.capitalCents === b.capitalCents;
 }

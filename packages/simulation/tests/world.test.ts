@@ -19,6 +19,7 @@ describe('construction', () => {
       columns: 64, rows: 64, tick: 0, capitalCents: 2_500_000, nextMachineId: 1, nextItemId: 1,
       machines: [], stocks: {}, belts: {}, routers: {}, production: {},
       progress: { sandbox: true, completed: [], active: null, delivered: {} },
+      sales: { active: null, completed: [] },
       ledger: {
         purchased: {}, discarded: {}, purchaseSpentCents: 0, produced: {}, consumed: {}, delivered: {},
       },

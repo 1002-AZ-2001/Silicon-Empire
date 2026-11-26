@@ -75,7 +75,7 @@ describe('schéma de sauvegarde', () => {
 
   it('migre une sauvegarde v0.2.0 avec ses unités en transit', () => {
     const v2 = JSON.parse(JSON.stringify({ ...inTransit, version: 2 }));
-    for (const key of ['routers', 'production', 'progress']) delete v2.world[key];
+    for (const key of ['routers', 'production', 'progress', 'sales']) delete v2.world[key];
     for (const key of ['produced', 'consumed', 'delivered']) delete v2.world.ledger[key];
     expect(decodeSave(v2)).toEqual(inTransit);
     expect(decodeSave({ ...v2, world: { ...v2.world, routers: {} } })).toBeNull();
@@ -83,7 +83,7 @@ describe('schéma de sauvegarde', () => {
 
   it('migre une sauvegarde v0.2.x en bac à sable et refuse ses champs v4', () => {
     const v3 = JSON.parse(JSON.stringify({ ...inTransit, version: 3 }));
-    for (const key of ['production', 'progress']) delete v3.world[key];
+    for (const key of ['production', 'progress', 'sales']) delete v3.world[key];
     for (const key of ['produced', 'consumed', 'delivered']) delete v3.world.ledger[key];
     const migrated = decodeSave(v3);
     expect(migrated?.world.progress).toEqual({ sandbox: true, completed: [], active: null, delivered: {} });
@@ -93,9 +93,11 @@ describe('schéma de sauvegarde', () => {
 
   it('migre un lot bureautique v4 en cours et poursuit la même recette', () => {
     const world = runningAssembler('office');
-    const legacy = { ...record, version: 4, world };
+    const { sales, ...oldWorld } = world;
+    const legacy = { ...record, version: 4, world: oldWorld };
     const restored = decodeSave(legacy);
     expect(restored).toEqual({ ...record, world });
+    expect(restored?.world.sales).toEqual(sales);
     expect(restored?.world.production[3]?.batch?.item).toBe('pc-office');
     if (!restored) throw new Error('La sauvegarde v4 doit pouvoir être relue.');
     expect(step(restored.world)).toEqual(step(world));
@@ -113,8 +115,10 @@ describe('schéma de sauvegarde', () => {
 
   it('migre le modèle gaming et le lot en cours d’une sauvegarde v5', () => {
     const world = runningAssembler('gaming');
-    const restored = decodeSave({ ...record, version: 5, world });
+    const { sales, ...oldWorld } = world;
+    const restored = decodeSave({ ...record, version: 5, world: oldWorld });
     expect(restored).toEqual({ ...record, world });
+    expect(restored?.world.sales).toEqual(sales);
     expect(restored?.world.machines[2]?.model).toBe('gaming');
     expect(restored?.world.production[3]?.batch?.item).toBe('pc-gaming');
   });

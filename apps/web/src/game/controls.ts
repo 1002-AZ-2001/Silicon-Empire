@@ -28,6 +28,7 @@ interface WorkshopUi {
   /** Conveyor line being drawn, in drawing order. */
   line: LineTile[] | null;
   progressionOpen: boolean;
+  salesOpen: boolean;
 }
 
 
@@ -68,6 +69,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     speed: initialSpeed,
     line: null,
     progressionOpen: false,
+    salesOpen: false,
   }));
   const clock = new FixedStepClock();
   clock.speed = initialSpeed;
@@ -132,6 +134,11 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
   function setProductModel(id: number, model: ProductModel) {
     const result = simulation.dispatch({ kind: 'set-product-model', id, model });
     store.setState({ feedback: result.ok ? null : { kind: 'error', message: errorMessage(result.reason) } });
+  }
+
+  function changeSale(model?: ProductModel) {
+    const result = simulation.dispatch(model ? { kind: 'start-sale', model } : { kind: 'cancel-sale' });
+    if (!result.ok) store.setState({ feedback: { kind: 'error', message: errorMessage(result.reason) } });
   }
 
   function configure(id: number, filter: RouterFilter | null) {
@@ -220,6 +227,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
 
   return {
     store, clock, setSpeed, togglePause, order, configure, selectMilestone, setProductModel,
+    startSale: (model: ProductModel) => changeSale(model), cancelSale: () => changeSale(),
     startLine, extendLine, cancelLine, finishLine,
     selectTool, aimAt, activateTile, rotate, confirmDemolition,
   };

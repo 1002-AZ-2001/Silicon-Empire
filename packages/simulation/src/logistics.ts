@@ -6,6 +6,7 @@ import { addItems, inputRoom, inventoryTotal, mergeInventories, mostStocked } fr
 import type { Inventory } from './inventory';
 import { milestoneDone, stillNeeded } from './progress';
 import type { Progress } from './progress';
+import { acceptsSale } from './sales';
 import { ROUTER_SIDES, footprintOf } from './world';
 import type { BeltItem, Ledger, Machine, Placement, ProductionState, RouterState, Tile, World } from './world';
 
@@ -193,13 +194,14 @@ export function previewTarget(world: World, tile: Tile, direction: Direction): B
 
 /** Whether a machine fed through an input port takes one more unit of `item`. */
 export function canReceive(
-  world: Pick<World, 'machines' | 'stocks' | 'progress'>,
+  world: Pick<World, 'machines' | 'stocks' | 'progress' | 'sales'>,
   id: number,
   item: ItemType,
 ): boolean {
   const machine = world.machines.find(candidate => candidate.id === id);
   if (!machine) return false;
   if (machine.type === 'headquarters') return stillNeeded(world.progress, item) > 0;
+  if (machine.type === 'shipping') return acceptsSale(world.sales, item);
   const stock = world.stocks[id] ?? {};
   const recipe = recipeOf(machine.type, machine.model);
   if (recipe) return inputRoom(recipe, stock, item) > 0;
@@ -241,6 +243,7 @@ export function step(world: World): World {
   let routers = world.routers;
   let production = world.production;
   let progress = world.progress;
+  let sales = world.sales;
   let ledger = world.ledger;
   let capitalCents = world.capitalCents;
   let nextItemId = world.nextItemId;
@@ -277,7 +280,7 @@ export function step(world: World): World {
   const record = (change: Partial<Ledger>) => { ledger = { ...ledger, ...change }; };
   const accepts = (target: BeltTarget | null, item: ItemType, entry = 0) =>
     target?.kind === 'belt' ? beltHasRoom(belts[target.id], entry)
-      : target?.kind === 'stock' && canReceive({ machines: world.machines, stocks, progress }, target.id, item);
+      : target?.kind === 'stock' && canReceive({ machines: world.machines, stocks, progress, sales }, target.id, item);
   const deliver = (target: BeltTarget, unit: { id: number; item: ItemType }, entry = 0) => {
     if (target.kind === 'belt') {
       enterBelt(target.id, { ...unit, position: entry });
@@ -288,6 +291,15 @@ export function step(world: World): World {
         delivered: { ...progress.delivered, [active]: addItems(progress.delivered[active] ?? {}, unit.item, 1) },
       };
       record({ delivered: addItems(ledger.delivered, unit.item, 1) });
+    } else if (machines.get(target.id)?.type === 'shipping' && sales.active) {
+      const { terms, delivered } = sales.active;
+      const total = delivered + 1;
+      if (total === terms.units) {
+        capitalCents += terms.units * terms.unitPriceCents;
+        sales = { active: null, completed: [...sales.completed, terms] };
+      } else {
+        sales = { ...sales, active: { terms, delivered: total } };
+      }
     } else {
       setStock(target.id, stock => addItems(stock, unit.item, 1));
     }
@@ -414,7 +426,7 @@ export function step(world: World): World {
   }
 
   return {
-    ...world, tick: world.tick + 1, capitalCents, belts, stocks, routers, production, progress, ledger, nextItemId,
+    ...world, tick: world.tick + 1, capitalCents, belts, stocks, routers, production, progress, sales, ledger, nextItemId,
   };
 }
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 — Expédition et ventes
+
+- Le quai d’expédition, débloqué par le jalon Conditionnement, reçoit les PC emballés pour les commandes clients répétables.
+- Une commande immobilise son tarif et est payée en une fois à la dernière livraison. Les livraisons partielles restent dans la sauvegarde.
+- Le panneau Ventes affiche les revenus, les subventions, les achats, la construction nette et la marge estimée aux coûts matière de référence.
+- Les sauvegardes v1 à v6 reprennent au format v7.
+
 ## 0.3.2 — Postes professionnels et contrôle qualité
 
 - Le tournoi de Valmont ouvre le palier 4, la gamme professionnelle, le kit mémoire de 32 Go et le SSD de 2 To.

@@ -9,6 +9,7 @@ import { ConstructionBar, getShortcut } from './ConstructionBar';
 import { Inspector } from './Inspector';
 import { useI18n } from '../i18n';
 import { ProgressionPanel } from './ProgressionPanel';
+import { SalesPanel } from './SalesPanel';
 import { Dialog, Icon, gameTime } from './shared';
 import { useWorld } from './use-world';
 import type { World } from '@silicon-empire/simulation';
@@ -31,6 +32,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
   const demolitionId = useStore(controls.store, state => state.demolitionId);
   const speed = useStore(controls.store, state => state.speed);
   const progressionOpen = useStore(controls.store, state => state.progressionOpen);
+  const salesOpen = useStore(controls.store, state => state.salesOpen);
   const completedCount = useRef(world.progress.completed.length);
   const [savedWorld, setSavedWorld] = useState<World | null>(session.savedAt === null ? null : session.world);
   const [saving, setSaving] = useState(false);
@@ -167,6 +169,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
             <small>{world.progress.active ? t.progression.milestones[world.progress.active] : t.progression.none}</small>
           </button>
         )}
+        <button type="button" className="button" onClick={() => controls.store.setState({ salesOpen: true })}>{t.trade.title}</button>
         <div className="workshop-actions">
           <span className={`save-status${saveFailed ? ' text-error' : ''}`} role="status">
             {saveFailed ? t.workshop.saveFailed : saving ? t.workshop.saving : dirty ? t.workshop.unsaved : t.workshop.saved}
@@ -192,6 +195,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
       {progressionOpen && (
         <ProgressionPanel world={world} controls={controls} onClose={() => controls.store.setState({ progressionOpen: false })} />
       )}
+      {salesOpen && <SalesPanel world={world} controls={controls} />}
 
       {toDemolish && (
         <Dialog
