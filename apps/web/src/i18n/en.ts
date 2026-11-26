@@ -49,6 +49,8 @@ export const en: Messages = {
   },
   menu: {
     language: 'Language',
+    currency: 'Currency',
+    currencyAuto: (name: string) => `Automatic (${name})`,
     intro: 'Build your computer workshop. Place your equipment and lay out the floor at your own pace.',
     nameLabel: 'Workshop name',
     defaultName: 'Workshop 01',

@@ -49,6 +49,8 @@ export const es: Messages = {
   },
   menu: {
     language: 'Idioma',
+    currency: 'Moneda',
+    currencyAuto: (name: string) => `Automática (${name})`,
     intro: 'Construye tu taller informático. Instala tus equipos y organiza el espacio a tu ritmo.',
     nameLabel: 'Nombre del taller',
     defaultName: 'Taller 01',

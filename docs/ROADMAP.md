@@ -45,6 +45,10 @@ L’assembleur et le banc de test restent sans ports ni inventaire jusqu’à la
 
 **v0.5.0** ajoute le guide d’atelier, l’import et l’export JSON, et l’auto-hébergement via Docker Compose.
 
+**v0.6.0** livre la recherche au laboratoire R&D et les machines Mk2. **v0.6.1** affiche les montants dans la monnaie de la langue ou celle choisie au menu.
+
+Ordre retenu ensuite, une version par étape : boutique de pièces, employés et salaires, murs, sols et pièces puis terrains achetables, conception de composants maison (CPU, GPU, RAM, carte mère), concurrents simulés sur le marché. L’électricité, la maintenance et le confort de construction suivront.
+
 La version 0.2.0 publie la tranche 1 avec l’application de bureau (Windows, Debian, Arch, AppImage) et ses mises à jour. La version 0.2.1 publie la tranche 2.
 
 ## 22. Tests et critères d’acceptation

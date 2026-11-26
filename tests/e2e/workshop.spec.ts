@@ -460,7 +460,7 @@ test('change de langue depuis le menu, traduit l’atelier et garde ce choix', a
   await page.getByLabel('Workshop name').fill('Tokyo');
   await page.getByRole('button', { name: 'New game' }).click();
   await expect(page.getByRole('region', { name: 'Interactive workshop grid' })).toBeVisible();
-  await expect(page.getByLabel('Available capital', { exact: true })).toHaveText('€25,000');
+  await expect(page.getByLabel('Available capital', { exact: true })).toHaveText('$28,000');
   await page.getByRole('button', { name: /^Storage/ }).click();
   const point = await (async () => {
     const box = await page.getByRole('region', { name: 'Interactive workshop grid' }).boundingBox();
@@ -821,4 +821,22 @@ test('améliore un établi en Mk2 et garde le projet de recherche choisi après 
   await expect(inspector(page)).toContainText('Quai agrandi');
   await clickTile(page, 31, 32);
   await expect(inspector(page).locator('.machine-stats > div', { has: page.getByText('Niveau', { exact: true }) })).toContainText('Mk2');
+});
+
+test('affiche les montants dans la devise choisie au menu et garde ce choix', async ({ page }) => {
+  await page.goto('/');
+  const currency = page.getByLabel('Devise');
+  await expect(currency).toHaveValue('auto');
+  await expect(currency.locator('option[value="auto"]')).toHaveText('Automatique (euro)');
+  await currency.selectOption('USD');
+  await startWorkshop(page, 'Atelier Brume');
+  await expect(capital(page)).toHaveText(/^28\s000\s\$US$/);
+  await page.reload();
+  await expect(page.getByLabel('Devise')).toHaveValue('USD');
+  await page.getByLabel('Langue').selectOption('ja');
+  const yen = page.getByLabel('通貨');
+  await yen.selectOption('auto');
+  await expect(yen.locator('option[value="auto"]')).toHaveText('自動（日本円）');
+  await page.reload();
+  await expect(page.getByLabel('通貨')).toHaveValue('auto');
 });

@@ -79,6 +79,7 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - Les données de jeu ne contiennent plus de noms affichés : équipements et composants sont nommés dans les dictionnaires. Les messages de retour des commandes sont des fonctions du dictionnaire, évaluées à l’affichage : ils suivent un changement de langue.
 - Le processus principal de l’application de bureau n’envoie que des codes (`UpdateError`, `InstallFailure`), traduits par le menu.
 - Les tests navigateur fixent la langue (`fr-FR`) ; d’autres scénarios vérifient le changement de langue et la détection automatique.
+- Monnaies (v0.6.1) : `apps/web/src/i18n/currency.ts` définit cinq devises, leurs taux fixes et leur nombre de décimales (ISO 4217). Le moteur et les sauvegardes restent en centimes d’euro ; seule la fonction `money()` du traducteur convertit, puis formate avec `Intl.NumberFormat`. Le choix `auto` suit la langue (et la région du système pour l’anglais) ; un autre choix est mémorisé dans `localStorage`. Les noms des devises viennent de `Intl.DisplayNames`.
 
 ## Application de bureau (v0.2)
 

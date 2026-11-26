@@ -10,6 +10,20 @@
 | Assemblage initial | 30 s simulées par PC |
 | Prix exemple Gaming X1 | 899 € |
 
+## Monnaies d’affichage v0.6.1
+
+Toute l’économie est calculée en euros. L’interface convertit avec des taux fixes, arrondis depuis les cours de référence de la BCE de novembre 2026.
+
+| Devise | Taux pour 1 € | Capital initial affiché | Langue par défaut |
+|---|---:|---:|---|
+| Euro (EUR) | 1 | 25 000 € | français, espagnol, allemand ; anglais en Irlande et à Malte |
+| Dollar américain (USD) | 1,12 | 28 000 $ | anglais hors Royaume-Uni, Irlande et Malte |
+| Livre sterling (GBP) | 0,83 | 20 750 £ | anglais au Royaume-Uni |
+| Yuan (CNY) | 7,40 | 185 000 ¥ | chinois simplifié |
+| Yen (JPY) | 178 | 4 450 000 ¥ | japonais |
+
+Les prix ne sont pas adaptés au pouvoir d’achat local : seul l’affichage change.
+
 ## Catalogue de construction v0.1
 
 | Équipement | Emprise au nord | Coût |

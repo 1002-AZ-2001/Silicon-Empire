@@ -50,6 +50,8 @@ export const zh: Messages = {
   },
   menu: {
     language: '语言',
+    currency: '货币',
+    currencyAuto: (name: string) => `自动（${name}）`,
     intro: '建造你的电脑工坊。按自己的节奏摆放设备、规划空间。',
     nameLabel: '工坊名称',
     defaultName: '工坊 01',

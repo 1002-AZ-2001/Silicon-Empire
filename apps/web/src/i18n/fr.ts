@@ -54,6 +54,8 @@ export const fr = {
   } satisfies Record<ItemType, string> as Record<ItemType, string>,
   menu: {
     language: 'Langue',
+    currency: 'Devise',
+    currencyAuto: (name: string) => `Automatique (${name})`,
     intro: 'Construisez votre atelier informatique. Implantez vos équipements et aménagez l’espace à votre rythme.',
     nameLabel: 'Nom de l’atelier',
     defaultName: 'Atelier 01',

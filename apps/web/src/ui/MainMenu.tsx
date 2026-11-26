@@ -4,7 +4,8 @@ import workshopArt from '../art/workshop-menu.webp';
 import { BACKUP_LIMIT_BYTES, downloadBackup, parseBackup } from '../persistence/backup';
 import { addSave, listSaves, loadSave, removeSave } from '../persistence/indexed-saves';
 import { MAX_WORKSHOP_NAME, createSaveId } from '../persistence/save-data';
-import { LOCALES, LOCALE_NAMES, setLocale, useI18n } from '../i18n';
+import { CURRENCIES, LOCALES, LOCALE_NAMES, resolveCurrency, setCurrency, setLocale, useCurrencyChoice, useI18n } from '../i18n';
+import type { CurrencyChoice } from '../i18n';
 import { Dialog, Icon } from './shared';
 import { UpdatePanel } from './UpdatePanel';
 import type { SaveRecord } from '../persistence/save-data';
@@ -118,12 +119,15 @@ export function MainMenu({ onNewGame, onResume }: {
 
       <header className="menu-header menu-frame">
         <span className="menu-identity"><span className="brand-mark"><Icon name="chip" /></span> {t.tagline}</span>
-        <label className="language-select">
-          <span>{t.menu.language}</span>
-          <select value={locale} onChange={event => setLocale(event.target.value as typeof locale)}>
-            {LOCALES.map(option => <option key={option} value={option} lang={option}>{LOCALE_NAMES[option]}</option>)}
-          </select>
-        </label>
+        <div className="menu-settings">
+          <label className="language-select">
+            <span>{t.menu.language}</span>
+            <select value={locale} onChange={event => setLocale(event.target.value as typeof locale)}>
+              {LOCALES.map(option => <option key={option} value={option} lang={option}>{LOCALE_NAMES[option]}</option>)}
+            </select>
+          </label>
+          <CurrencySelect />
+        </div>
       </header>
 
       <main className="menu-main menu-frame">
@@ -227,5 +231,19 @@ export function MainMenu({ onNewGame, onResume }: {
         </Dialog>
       )}
     </div>
+  );
+}
+
+function CurrencySelect() {
+  const { t, locale, currencyName } = useI18n();
+  const choice = useCurrencyChoice();
+  return (
+    <label className="language-select">
+      <span>{t.menu.currency}</span>
+      <select value={choice} onChange={event => setCurrency(event.target.value as CurrencyChoice)}>
+        <option value="auto">{t.menu.currencyAuto(currencyName(resolveCurrency(locale, 'auto')))}</option>
+        {CURRENCIES.map(code => <option key={code} value={code}>{currencyName(code)}</option>)}
+      </select>
+    </label>
   );
 }

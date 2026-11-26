@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.6.1 — Monnaies
+
+- Les montants s’affichent dans la monnaie de la langue : euro en français, espagnol et allemand, dollar ou livre en anglais selon la région du système (euro pour l’Irlande et Malte), yuan en chinois, yen en japonais.
+- Le sélecteur **Devise** du menu principal impose une autre monnaie parmi euro, dollar américain, livre sterling, yuan et yen. Ce choix reste sur l’appareil.
+- La conversion utilise des taux fixes arrondis depuis les cours de référence de la BCE de novembre 2026 : 1 € = 1,12 $ = 0,83 £ = 7,40 ¥ (CNY) = 178 ¥ (JPY). Le yen s’affiche sans décimales.
+- Le moteur compte toujours en centimes d’euro : une sauvegarde reste identique quelle que soit la langue ou la devise.
+- Le menu principal passe sur deux lignes sur les écrans étroits.
+
+## 0.6.0 — Laboratoire R&D et machines Mk2
+
+- Le laboratoire R&D (5 000 €, 2 × 2 tuiles) s’ouvre au jalon Contrôle qualité. Il reçoit par convoyeur les pièces du projet choisi dans le panneau **Recherche**.
+- Six projets : Assemblage rapide, Tests automatisés, Emballage continu, Quai agrandi, Convoyeurs express et Maîtrise de la qualité. Une fois les pièces reçues, l’analyse dure de 60 à 120 secondes simulées et ne progresse que si un laboratoire est en place.
+- Les établis, bancs de test et emballeuses passent en Mk2 sur place depuis l’inspecteur. Une machine Mk2 fabrique deux fois plus vite. L’amélioration coûte 3 000 €, 3 500 € ou 4 000 € et la démolition rembourse la moitié du total payé.
+- Le convoyeur express (300 €) avance quatre fois plus vite que le convoyeur de base. Le quai agrandi stocke 200 unités. La maîtrise de la qualité réduit les rebuts professionnels à un poste sur seize.
+- En bac à sable, le laboratoire, le convoyeur express et les améliorations Mk2 sont disponibles d’emblée. Les bonus de quai et de qualité passent par la recherche, sans prérequis de jalon.
+- La sauvegarde v9 enregistre la recherche et le niveau des machines. Les ateliers v1 à v8 reprennent sans recherche, avec des machines Mk1.
+
 ## 0.5.0 — Guide d’atelier, sauvegardes portables et Docker
 
 - Le guide d’atelier suit les étapes de la construction du quai de réception au règlement de la première commande client.
