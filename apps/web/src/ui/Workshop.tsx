@@ -7,6 +7,7 @@ import { writeSave } from '../persistence/indexed-saves';
 import { SAVE_VERSION } from '../persistence/save-data';
 import { ConstructionBar, getShortcut } from './ConstructionBar';
 import { DesignerPanel } from './DesignerPanel';
+import { GuidePanel } from './GuidePanel';
 import { Inspector } from './Inspector';
 import { useI18n } from '../i18n';
 import { ProgressionPanel } from './ProgressionPanel';
@@ -36,6 +37,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
   const progressionOpen = useStore(controls.store, state => state.progressionOpen);
   const salesOpen = useStore(controls.store, state => state.salesOpen);
   const [designerOpen, setDesignerOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const completedCount = useRef(world.progress.completed.length);
   const researchCount = useRef(world.research.completed.length);
   const researchOpen = useStore(controls.store, state => state.researchOpen);
@@ -216,8 +218,9 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
         <Inspector controls={controls} world={world} />
       </main>
 
-      <ConstructionBar controls={controls} world={world} />
+      <ConstructionBar controls={controls} world={world} onGuide={() => setGuideOpen(true)} />
 
+      {guideOpen && <GuidePanel world={world} onClose={() => setGuideOpen(false)} />}
       {progressionOpen && (
         <ProgressionPanel world={world} controls={controls} onClose={() => controls.store.setState({ progressionOpen: false })} />
       )}

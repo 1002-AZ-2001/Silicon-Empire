@@ -55,10 +55,18 @@ export async function loadSave(id: string): Promise<SaveRecord | null> {
   return decodeSave(data);
 }
 
-export async function writeSave(record: SaveRecord): Promise<void> {
+async function persistSave(record: SaveRecord, method: 'add' | 'put'): Promise<void> {
   const data = decodeSave(record);
   if (!data) throw new Error('Sauvegarde invalide.');
-  await runTransaction('readwrite', store => store.put(data));
+  await runTransaction('readwrite', store => store[method](data));
+}
+
+export function writeSave(record: SaveRecord): Promise<void> {
+  return persistSave(record, 'put');
+}
+
+export function addSave(record: SaveRecord): Promise<void> {
+  return persistSave(record, 'add');
 }
 
 export async function removeSave(id: string): Promise<void> {

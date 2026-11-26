@@ -77,6 +77,28 @@ export const fr = {
     sandboxHint: 'Tout est débloqué dès le départ, sans jalons.',
     sandboxBadge: 'bac à sable',
   },
+  backup: {
+    export: 'Exporter en JSON',
+    import: 'Importer une sauvegarde',
+    file: 'Fichier de sauvegarde',
+    invalid: 'Sauvegarde invalide ou incompatible.',
+    tooLarge: 'La sauvegarde dépasse 10 Mio.',
+    failed: 'Impossible de traiter cette sauvegarde.',
+    imported: 'Copie importée.',
+    copySuffix: ' (copie)',
+  },
+  guide: {
+    title: 'Guide d’atelier',
+    intro: 'Commencez par une ligne de PC bureautiques pour utiliser les composants disponibles dès le départ.',
+    steps: {
+      dock: { title: 'Construire un quai de réception', hint: 'Choisissez Réception dans la barre de construction, puis cliquez sur une zone libre de la grille.' },
+      parts: { title: 'Commander des pièces', hint: 'Inspectez le quai. Choisissez un composant et un fournisseur, puis commandez un lot de dix unités.' },
+      unlock: { title: 'Débloquer le conditionnement', hint: 'En mode progression, lancez Poste de montage et livrez dix boîtiers et dix alimentations 650 W à la Direction. Suivez ensuite les jalons jusqu’à Conditionnement.' },
+      packaging: { title: 'Lancer l’emballage', hint: 'Reliez le quai à l’établi, l’établi au banc de test, puis le banc à l’emballeuse. Apportez les cartons par un convoyeur distinct et gardez le même modèle sur les trois machines.' },
+      order: { title: 'Accepter une commande client', hint: 'Construisez un quai d’expédition. Dans Ventes, acceptez une commande de dix PC du modèle que vous fabriquez.' },
+      sale: { title: 'Encaisser la première vente', hint: 'Acheminez les PC emballés jusqu’au quai d’expédition et laissez tourner la simulation. Ventes affiche le paiement à la dixième unité.' },
+    },
+  },
   workshop: {
     capital: 'Capital disponible',
     equipment: 'Équipements',

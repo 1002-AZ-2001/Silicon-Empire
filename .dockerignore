@@ -1,0 +1,13 @@
+.git
+.github
+.env
+.env.*
+node_modules
+**/node_modules
+.pnpm-store
+dist
+build
+release
+coverage
+playwright-report
+test-results

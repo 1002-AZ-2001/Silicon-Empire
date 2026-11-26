@@ -187,15 +187,6 @@ kbd {
   text-transform: uppercase;
 }
 
-.version {
-  padding: 6px 9px;
-  border: 1px solid #526448;
-  border-radius: 3px;
-  color: var(--lime);
-  background: #18251be6;
-  white-space: nowrap;
-}
-
 .menu-main {
   display: flex;
   align-items: center;
@@ -323,7 +314,7 @@ kbd {
 .save-row-info strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .save-row-info small { color: var(--muted); font: 500 .68rem var(--mono); }
 
-.delete-save {
+.save-action {
   height: auto;
   border: 0;
   border-left: 1px solid #3d5045;
@@ -332,9 +323,10 @@ kbd {
   color: var(--muted);
 }
 
-.delete-save:hover { color: var(--danger); }
+.save-action:hover { color: var(--lime); }
+.save-action.delete-save:hover { color: var(--danger); }
+.backup-actions { margin-top: 10px; }
 
-.menu-header-tools { display: flex; align-items: center; gap: 14px; }
 .language-select { display: flex; align-items: center; gap: 8px; color: var(--muted); }
 .language-select select {
   min-height: 30px;
@@ -758,6 +750,8 @@ kbd {
   margin-bottom: 8px;
 }
 
+.construction-help { display: flex; align-items: center; gap: 14px; }
+
 .camera-help {
   display: flex;
   align-items: center;
@@ -820,6 +814,8 @@ kbd {
 
 .dialog {
   width: min(470px, calc(100% - 30px));
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
   padding: 22px;
   border: 1px solid #61786a;
   border-radius: 5px;
@@ -833,6 +829,14 @@ kbd {
 .dialog-copy { margin-block: 9px 20px; color: #bdcdc0; font-size: .91rem; }
 .dialog-copy p + p { margin-top: 8px; }
 .dialog-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+
+.guide-steps { display: grid; gap: 8px; margin-top: 14px; padding-left: 24px; }
+.guide-steps li { padding: 8px 10px; border-left: 2px solid var(--line); }
+.guide-steps li[aria-current="step"] { border-left-color: var(--lime); background: var(--surface); }
+.guide-step-label { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; }
+.guide-step-label strong { color: var(--ink); }
+.guide-step-label small { color: var(--lime); }
+.guide-steps p { margin-top: 3px; }
 
 /* Narrow layouts */
 
@@ -908,7 +912,7 @@ kbd {
 .progression-button .icon { grid-row: span 2; color: var(--lime); }
 .progression-button small { overflow: hidden; color: var(--muted); font: 500 .66rem var(--mono); text-overflow: ellipsis; white-space: nowrap; }
 
-.dialog.dialog-wide { width: min(1080px, calc(100% - 30px)); max-height: calc(100dvh - 40px); overflow: auto; }
+.dialog.dialog-wide { width: min(1080px, calc(100% - 30px)); }
 .tier-list { display: grid; gap: 14px; margin-top: 12px; }
 .tier h3 { font-size: 1.3rem; letter-spacing: .06em; text-transform: uppercase; }
 .tier-hint { color: var(--muted); font-size: .8rem; }

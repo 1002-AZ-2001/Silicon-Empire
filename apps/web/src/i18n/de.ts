@@ -72,6 +72,28 @@ export const de: Messages = {
     sandboxHint: 'Von Anfang an ist alles freigeschaltet, ohne Meilensteine.',
     sandboxBadge: 'Sandkasten',
   },
+  backup: {
+    export: 'Als JSON exportieren',
+    import: 'Spielstand importieren',
+    file: 'Spielstanddatei',
+    invalid: 'Der Spielstand ist ungültig oder inkompatibel.',
+    tooLarge: 'Der Spielstand ist größer als 10 MiB.',
+    failed: 'Der Spielstand konnte nicht verarbeitet werden.',
+    imported: 'Kopie importiert.',
+    copySuffix: ' (Kopie)',
+  },
+  guide: {
+    title: 'Werkstattanleitung',
+    intro: 'Beginne mit einer Linie für Büro-PCs. Die passenden Bauteile sind von Anfang an verfügbar.',
+    steps: {
+      dock: { title: 'Einen Wareneingang bauen', hint: 'Wähle Eingang in der Bauleiste und klicke auf eine freie Fläche im Raster.' },
+      parts: { title: 'Bauteile bestellen', hint: 'Prüfe den Wareneingang. Wähle ein Bauteil und einen Lieferanten aus und bestelle zehn Stück.' },
+      unlock: { title: 'Verpackung freischalten', hint: 'Wähle im Fortschrittsmodus Montageplatz und liefere zehn Gehäuse und zehn 650-W-Netzteile an die Zentrale. Erledige dann die Meilensteine bis Verpackung.' },
+      packaging: { title: 'Mit dem Verpacken beginnen', hint: 'Verbinde Wareneingang, Montagebank, Prüfstand und Verpackungsmaschine in dieser Reihenfolge. Führe Kartons über ein eigenes Band zu und wähle an allen drei Maschinen dasselbe PC-Modell.' },
+      order: { title: 'Einen Kundenauftrag annehmen', hint: 'Baue eine Versandrampe. Nimm unter Verkäufe einen Auftrag über zehn PCs deines Modells an.' },
+      sale: { title: 'Den ersten Verkauf abschließen', hint: 'Leite die verpackten PCs zur Versandrampe und lass die Simulation laufen. Nach dem zehnten PC erscheint die Zahlung unter Verkäufe.' },
+    },
+  },
   workshop: {
     capital: 'Verfügbares Kapital',
     equipment: 'Geräte',

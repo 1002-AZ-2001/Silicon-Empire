@@ -1,6 +1,7 @@
 import { DEFAULT_DESIGN, PROFESSIONAL_RECIPES, SUPPLIERS, WORKSHOP, recipeOf } from '@silicon-empire/game-data';
 import { applyCommand, createWorld, step } from '@silicon-empire/simulation';
 import { describe, expect, it } from 'vitest';
+import { parseBackup } from './backup';
 import { SAVE_VERSION, decodeSave } from './save-data';
 import type { Command, World } from '@silicon-empire/simulation';
 import type { ItemType, ProductModel } from '@silicon-empire/game-data';
@@ -70,6 +71,7 @@ describe('schéma de sauvegarde', () => {
     const { columns, rows, capitalCents, nextMachineId, machines } = built.world;
     const v1 = { ...record, version: 1, world: { columns, rows, capitalCents, nextMachineId, machines } };
     expect(decodeSave(v1)).toEqual(record);
+    expect(parseBackup(JSON.stringify(v1))).toEqual(record);
     expect(decodeSave({ ...v1, world: { ...v1.world, tick: 0 } })).toBeNull();
   });
 
@@ -281,5 +283,23 @@ describe('schéma de sauvegarde', () => {
     world => ({ ...world, ledger: { ...world.ledger, purchaseSpentCents: world.ledger.purchaseSpentCents + world.capitalCents + 1 } }),
   ])('rejette les inventaires et convoyeurs incohérents %#', change => {
     expect(decodeSave({ ...inTransit, world: change(transit) })).toBeNull();
+  });
+});
+
+describe('sauvegardes portables', () => {
+  it('restaure les unités en transit et rejette les fichiers invalides ou de version inconnue', () => {
+    expect(parseBackup(JSON.stringify(inTransit))).toEqual(inTransit);
+    expect(parseBackup('{')).toBeNull();
+    expect(parseBackup(JSON.stringify({ ...record, version: SAVE_VERSION + 1 }))).toBeNull();
+  });
+
+  it('rejette une quantité totale qui dépasse les entiers représentables', () => {
+    const ledger = {
+      ...record.world.ledger,
+      purchased: { 'cpu-8c': Number.MAX_SAFE_INTEGER },
+      produced: { 'cpu-8c': 1 },
+    };
+    const overflow = { ...record, world: { ...record.world, ledger } };
+    expect(parseBackup(JSON.stringify(overflow))).toBeNull();
   });
 });

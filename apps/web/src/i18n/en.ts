@@ -72,6 +72,28 @@ export const en: Messages = {
     sandboxHint: 'Everything is unlocked from the start, without milestones.',
     sandboxBadge: 'sandbox',
   },
+  backup: {
+    export: 'Export JSON',
+    import: 'Import a save',
+    file: 'Save file',
+    invalid: 'This save is invalid or incompatible.',
+    tooLarge: 'The save exceeds 10 MiB.',
+    failed: 'Could not process this save.',
+    imported: 'Copy imported.',
+    copySuffix: ' (copy)',
+  },
+  guide: {
+    title: 'Workshop guide',
+    intro: 'Start with an office PC line using the components available from the start.',
+    steps: {
+      dock: { title: 'Build a receiving dock', hint: 'Select Receiving in the construction bar and click an empty area on the grid.' },
+      parts: { title: 'Order components', hint: 'Inspect the dock. Pick a component and a supplier, then order a lot of ten units.' },
+      unlock: { title: 'Unlock packaging', hint: 'In progression mode, select Assembly station and deliver ten cases and ten 650 W power supplies to Headquarters. Follow the milestones through Packaging.' },
+      packaging: { title: 'Start packaging', hint: 'Connect the receiving dock to the assembly bench, the assembly bench to the test bench, and the test bench to the packager. Bring cartons on a separate conveyor and use the same PC model on all three machines.' },
+      order: { title: 'Accept a customer order', hint: 'Build a shipping dock. In Sales, accept an order for ten PCs of the model you make.' },
+      sale: { title: 'Get paid for your first sale', hint: 'Route packaged PCs to the shipping dock and let the simulation run. Sales shows the payment when the tenth unit arrives.' },
+    },
+  },
   workshop: {
     capital: 'Available capital',
     equipment: 'Equipment',

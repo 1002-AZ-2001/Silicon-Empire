@@ -9,6 +9,10 @@ import type { World } from '@silicon-empire/simulation';
 export const SAVE_VERSION = 9;
 export const MAX_WORKSHOP_NAME = 40;
 
+export function createSaveId(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
 export interface SaveRecord {
   readonly version: typeof SAVE_VERSION;
   readonly id: string;
@@ -318,6 +322,12 @@ export function decodeSave(value: unknown): SaveRecord | null {
   if (!decoded.success) return null;
 
   const { data } = decoded;
-  if (data.savedAt < data.createdAt || !checkIntegrity(data.world)) return null;
-  return data;
+  if (data.savedAt < data.createdAt) return null;
+  try {
+    return checkIntegrity(data.world) ? data : null;
+  } catch (error) {
+    // A malformed ledger can overflow the safe integer range when quantities are combined.
+    if (error instanceof RangeError) return null;
+    throw error;
+  }
 }

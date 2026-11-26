@@ -73,6 +73,28 @@ export const zh: Messages = {
     sandboxHint: '一开始即全部解锁，没有里程碑。',
     sandboxBadge: '沙盒',
   },
+  backup: {
+    export: '导出 JSON',
+    import: '导入存档',
+    file: '存档文件',
+    invalid: '存档无效或不兼容。',
+    tooLarge: '存档超过 10 MiB。',
+    failed: '无法处理该存档。',
+    imported: '已导入副本。',
+    copySuffix: '（副本）',
+  },
+  guide: {
+    title: '车间指南',
+    intro: '先建一条办公电脑生产线，开局即可采购所需零件。',
+    steps: {
+      dock: { title: '建造收货码头', hint: '在建造栏选择收货，然后点击地图上的空地。' },
+      parts: { title: '订购零件', hint: '查看收货码头，选择零件和供应商，然后订购 10 件。' },
+      unlock: { title: '解锁包装', hint: '在发展模式中选择装配工位，向总部交付 10 个机箱和 10 个 650 W 电源。完成后续里程碑，直到解锁包装。' },
+      packaging: { title: '开始包装', hint: '依次连接收货码头、装配台、测试台和包装机。用单独的传送带运送纸箱，并让三台机器使用同一种电脑型号。' },
+      order: { title: '接受客户订单', hint: '建造发货月台。在销售面板接受一份与你生产的型号一致的 10 台电脑订单。' },
+      sale: { title: '收到首笔货款', hint: '将已包装的电脑送到发货月台并保持模拟运行。第 10 台到货后，货款会显示在销售面板中。' },
+    },
+  },
   workshop: {
     capital: '可用资金',
     equipment: '设备',
