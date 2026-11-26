@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
@@ -230,6 +231,73 @@ test('restaure après rechargement et conserve les sauvegardes d’ateliers dist
   await page.reload();
   await expect(resumeFirst).toBeVisible();
   await expect(resumeSecond).toHaveCount(0);
+});
+
+test('suit le guide et transfère une sauvegarde JSON entre profils', async ({ browser, page }) => {
+  await page.goto('/');
+  await startWorkshop(page, 'Atelier portable');
+  await page.keyboard.press('p');
+  const openGuide = page.getByRole('button', { name: 'Guide d’atelier' });
+  const guide = page.getByRole('dialog', { name: 'Guide d’atelier' });
+  const currentStep = guide.locator('[aria-current="step"]');
+  await openGuide.click();
+  await expect(currentStep).toContainText('Construire un quai de réception');
+  await guide.getByRole('button', { name: 'Fermer' }).click();
+
+  await page.getByRole('button', { name: /^Réception/ }).click();
+  await clickTile(page, 32, 32);
+  await openGuide.click();
+  await expect(currentStep).toContainText('Commander des pièces');
+  await guide.getByRole('button', { name: 'Fermer' }).click();
+  await page.keyboard.press('Escape');
+  await clickTile(page, 32, 32);
+  await inspector(page).getByLabel('Composant').selectOption('ram-16g');
+  await inspector(page).getByRole('button', { name: /^Commander 10 unités/ }).click();
+  await openGuide.click();
+  await expect(currentStep).toContainText('Lancer l’emballage');
+  await guide.getByRole('button', { name: 'Fermer' }).click();
+  await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+  await expect(page.getByText('Atelier enregistré', { exact: true })).toBeVisible();
+
+  await page.reload();
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Exporter en JSON · Atelier portable' }).click(),
+  ]);
+  const file = { name: download.suggestedFilename(), mimeType: 'application/json', buffer: await readFile(await download.path()) };
+  expect(file.name).toMatch(/^silicon-empire-[a-f0-9]{8}\.json$/);
+
+  await page.getByLabel('Fichier de sauvegarde').setInputFiles(file);
+  await expect(page.getByRole('status')).toContainText('Copie importée.');
+  await page.getByLabel('Fichier de sauvegarde').setInputFiles({ ...file, buffer: Buffer.from('{') });
+  await expect(page.getByRole('alert')).toContainText('Sauvegarde invalide ou incompatible.');
+  await expect(page.getByRole('button', { name: 'Reprendre Atelier portable', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reprendre Atelier portable (copie)', exact: true })).toBeVisible();
+
+  const otherProfile = await browser.newContext({ locale: 'fr-FR' });
+  try {
+    const other = await otherProfile.newPage();
+    await other.goto(page.url());
+    await expect(other.getByText('Aucun atelier enregistré')).toBeVisible();
+    const [chooser] = await Promise.all([
+      other.waitForEvent('filechooser'),
+      other.getByRole('button', { name: 'Importer une sauvegarde' }).click(),
+    ]);
+    await chooser.setFiles(file);
+    await expect(other.getByRole('status')).toContainText('Copie importée.');
+    await other.reload();
+    await other.getByRole('button', { name: 'Reprendre Atelier portable (copie)' }).click();
+    await expect(canvas(other)).toBeVisible();
+    await expect(capital(other)).toHaveText(euros(25_000 - 4_200 - 400));
+    await clickTile(other, 32, 32);
+    const memory = inspector(other).getByRole('list', { name: 'Contenu du stock' })
+      .getByRole('listitem').filter({ hasText: 'Barrette 16 Go' });
+    await expect(memory.getByText('10', { exact: true })).toBeVisible();
+    await other.getByRole('button', { name: 'Guide d’atelier' }).click();
+    await expect(other.getByRole('dialog').locator('[aria-current="step"]')).toContainText('Lancer l’emballage');
+  } finally {
+    await otherProfile.close();
+  }
 });
 
 test('reste dans l’atelier si IndexedDB annule la transaction d’écriture', async ({ page }) => {

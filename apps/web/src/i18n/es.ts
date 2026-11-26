@@ -70,6 +70,28 @@ export const es: Messages = {
     sandboxHint: 'Todo está desbloqueado desde el principio, sin hitos.',
     sandboxBadge: 'modo libre',
   },
+  backup: {
+    export: 'Exportar JSON',
+    import: 'Importar una partida',
+    file: 'Archivo de partida',
+    invalid: 'La partida no es válida o es incompatible.',
+    tooLarge: 'La partida supera los 10 MiB.',
+    failed: 'No se ha podido procesar la partida.',
+    imported: 'Copia importada.',
+    copySuffix: ' (copia)',
+  },
+  guide: {
+    title: 'Guía del taller',
+    intro: 'Empieza con una línea de PC de oficina para aprovechar los componentes disponibles desde el inicio.',
+    steps: {
+      dock: { title: 'Construye un muelle de recepción', hint: 'Selecciona Recepción en la barra de construcción y haz clic en un espacio libre de la cuadrícula.' },
+      parts: { title: 'Pide componentes', hint: 'Inspecciona el muelle. Elige un componente y un proveedor y pide un lote de diez unidades.' },
+      unlock: { title: 'Desbloquea el embalaje', hint: 'En el modo de progresión, activa Puesto de montaje y entrega diez cajas y diez fuentes de 650 W a Dirección. Completa los hitos hasta Embalaje.' },
+      packaging: { title: 'Empieza a embalar', hint: 'Conecta el muelle al banco de montaje, este al banco de pruebas y el banco de pruebas a la embaladora. Lleva el cartón por otra cinta y usa el mismo modelo en las tres máquinas.' },
+      order: { title: 'Acepta un pedido de cliente', hint: 'Construye un muelle de expedición. En Ventas, acepta un pedido de diez PC del modelo que fabricas.' },
+      sale: { title: 'Cobra la primera venta', hint: 'Lleva los PC embalados al muelle de expedición y deja correr la simulación. El cobro aparece en Ventas al llegar la décima unidad.' },
+    },
+  },
   workshop: {
     capital: 'Capital disponible',
     equipment: 'Equipos',

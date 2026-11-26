@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0 — Guide d’atelier, sauvegardes portables et Docker
+
+- Le guide d’atelier suit les étapes de la construction du quai de réception au règlement de la première commande client.
+- Export JSON et import sous forme de copie depuis le menu principal. Les fichiers sont vérifiés et les anciens formats sont migrés à la lecture.
+- Un conteneur Caddy sert le jeu compilé. Docker Compose permet de le lancer sur un port configurable.
+
 ## 0.4.1 — Conception de PC et fournisseurs
 
 - Conception d’un PC avec mémoire, SSD, graphismes et alimentation configurables. La puissance requise inclut une marge de 20 %.
