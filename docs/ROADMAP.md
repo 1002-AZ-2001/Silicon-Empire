@@ -42,6 +42,8 @@ L’assembleur et le banc de test restent sans ports ni inventaire jusqu’à la
 **v0.4.0** introduit le quai d’expédition, les commandes répétables et le tableau financier. Le règlement arrive à la dernière unité livrée.
 **v0.4.1** ajoute la conception d’un modèle sur mesure, ses révisions et des fournisseurs aux prix et délais distincts.
 
+**v0.6.0** livre la recherche au laboratoire R&D et les machines Mk2. Restent pour la v0.6 : l’électricité (v0.6.1), puis la maintenance et les pannes. La v0.6.2 apportera du confort de construction et la v0.7.0 de nouveaux produits et contrats.
+
 La version 0.2.0 publie la tranche 1 avec l’application de bureau (Windows, Debian, Arch, AppImage) et ses mises à jour. La version 0.2.1 publie la tranche 2. L’image Docker est prévue en v0.5.
 
 ## 22. Tests et critères d’acceptation

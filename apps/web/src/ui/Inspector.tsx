@@ -1,9 +1,10 @@
 import {
-  CONVEYOR, ITEMS, ITEM_TYPES, MACHINES, PRODUCTION, PRODUCT_MODELS, PURCHASE, SUPPLIER_IDS, isConveyor, recipeOf,
+  CONVEYOR, ITEMS, ITEM_TYPES, MACHINES, MK2, PRODUCTION, PRODUCT_MODELS, PURCHASE, SUPPLIER_IDS, isConveyor, recipeOf,
 } from '@silicon-empire/game-data';
 import {
-  ROUTER_SIDES, beltStatus, beltTarget, checkBuild, checkLine, checkOrder, checkProductModel, footprintOf,
-  inventoryTotal, lineCost, modelUnlocked, orderCost, orderableItems, portConnections, portsOf, productionStatus, routerLinks,
+  ROUTER_SIDES, batchTicks, beltStatus, beltTarget, checkBuild, checkLine, checkOrder, checkProductModel, footprintOf,
+  inventoryTotal, lineCost, modelUnlocked, orderCost, orderableItems, portConnections, portsOf, productionStatus, rejectionEvery, routerLinks,
+  upgradeUnlocked,
 } from '@silicon-empire/simulation';
 import { useState } from 'react';
 import { useStore } from 'zustand';
@@ -12,6 +13,7 @@ import { MACHINE_ART } from '../art/machines';
 import { isBuildTool } from '../game/controls';
 import { useI18n } from '../i18n';
 import { MilestoneParts } from './ProgressionPanel';
+import { AnalysisProgress, ResearchParts } from './ResearchPanel';
 import { ShippingDetails } from './SalesPanel';
 import { Icon, gameTime } from './shared';
 import type { ItemType, ProductModel, SupplierId } from '@silicon-empire/game-data';
@@ -77,6 +79,43 @@ function RouterDetails({ world, machine }: { world: World; machine: Machine }) {
   );
 }
 
+function LabDetails({ world, controls }: { world: World; controls: WorkshopControls }) {
+  const { t } = useI18n();
+  const { active, analysing } = world.research;
+  return (
+    <div className="headquarters-details">
+      {analysing && (
+        <>
+          <h4 className="inspector-subtitle">{t.research.analysing}</h4>
+          <p>{t.research.projects[analysing.id]}</p>
+          <AnalysisProgress world={world} />
+        </>
+      )}
+      <h4 className="inspector-subtitle">{t.research.active}</h4>
+      {active
+        ? <><p>{t.research.projects[active]}</p><ResearchParts world={world} id={active} /></>
+        : <p className="placement-status">{t.research.none}</p>}
+      <button type="button" className="button" onClick={() => controls.store.setState({ researchOpen: true })}>
+        {t.workshop.research}
+      </button>
+    </div>
+  );
+}
+
+function UpgradeButton({ world, machine, controls }: { world: World; machine: Machine; controls: WorkshopControls }) {
+  const { t, money } = useI18n();
+  if (machine.level === 2 || !upgradeUnlocked(world.progress, world.research, machine.type)) return null;
+  const cost = MK2.costCents[machine.type];
+  return (
+    <div className="upgrade-box">
+      <button type="button" className="button button-primary" disabled={world.capitalCents < cost} onClick={() => controls.upgrade(machine.id)}>
+        {t.production.upgrade(money(cost))}
+      </button>
+      <p className="order-hint">{t.production.upgradeHint}</p>
+    </div>
+  );
+}
+
 function ProductionDetails({ world, machine, controls }: { world: World; machine: Machine; controls: WorkshopControls }) {
   const { t } = useI18n();
   const model = machine.model ?? 'office';
@@ -88,7 +127,10 @@ function ProductionDetails({ world, machine, controls }: { world: World; machine
   const changeBlocked = canChange ? null : options.find(option => option.error !== null)?.error;
   const stock = world.stocks[machine.id] ?? {};
   const state = world.production[machine.id];
-  const done = state?.batch ? recipe.ticks - state.batch.remaining : 0;
+  // Mk2 machines start their batches with half the recipe time.
+  const duration = batchTicks(recipe, machine);
+  const done = state?.batch ? Math.max(0, duration - state.batch.remaining) : 0;
+  const every = rejectionEvery(world.progress, world.research, recipe);
   const output = state?.output[recipe.output] ?? 0;
   const rejection = recipe.rejection;
   const rejectPort = rejection && portConnections(world, machine).find(port => port.kind === 'reject');
@@ -119,8 +161,9 @@ function ProductionDetails({ world, machine, controls }: { world: World; machine
         <div><dt>{t.inspector.state}</dt><dd className={`production-${status}`}>{t.production.status[status]}</dd></div>
         <div>
           <dt>{t.production.progress}</dt>
-          <dd><progress max={recipe.ticks} value={done} aria-label={t.production.progress} /> {Math.floor(done * 100 / recipe.ticks)}&#8201;%</dd>
+          <dd><progress max={duration} value={done} aria-label={t.production.progress} /> {Math.floor(done * 100 / duration)}&#8201;%</dd>
         </div>
+        <div><dt>{t.production.level}</dt><dd>{machine.level === 2 ? 'Mk2' : 'Mk1'}</dd></div>
         <div><dt>{t.production.output}</dt><dd>{t.items[recipe.output]} · {output} / {PRODUCTION.outputCapacity}</dd></div>
         {rejectPort && (
           <div>
@@ -134,7 +177,8 @@ function ProductionDetails({ world, machine, controls }: { world: World; machine
           <div><dt>{t.production.rejectBuffer}</dt><dd>{state?.output[rejection.item] ?? 0} / {PRODUCTION.outputCapacity}</dd></div>
         )}
       </dl>
-      {rejection && <p className="placement-status">{t.production.rejectRate(rejection.every)}</p>}
+      {every !== null && <p className="placement-status">{t.production.rejectRate(every)}</p>}
+      <UpgradeButton world={world} machine={machine} controls={controls} />
       <h4 className="inspector-subtitle">{t.production.recipe}</h4>
       {machine.type === 'packager' && <p className="placement-status">{t.production.packagerInputs}</p>}
       <ul className="stock-list" aria-label={t.production.recipe}>
@@ -347,6 +391,7 @@ export function Inspector({ controls, world }: { controls: WorkshopControls; wor
           {selected?.type === 'receiving' && <OrderForm controls={controls} world={world} dock={selected} />}
           {selected?.type === 'splitter' && <FilterForm controls={controls} splitter={selected} />}
           {selected?.type === 'headquarters' && <HeadquartersDetails world={world} controls={controls} />}
+          {selected?.type === 'lab' && <LabDetails world={world} controls={controls} />}
           {selected?.type === 'shipping' && <ShippingDetails world={world} controls={controls} />}
         </div>
       ) : (

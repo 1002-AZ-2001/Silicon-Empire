@@ -1,5 +1,5 @@
 import { PURCHASE, isConveyor } from '@silicon-empire/game-data';
-import type { ConveyorType, MilestoneId, PcDesign, ProductModel, SupplierId } from '@silicon-empire/game-data';
+import type { ConveyorType, MilestoneId, ResearchId, PcDesign, ProductModel, SupplierId } from '@silicon-empire/game-data';
 import { FixedStepClock, lineCost, machineAt, turnClockwise } from '@silicon-empire/simulation';
 import { createStore } from 'zustand/vanilla';
 import type { Messages, Translator } from '../i18n';
@@ -28,6 +28,7 @@ interface WorkshopUi {
   /** Conveyor line being drawn, in drawing order. */
   line: LineTile[] | null;
   progressionOpen: boolean;
+  researchOpen: boolean;
   salesOpen: boolean;
 }
 
@@ -69,6 +70,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     speed: initialSpeed,
     line: null,
     progressionOpen: false,
+    researchOpen: false,
     salesOpen: false,
   }));
   const clock = new FixedStepClock();
@@ -124,6 +126,20 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
         : { kind: 'error', message: errorMessage(result.reason) },
     });
     return true;
+  }
+
+  function selectResearch(research: ResearchId | null) {
+    const result = simulation.dispatch({ kind: 'select-research', research });
+    if (!result.ok) store.setState({ feedback: { kind: 'error', message: errorMessage(result.reason) } });
+  }
+
+  function upgrade(id: number) {
+    const result = simulation.dispatch({ kind: 'upgrade', id });
+    store.setState({
+      feedback: result.ok
+        ? { kind: 'success', message: ({ t }) => t.feedback.upgraded }
+        : { kind: 'error', message: errorMessage(result.reason) },
+    });
   }
 
   function selectMilestone(milestone: MilestoneId | null) {
@@ -231,7 +247,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
   }
 
   return {
-    store, clock, setSpeed, togglePause, order, configure, selectMilestone, setProductModel,
+    store, clock, setSpeed, togglePause, order, configure, selectMilestone, selectResearch, upgrade, setProductModel,
     startSale: (model: ProductModel) => changeSale(model), cancelSale: () => changeSale(),
     publishDesign,
     startLine, extendLine, cancelLine, finishLine,

@@ -1,14 +1,17 @@
 import {
-  CUSTOM_ITEMS, ITEMS, ITEM_TYPES, MACHINES, MAX_LINE_LENGTH, PURCHASE, SUPPLIERS, WORKSHOP,
+  CUSTOM_ITEMS, ITEMS, ITEM_TYPES, MACHINES, MAX_LINE_LENGTH, MK2, PURCHASE, SUPPLIERS, WORKSHOP,
   designParts, designPower, isConveyor, pcDesignSchema, recipeOf, saleOffer,
 } from '@silicon-empire/game-data';
 import type {
-  ConveyorType, Direction, ItemType, MachineType, MilestoneId, PcDesign, ProductModel, PublishedDesign, SupplierId,
+  ConveyorType, Direction, ItemType, MachineType, MilestoneId, PcDesign, ProductModel, PublishedDesign, ResearchId,
+  SupplierId,
 } from '@silicon-empire/game-data';
 import { addItems, fitsInputStock, inventoryTotal, mergeInventories } from './inventory';
 import type { Inventory } from './inventory';
 import { createProgress, milestoneAvailable, modelUnlocked, orderableItems, unlockedMachines } from './progress';
 import type { Progress } from './progress';
+import { NO_RESEARCH, capacityOf, researchAvailable, researchMachines, upgradeUnlocked } from './research';
+import type { ResearchState } from './research';
 import type { Sales } from './sales';
 
 export const ROTATIONS = [0, 1, 2, 3] as const satisfies readonly Direction[];
@@ -41,6 +44,8 @@ export interface Machine extends Placement {
   readonly filter?: RouterFilter;
   /** Production machines only. Defaults to office, including in older saved workshops. */
   readonly model?: ProductModel;
+  /** Production machines upgraded after research run their batches faster. Absent means Mk1. */
+  readonly level?: 2;
 }
 
 /** Unit held by a splitter or merger, and the side it serves next. */
@@ -114,6 +119,7 @@ export interface World {
   readonly sales: Sales;
   readonly design: PublishedDesign | null;
   readonly deliveries: readonly PendingDelivery[];
+  readonly research: ResearchState;
   readonly ledger: Ledger;
 }
 
@@ -126,6 +132,8 @@ export type Command =
   | ({ readonly kind: 'build' } & Placement)
   | { readonly kind: 'build-line'; readonly tiles: readonly LineTile[]; readonly type?: ConveyorType }
   | { readonly kind: 'select-milestone'; readonly milestone: MilestoneId | null }
+  | { readonly kind: 'select-research'; readonly research: ResearchId | null }
+  | { readonly kind: 'upgrade'; readonly id: number }
   | { readonly kind: 'start-sale'; readonly model: ProductModel }
   | { readonly kind: 'cancel-sale' }
   | { readonly kind: 'publish-design'; readonly spec: PcDesign }
@@ -142,7 +150,8 @@ type ModelError = 'not-a-producer' | 'locked' | 'production-busy' | 'incompatibl
 type SaleError = 'no-shipping-dock' | 'sale-in-progress' | 'sale-already-shipped';
 type DesignError = 'design-invalid' | 'design-power' | 'design-in-use';
 export type CommandError = BuildError | OrderError | ModelError | SaleError | DesignError |
-  'missing-machine' | 'not-a-splitter' | 'milestone-unavailable' | 'deliveries-pending';
+  'missing-machine' | 'not-a-splitter' | 'milestone-unavailable' | 'deliveries-pending' |
+  'research-unavailable' | 'not-upgradable';
 
 export type CommandResult =
   | { readonly ok: true; readonly world: World; readonly machine: Machine | null }
@@ -170,8 +179,14 @@ export function createWorld(mode: 'sandbox' | 'progression' = 'sandbox'): World 
     sales: { active: null, completed: [] },
     design: null,
     deliveries: [],
+    research: NO_RESEARCH,
     ledger: EMPTY_LEDGER,
   };
+}
+
+/** Buildings available now: unlocked by milestones or by research. */
+export function machineUnlocked(world: Pick<World, 'progress' | 'research'>, type: MachineType): boolean {
+  return unlockedMachines(world.progress).has(type) || researchMachines(world.progress, world.research).includes(type);
 }
 
 export function turnClockwise(rotation: Rotation): Rotation {
@@ -216,7 +231,7 @@ function checkFootprint(world: World, placement: Placement, ignoreId?: number): 
 }
 
 export function checkBuild(world: World, placement: Placement): BuildError | null {
-  if (!unlockedMachines(world.progress).has(placement.type)) return 'locked';
+  if (!machineUnlocked(world, placement.type)) return 'locked';
   if (placement.type === 'headquarters' && world.machines.some(machine => machine.type === 'headquarters')) return 'unique';
   const footprintError = checkFootprint(world, placement);
   if (footprintError) return footprintError;
@@ -245,7 +260,7 @@ export function contentsOf(world: World, id: number): Inventory {
 
 /** Checks a conveyor line: contiguous tiles on the map, all free, affordable as a whole. */
 export function checkLine(world: World, tiles: readonly LineTile[], type: ConveyorType = 'conveyor'): BuildError | null {
-  if (!unlockedMachines(world.progress).has(type)) return 'locked';
+  if (!machineUnlocked(world, type)) return 'locked';
   if (tiles.length === 0 || tiles.length > MAX_LINE_LENGTH) return 'invalid-line';
   const seen = new Set<string>();
   for (const [index, tile] of tiles.entries()) {
@@ -278,7 +293,7 @@ export function checkOrder(world: World, id: number, item: ItemType, supplier: S
   if (!orderableItems(world.progress).has(item)) return 'locked';
   if (world.capitalCents < orderCost(item, supplier)) return 'insufficient-funds';
   const reserved = world.deliveries.filter(delivery => delivery.dockId === id).length * PURCHASE.lotSize;
-  if (inventoryTotal(world.stocks[id] ?? {}) + reserved + PURCHASE.lotSize > MACHINES.receiving.capacity) return 'dock-full';
+  if (inventoryTotal(world.stocks[id] ?? {}) + reserved + PURCHASE.lotSize > capacityOf(world.progress, world.research, 'receiving')) return 'dock-full';
   return null;
 }
 
@@ -341,6 +356,33 @@ export function applyCommand(world: World, command: Command): CommandResult {
   if (command.kind === 'cancel-sale') {
     if ((world.sales.active?.delivered ?? 0) > 0) return { ok: false, reason: 'sale-already-shipped' };
     return { ok: true, world: { ...world, sales: { ...world.sales, active: null } }, machine: null };
+  }
+
+  if (command.kind === 'select-research') {
+    if (command.research !== null && !researchAvailable(world.progress, world.research, command.research)) {
+      return { ok: false, reason: 'research-unavailable' };
+    }
+    return { ok: true, world: { ...world, research: { ...world.research, active: command.research } }, machine: null };
+  }
+
+  if (command.kind === 'upgrade') {
+    const machine = world.machines.find(candidate => candidate.id === command.id);
+    if (!machine) return { ok: false, reason: 'missing-machine' };
+    if (machine.level === 2 || !upgradeUnlocked(world.progress, world.research, machine.type)) {
+      return { ok: false, reason: 'not-upgradable' };
+    }
+    const cost = MK2.costCents[machine.type];
+    if (world.capitalCents < cost) return { ok: false, reason: 'insufficient-funds' };
+    const upgraded: Machine = { ...machine, level: 2, paidCents: machine.paidCents + cost };
+    return {
+      ok: true,
+      world: {
+        ...world,
+        capitalCents: world.capitalCents - cost,
+        machines: world.machines.map(candidate => candidate.id === machine.id ? upgraded : candidate),
+      },
+      machine: upgraded,
+    };
   }
 
   if (command.kind === 'select-milestone') {
@@ -494,7 +536,7 @@ export function applyCommand(world: World, command: Command): CommandResult {
 /** True when both worlds hold the same layout, money and units, whatever their tick. */
 export function sameContents(a: World, b: World): boolean {
   return a.machines === b.machines && a.stocks === b.stocks && a.belts === b.belts && a.routers === b.routers &&
-    a.production === b.production && a.progress === b.progress &&
+    a.production === b.production && a.progress === b.progress && a.research === b.research &&
     a.ledger === b.ledger && a.sales === b.sales && a.design === b.design && a.deliveries === b.deliveries &&
     (a.deliveries.length === 0 || a.tick === b.tick) && a.capitalCents === b.capitalCents;
 }

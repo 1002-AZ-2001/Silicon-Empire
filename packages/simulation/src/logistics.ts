@@ -6,6 +6,9 @@ import { addItems, inputRoom, inventoryTotal, mergeInventories, mostStocked } fr
 import type { Inventory } from './inventory';
 import { milestoneDone, stillNeeded } from './progress';
 import type { Progress } from './progress';
+import { MK2, RESEARCH } from '@silicon-empire/game-data';
+import { capacityOf, rejectionEvery, researchPartsDone, researchStillNeeded } from './research';
+import type { ResearchState } from './research';
 import { acceptsSale } from './sales';
 import { ROUTER_SIDES, footprintOf } from './world';
 import type { BeltItem, Ledger, Machine, Placement, ProductionState, RouterState, Tile, World } from './world';
@@ -194,7 +197,7 @@ export function previewTarget(world: World, tile: Tile, direction: Direction): B
 
 /** Whether a machine fed through an input port takes one more unit of `item`. */
 export function canReceive(
-  world: Pick<World, 'machines' | 'stocks' | 'progress' | 'sales' | 'design'>,
+  world: Pick<World, 'machines' | 'stocks' | 'progress' | 'sales' | 'design' | 'research'>,
   id: number,
   item: ItemType,
 ): boolean {
@@ -202,10 +205,11 @@ export function canReceive(
   if (!machine) return false;
   if (machine.type === 'headquarters') return stillNeeded(world.progress, item) > 0;
   if (machine.type === 'shipping') return acceptsSale(world.sales, item);
+  if (machine.type === 'lab') return researchStillNeeded(world.research, item) > 0;
   const stock = world.stocks[id] ?? {};
   const recipe = recipeOf(machine.type, machine.model, world.design);
   if (recipe) return inputRoom(recipe, stock, item) > 0;
-  return MACHINES[machine.type].capacity - inventoryTotal(stock) > 0;
+  return capacityOf(world.progress, world.research, machine.type) - inventoryTotal(stock) > 0;
 }
 
 function beltHasRoom(belt: readonly BeltItem[] | undefined, entry = 0): boolean {
@@ -216,11 +220,16 @@ function beltHasRoom(belt: readonly BeltItem[] | undefined, entry = 0): boolean 
 const EMPTY_ROUTER: RouterState = { held: null, cursor: 0 };
 const IDLE: ProductionState = { batch: null, output: {} };
 
-function batchOutput(recipe: Recipe, produced: Inventory): ItemType {
+function batchOutput(recipe: Recipe, produced: Inventory, every: number | null): ItemType {
   const rejection = recipe.rejection;
-  if (!rejection) return recipe.output;
+  if (!rejection || every === null) return recipe.output;
   const started = (produced[recipe.output] ?? 0) + (produced[rejection.item] ?? 0);
-  return (started + 1) % rejection.every === 0 ? rejection.item : recipe.output;
+  return (started + 1) % every === 0 ? rejection.item : recipe.output;
+}
+
+/** Ticks a batch takes on this machine: Mk2 machines divide the recipe time. */
+export function batchTicks(recipe: Recipe, machine: Machine | undefined): number {
+  return machine?.level === 2 ? Math.ceil(recipe.ticks / MK2.speed) : recipe.ticks;
 }
 
 /**
@@ -244,6 +253,7 @@ export function step(world: World): World {
   let production = world.production;
   let progress = world.progress;
   let sales = world.sales;
+  let research: ResearchState = world.research;
   let ledger = world.ledger;
   let capitalCents = world.capitalCents;
   let nextItemId = world.nextItemId;
@@ -280,7 +290,7 @@ export function step(world: World): World {
   const record = (change: Partial<Ledger>) => { ledger = { ...ledger, ...change }; };
   const accepts = (target: BeltTarget | null, item: ItemType, entry = 0) =>
     target?.kind === 'belt' ? beltHasRoom(belts[target.id], entry)
-      : target?.kind === 'stock' && canReceive({ machines: world.machines, stocks, progress, sales, design: world.design }, target.id, item);
+      : target?.kind === 'stock' && canReceive({ machines: world.machines, stocks, progress, sales, design: world.design, research }, target.id, item);
   const deliver = (target: BeltTarget, unit: { id: number; item: ItemType }, entry = 0) => {
     if (target.kind === 'belt') {
       enterBelt(target.id, { ...unit, position: entry });
@@ -289,6 +299,13 @@ export function step(world: World): World {
       progress = {
         ...progress,
         delivered: { ...progress.delivered, [active]: addItems(progress.delivered[active] ?? {}, unit.item, 1) },
+      };
+      record({ delivered: addItems(ledger.delivered, unit.item, 1) });
+    } else if (machines.get(target.id)?.type === 'lab' && research.active) {
+      const active = research.active;
+      research = {
+        ...research,
+        delivered: { ...research.delivered, [active]: addItems(research.delivered[active] ?? {}, unit.item, 1) },
       };
       record({ delivered: addItems(ledger.delivered, unit.item, 1) });
     } else if (machines.get(target.id)?.type === 'shipping' && sales.active) {
@@ -401,7 +418,7 @@ export function step(world: World): World {
     const stock = stocks[id] ?? {};
     const ready = Object.entries(recipe.inputs).every(([item, count]) => (stock[item as ItemType] ?? 0) >= (count ?? 0));
     if (!batch && ready) {
-      const item = batchOutput(recipe, ledger.produced);
+      const item = batchOutput(recipe, ledger.produced, rejectionEvery(progress, research, recipe));
       setStock(id, current => ITEM_TYPES.reduce(
         (remaining, item) => (recipe.inputs[item] ? addItems(remaining, item, -(recipe.inputs[item] ?? 0)) : remaining),
         current,
@@ -410,7 +427,7 @@ export function step(world: World): World {
         consumed: mergeInventories(ledger.consumed, recipe.inputs),
         produced: addItems(ledger.produced, item, 1),
       });
-      batch = { item, remaining: recipe.ticks };
+      batch = { item, remaining: batchTicks(recipe, machines.get(id)) };
     }
     if (batch !== previous.batch || output !== previous.output) setProduction(id, { batch, output });
   }
@@ -428,6 +445,21 @@ export function step(world: World): World {
     nextItemId += 1;
   }
 
+  // Research: the running analysis advances while a laboratory stands, then the next project whose
+  // parts have all arrived starts its analysis.
+  if (research.analysing && world.machines.some(machine => machine.type === 'lab')) {
+    const remaining = research.analysing.remaining - 1;
+    research = remaining > 0
+      ? { ...research, analysing: { ...research.analysing, remaining } }
+      : { ...research, analysing: null, completed: [...research.completed, research.analysing.id] };
+  }
+  if (research.active && !research.analysing && researchPartsDone(research, research.active)) {
+    const started = research.active;
+    const delivered = { ...research.delivered };
+    delete delivered[started];
+    research = { ...research, active: null, delivered, analysing: { id: started, remaining: RESEARCH[started].ticks } };
+  }
+
   if (progress.active && milestoneDone(progress, progress.active)) {
     const done = progress.active;
     const delivered = { ...progress.delivered };
@@ -437,7 +469,7 @@ export function step(world: World): World {
   }
 
   return {
-    ...world, tick, capitalCents, belts, stocks, routers, production, progress, sales, deliveries, ledger, nextItemId,
+    ...world, tick, capitalCents, belts, stocks, routers, production, progress, sales, deliveries, research, ledger, nextItemId,
   };
 }
 

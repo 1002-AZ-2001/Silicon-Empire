@@ -1,4 +1,4 @@
-import { contentsOf, demolitionRefund, inventoryTotal, modelUnlocked, sameContents, Simulation } from '@silicon-empire/simulation';
+import { contentsOf, demolitionRefund, inventoryTotal, machineUnlocked, modelUnlocked, sameContents, Simulation } from '@silicon-empire/simulation';
 import { MILESTONES, TIME } from '@silicon-empire/game-data';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
@@ -10,6 +10,7 @@ import { DesignerPanel } from './DesignerPanel';
 import { Inspector } from './Inspector';
 import { useI18n } from '../i18n';
 import { ProgressionPanel } from './ProgressionPanel';
+import { ResearchPanel } from './ResearchPanel';
 import { SalesPanel } from './SalesPanel';
 import { Dialog, Icon, gameTime } from './shared';
 import { useWorld } from './use-world';
@@ -36,6 +37,8 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
   const salesOpen = useStore(controls.store, state => state.salesOpen);
   const [designerOpen, setDesignerOpen] = useState(false);
   const completedCount = useRef(world.progress.completed.length);
+  const researchCount = useRef(world.research.completed.length);
+  const researchOpen = useStore(controls.store, state => state.researchOpen);
   const [savedWorld, setSavedWorld] = useState<World | null>(session.savedAt === null ? null : session.world);
   const [saving, setSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
@@ -63,6 +66,18 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
     }
     completedCount.current = completed.length;
   }, [world.progress, controls]);
+
+  // Announce each research project completed while playing.
+  useEffect(() => {
+    const { completed } = world.research;
+    const done = completed[completed.length - 1];
+    if (completed.length > researchCount.current && done) {
+      controls.store.setState({
+        feedback: { kind: 'success', message: ({ t: text }) => text.feedback.researchDone(text.research.projects[done]) },
+      });
+    }
+    researchCount.current = completed.length;
+  }, [world.research, controls]);
 
   useEffect(() => {
     let frame = 0;
@@ -171,6 +186,12 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
             <small>{world.progress.active ? t.progression.milestones[world.progress.active] : t.progression.none}</small>
           </button>
         )}
+        {(world.progress.sandbox || machineUnlocked(world, 'lab')) && (
+          <button type="button" className="button" onClick={() => controls.store.setState({ researchOpen: true })}>
+            {t.workshop.research}
+            {world.research.analysing && <small className="button-detail"> · {t.research.analysing}</small>}
+          </button>
+        )}
         <button type="button" className="button" onClick={() => controls.store.setState({ salesOpen: true })}>{t.trade.title}</button>
         {modelUnlocked(world.progress, 'custom') && (
           <button type="button" className="button" onClick={() => setDesignerOpen(true)}>{t.design.title}</button>
@@ -201,6 +222,9 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
         <ProgressionPanel world={world} controls={controls} onClose={() => controls.store.setState({ progressionOpen: false })} />
       )}
       {salesOpen && <SalesPanel world={world} controls={controls} />}
+      {researchOpen && (
+        <ResearchPanel world={world} controls={controls} onClose={() => controls.store.setState({ researchOpen: false })} />
+      )}
       {designerOpen && <DesignerPanel world={world} controls={controls} onClose={() => setDesignerOpen(false)} />}
 
       {toDemolish && (
