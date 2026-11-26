@@ -52,6 +52,12 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - La sortie rouge du banc pivote avec son emprise et transporte uniquement les rebuts. Chaque résultat a un tampon de deux unités. Un résultat attend au banc si son tampon est plein. L’emballeuse reçoit les postes conformes.
 - La sauvegarde v6 reprend les formats v1 à v5. Elle conserve le résultat de tout contrôle en cours et les PC présents dans chacun des tampons. Le registre compte aussi les rebuts transportés, stockés ou mis au rebut après démolition.
 
+## Ventes (v0.4.0)
+
+- Une commande à la fois reçoit les PC emballés du modèle demandé. Plusieurs quais peuvent livrer au même objectif. La dernière unité solde la commande dans le même tick, l’ajoute à l’historique et crédite l’atelier.
+- Le format v7 garde les conditions, les livraisons partielles et les ventes soldées. La conservation compte les unités expédiées et distingue les livraisons à la Direction.
+- La trésorerie affiche les achats et recettes réels. La marge compare les recettes soldées au coût matière du catalogue, avec le coût moyen des rebuts professionnels.
+
 ## Langues (v0.2.3)
 
 - `apps/web/src/i18n/fr.ts` est le dictionnaire de référence ; son type `Messages` impose les mêmes clés et signatures aux autres langues (`en`, `es`, `de`, `zh`, `ja`). Les phrases variables sont des fonctions, ce qui place les valeurs selon la grammaire de chaque langue.

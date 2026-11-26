@@ -3,7 +3,7 @@ import { ROTATIONS, ROUTER_SIDES, checkIntegrity } from '@silicon-empire/simulat
 import { z } from 'zod';
 import type { World } from '@silicon-empire/simulation';
 
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 export const MAX_WORKSHOP_NAME = 40;
 
 export interface SaveRecord {
@@ -144,12 +144,35 @@ const saveV5 = z.strictObject({
 });
 
 /** Version 6 supports professional models and PCs routed to the reject output. */
+const worldV6 = {
+  ...worldV4,
+  machines: z.array(machine.extend({ model: z.enum(PRODUCT_MODELS).optional() })).max(WORKSHOP.columns * WORKSHOP.rows),
+};
+
 const saveV6 = z.strictObject({
+  version: z.literal(6),
+  ...header,
+  world: z.strictObject(worldV6),
+});
+
+const saleTerms = z.strictObject({
+  model: z.enum(PRODUCT_MODELS),
+  revision: z.int().positive(),
+  item: z.enum(ITEM_TYPES),
+  units: z.int().positive(),
+  unitPriceCents: z.int().positive(),
+  unitMaterialCents: z.int().positive(),
+});
+
+const saveV7 = z.strictObject({
   version: z.literal(SAVE_VERSION),
   ...header,
   world: z.strictObject({
-    ...worldV4,
-    machines: z.array(machine.extend({ model: z.enum(PRODUCT_MODELS).optional() })).max(WORKSHOP.columns * WORKSHOP.rows),
+    ...worldV6,
+    sales: z.strictObject({
+      active: z.strictObject({ terms: saleTerms, delivered: z.int().nonnegative() }).nullable(),
+      completed: z.array(saleTerms),
+    }),
   }),
 });
 
@@ -204,7 +227,14 @@ function migrateV4(value: unknown): z.input<typeof saveV5> | null {
 
 function migrateV5(value: unknown): z.input<typeof saveV6> | null {
   const v5 = saveV5.safeParse(value);
-  return v5.success ? { ...v5.data, version: SAVE_VERSION } : null;
+  return v5.success ? { ...v5.data, version: 6 } : null;
+}
+
+function migrateV6(value: unknown): z.input<typeof saveV7> | null {
+  const v6 = saveV6.safeParse(value);
+  return v6.success
+    ? { ...v6.data, version: SAVE_VERSION, world: { ...v6.data.world, sales: { active: null, completed: [] } } }
+    : null;
 }
 
 function versionOf(value: unknown): unknown {
@@ -218,8 +248,9 @@ export function decodeSave(value: unknown): SaveRecord | null {
     : version === 2 ? migrateV3(migrateV2(value))
       : version === 3 ? migrateV3(value)
         : value;
-  const current = version === SAVE_VERSION ? value : migrateV5(version === 5 ? value : migrateV4(legacy));
-  const decoded = saveV6.safeParse(current);
+  const v6 = version === 6 ? value : migrateV5(version === 5 ? value : migrateV4(legacy));
+  const current = version === SAVE_VERSION ? value : migrateV6(v6);
+  const decoded = saveV7.safeParse(current);
   if (!decoded.success) return null;
 
   const { data } = decoded;

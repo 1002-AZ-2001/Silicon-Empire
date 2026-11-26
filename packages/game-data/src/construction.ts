@@ -38,7 +38,7 @@ export const MAX_LINE_LENGTH = 256;
 /** Order of this list is the order of the construction bar. New types are appended to keep shortcuts stable. */
 export const MACHINE_TYPES = [
   'storage', 'assembler', 'tester', 'receiving', 'conveyor', 'splitter', 'merger',
-  'packager', 'warehouse', 'conveyor-fast', 'headquarters',
+  'packager', 'warehouse', 'conveyor-fast', 'headquarters', 'shipping',
 ] as const;
 export type MachineType = (typeof MACHINE_TYPES)[number];
 
@@ -175,5 +175,12 @@ export const MACHINES = z.record(z.enum(MACHINE_TYPES), machineDefinition.readon
       { kind: 'input', side: 2, offset: 0 },
       { kind: 'input', side: 2, offset: 2 },
     ],
+  },
+  shipping: {
+    width: 2,
+    height: 2,
+    costCents: 160_000,
+    capacity: 0,
+    ports: [{ kind: 'input', side: 2, offset: 0 }],
   },
 } satisfies Record<MachineType, z.input<typeof machineDefinition>>);

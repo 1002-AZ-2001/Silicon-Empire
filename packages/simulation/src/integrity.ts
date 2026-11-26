@@ -6,6 +6,7 @@ import { addItems, fitsInputStock, inventoryTotal, mergeInventories } from './in
 import type { Inventory } from './inventory';
 import { createProgress, milestoneAvailable, milestoneDone, modelUnlocked, rewardsEarned, unlockedMachines } from './progress';
 import type { Progress } from './progress';
+import { salesAccounts, validSaleTerms } from './sales';
 import { fitsMap, footprintOf } from './world';
 import type { Machine, World } from './world';
 
@@ -38,11 +39,16 @@ function checkProgress(progress: Progress): boolean {
  */
 export function checkIntegrity(world: World): boolean {
   if (!checkProgress(world.progress)) return false;
+  const { active, completed } = world.sales;
+  if (active && (!validSaleTerms(active.terms) || !modelUnlocked(world.progress, active.terms.model) ||
+    !Number.isInteger(active.delivered) || active.delivered < 0 || active.delivered >= active.terms.units)) return false;
+  if (completed.some(terms => !validSaleTerms(terms) || !modelUnlocked(world.progress, terms.model))) return false;
+  const { revenueCents, shipped } = salesAccounts(world.sales);
   const unlocked = unlockedMachines(world.progress);
   const occupiedTiles = new Set<number>();
   const machines = new Map<string, Machine>();
   let previousId = 0;
-  const capitalCeiling = WORKSHOP.initialCapitalCents + rewardsEarned(world.progress);
+  const capitalCeiling = WORKSHOP.initialCapitalCents + rewardsEarned(world.progress) + revenueCents;
   let bookedCapital = world.capitalCents + world.ledger.purchaseSpentCents;
   if (bookedCapital > capitalCeiling) return false;
   if (world.machines.filter(machine => machine.type === 'headquarters').length > 1) return false;
@@ -131,7 +137,7 @@ export function checkIntegrity(world: World): boolean {
 
   const { purchased, produced, consumed, delivered, discarded } = world.ledger;
   const entered = mergeInventories(purchased, produced);
-  const left = [held, discarded, consumed, delivered].reduce(mergeInventories, {});
+  const left = [held, discarded, consumed, delivered, shipped].reduce(mergeInventories, {});
   const completedCosts = world.progress.completed.map(id => MILESTONES[id].cost);
   const deliveredToMilestones = [...completedCosts, ...Object.values(world.progress.delivered)]
     .reduce<Inventory>((total, inventory) => mergeInventories(total, inventory ?? {}), {});

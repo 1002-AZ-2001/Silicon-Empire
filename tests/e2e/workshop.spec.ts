@@ -21,7 +21,7 @@ async function startWorkshop(page: Page, name: string, { progression = false } =
   await expect(canvas(page)).toBeVisible();
 }
 
-async function resumeFixture(page: Page, saved: { name: string }) {
+async function resumeFixture(page: Page, saved: { name: string } & Record<string, unknown>) {
   await page.goto('/');
   await expect(page.getByText('Aucun atelier enregistré')).toBeVisible();
   await page.evaluate(value => new Promise<void>((resolve, reject) => {
@@ -627,4 +627,45 @@ test('reprend un contrôle professionnel et stocke séparément le PC conforme e
   await clickTile(page, 34, 32);
   await expect(stock.getByRole('listitem')).toHaveCount(1);
   await expect(stock).toContainText('PC professionnel non conforme');
+});
+
+test('accepte une commande au quai et affiche le paiement de la dernière livraison', async ({ page }) => {
+  await resumeFixture(page, {
+    version: 7,
+    id: '56454e54450000000000000000000001',
+    name: 'Atelier commercial',
+    createdAt: 1000,
+    savedAt: 2000,
+    world: {
+      columns: 64, rows: 64, tick: 1000, capitalCents: 1_000_000, nextMachineId: 3, nextItemId: 12,
+      machines: [
+        { id: 1, type: 'shipping', x: 32, y: 30, rotation: 0, paidCents: 160_000 },
+        { id: 2, type: 'conveyor', x: 32, y: 32, rotation: 0, paidCents: 4000 },
+      ],
+      stocks: {}, routers: {}, production: {},
+      belts: { 2: [{ id: 11, item: 'pc-office-packaged', position: 19 }] },
+      progress: { sandbox: true, completed: [], active: null, delivered: {} },
+      sales: {
+        active: {
+          delivered: 9,
+          terms: { model: 'office', revision: 1, item: 'pc-office-packaged', units: 10, unitPriceCents: 65000, unitMaterialCents: 47300 },
+        },
+        completed: [],
+      },
+      ledger: {
+        purchased: {}, discarded: {}, purchaseSpentCents: 0,
+        produced: { 'pc-office-packaged': 10 }, consumed: {}, delivered: {},
+      },
+    },
+  });
+  await clickTile(page, 32, 30);
+  await expect(inspector(page)).toContainText('9 / 10');
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: '×1' }).click();
+  await expect(capital(page)).toHaveText(euros(16_500));
+  await page.getByRole('button', { name: 'Ventes', exact: true }).first().click();
+  const sales = page.getByRole('dialog', { name: 'Ventes' });
+  await expect(sales.getByLabel('Recettes des ventes')).toHaveText(euros(6500));
+  await sales.getByRole('listitem', { name: 'PC bureautique emballé' }).getByRole('button', { name: 'Accepter la commande' }).click();
+  await expect(sales).toContainText('0 / 10');
+  await expect(capital(page)).toHaveText(euros(16_500));
 });

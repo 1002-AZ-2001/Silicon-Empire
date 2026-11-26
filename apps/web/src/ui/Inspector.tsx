@@ -12,6 +12,7 @@ import { MACHINE_ART } from '../art/machines';
 import { isBuildTool } from '../game/controls';
 import { useI18n } from '../i18n';
 import { MilestoneParts } from './ProgressionPanel';
+import { ShippingDetails } from './SalesPanel';
 import { Icon } from './shared';
 import type { ItemType, ProductModel } from '@silicon-empire/game-data';
 import type { Inventory, Machine, Placement, RouterSide, World } from '@silicon-empire/simulation';
@@ -328,6 +329,7 @@ export function Inspector({ controls, world }: { controls: WorkshopControls; wor
           {selected?.type === 'receiving' && <OrderForm controls={controls} world={world} dock={selected} />}
           {selected?.type === 'splitter' && <FilterForm controls={controls} splitter={selected} />}
           {selected?.type === 'headquarters' && <HeadquartersDetails world={world} controls={controls} />}
+          {selected?.type === 'shipping' && <ShippingDetails world={world} controls={controls} />}
         </div>
       ) : (
         <div className="inspector-empty">
