@@ -1,5 +1,5 @@
 import { PURCHASE, isConveyor } from '@silicon-empire/game-data';
-import type { ConveyorType, MilestoneId, ProductModel } from '@silicon-empire/game-data';
+import type { ConveyorType, MilestoneId, PcDesign, ProductModel, SupplierId } from '@silicon-empire/game-data';
 import { FixedStepClock, lineCost, machineAt, turnClockwise } from '@silicon-empire/simulation';
 import { createStore } from 'zustand/vanilla';
 import type { Messages, Translator } from '../i18n';
@@ -150,13 +150,18 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     });
   }
 
-  function order(id: number, item: ItemType) {
-    const result = simulation.dispatch({ kind: 'order', id, item });
+  function order(id: number, item: ItemType, supplier: SupplierId = 'express') {
+    const result = simulation.dispatch({ kind: 'order', id, item, supplier });
     store.setState({
       feedback: result.ok
-        ? { kind: 'success', message: ({ t }) => t.feedback.delivered(PURCHASE.lotSize, t.items[item]) }
+        ? { kind: 'success', message: ({ t }) => supplier === 'express' ? t.feedback.delivered(PURCHASE.lotSize, t.items[item]) : t.supply.reserved }
         : { kind: 'error', message: errorMessage(result.reason) },
     });
+  }
+
+  function publishDesign(spec: PcDesign) {
+    const result = simulation.dispatch({ kind: 'publish-design', spec });
+    return result.ok ? null : result.reason;
   }
 
   function selectTool(tool: Tool) {
@@ -228,6 +233,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
   return {
     store, clock, setSpeed, togglePause, order, configure, selectMilestone, setProductModel,
     startSale: (model: ProductModel) => changeSale(model), cancelSale: () => changeSale(),
+    publishDesign,
     startLine, extendLine, cancelLine, finishLine,
     selectTool, aimAt, activateTile, rotate, confirmDemolition,
   };

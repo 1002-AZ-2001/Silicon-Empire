@@ -1,9 +1,12 @@
-import { CONVEYOR, ITEM_TYPES, MACHINE_TYPES, MILESTONE_IDS, PRODUCT_MODELS, WORKSHOP } from '@silicon-empire/game-data';
+import {
+  CONVEYOR, ITEM_TYPES, MACHINE_TYPES, MILESTONE_IDS, PRODUCT_MODELS, STANDARD_MODELS, SUPPLIER_IDS, WORKSHOP,
+  publishedDesignSchema,
+} from '@silicon-empire/game-data';
 import { ROTATIONS, ROUTER_SIDES, checkIntegrity } from '@silicon-empire/simulation';
 import { z } from 'zod';
 import type { World } from '@silicon-empire/simulation';
 
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 export const MAX_WORKSHOP_NAME = 40;
 
 export interface SaveRecord {
@@ -146,7 +149,7 @@ const saveV5 = z.strictObject({
 /** Version 6 supports professional models and PCs routed to the reject output. */
 const worldV6 = {
   ...worldV4,
-  machines: z.array(machine.extend({ model: z.enum(PRODUCT_MODELS).optional() })).max(WORKSHOP.columns * WORKSHOP.rows),
+  machines: z.array(machine.extend({ model: z.enum(STANDARD_MODELS).optional() })).max(WORKSHOP.columns * WORKSHOP.rows),
 };
 
 const saveV6 = z.strictObject({
@@ -155,8 +158,8 @@ const saveV6 = z.strictObject({
   world: z.strictObject(worldV6),
 });
 
-const saleTerms = z.strictObject({
-  model: z.enum(PRODUCT_MODELS),
+const standardTerms = z.strictObject({
+  model: z.enum(STANDARD_MODELS),
   revision: z.int().positive(),
   item: z.enum(ITEM_TYPES),
   units: z.int().positive(),
@@ -165,14 +168,36 @@ const saleTerms = z.strictObject({
 });
 
 const saveV7 = z.strictObject({
-  version: z.literal(SAVE_VERSION),
+  version: z.literal(7),
   ...header,
   world: z.strictObject({
     ...worldV6,
     sales: z.strictObject({
+      active: z.strictObject({ terms: standardTerms, delivered: z.int().nonnegative() }).nullable(),
+      completed: z.array(standardTerms),
+    }),
+  }),
+});
+
+const saleTerms = standardTerms.extend({
+  model: z.enum(PRODUCT_MODELS),
+  design: publishedDesignSchema.optional(),
+});
+
+const saveV8 = z.strictObject({
+  version: z.literal(SAVE_VERSION),
+  ...header,
+  world: z.strictObject({
+    ...worldV6,
+    machines: z.array(machine.extend({ model: z.enum(PRODUCT_MODELS).optional() })).max(WORKSHOP.columns * WORKSHOP.rows),
+    sales: z.strictObject({
       active: z.strictObject({ terms: saleTerms, delivered: z.int().nonnegative() }).nullable(),
       completed: z.array(saleTerms),
     }),
+    design: publishedDesignSchema.nullable(),
+    deliveries: z.array(z.strictObject({
+      dockId: z.int().positive(), dueTick: z.int().positive(), item: z.enum(ITEM_TYPES), supplier: z.enum(SUPPLIER_IDS),
+    })),
   }),
 });
 
@@ -233,9 +258,18 @@ function migrateV5(value: unknown): z.input<typeof saveV6> | null {
 function migrateV6(value: unknown): z.input<typeof saveV7> | null {
   const v6 = saveV6.safeParse(value);
   return v6.success
-    ? { ...v6.data, version: SAVE_VERSION, world: { ...v6.data.world, sales: { active: null, completed: [] } } }
+    ? { ...v6.data, version: 7, world: { ...v6.data.world, sales: { active: null, completed: [] } } }
     : null;
 }
+
+function migrateV7(value: unknown): z.input<typeof saveV8> | null {
+  const v7 = saveV7.safeParse(value);
+  return v7.success
+    ? { ...v7.data, version: SAVE_VERSION, world: { ...v7.data.world, design: null, deliveries: [] } }
+    : null;
+}
+
+const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7];
 
 function versionOf(value: unknown): unknown {
   return typeof value === 'object' && value !== null && 'version' in value ? value.version : undefined;
@@ -244,13 +278,11 @@ function versionOf(value: unknown): unknown {
 /** Reads a stored record, migrating older versions. Returns null when the record is unusable. */
 export function decodeSave(value: unknown): SaveRecord | null {
   const version = versionOf(value);
-  const legacy = version === 1 ? migrateV3(migrateV2(migrateV1(value)))
-    : version === 2 ? migrateV3(migrateV2(value))
-      : version === 3 ? migrateV3(value)
-        : value;
-  const v6 = version === 6 ? value : migrateV5(version === 5 ? value : migrateV4(legacy));
-  const current = version === SAVE_VERSION ? value : migrateV6(v6);
-  const decoded = saveV7.safeParse(current);
+  let current = value;
+  if (typeof version === 'number' && Number.isInteger(version) && version >= 1) {
+    for (const migrate of migrations.slice(version - 1)) current = migrate(current);
+  }
+  const decoded = saveV8.safeParse(current);
   if (!decoded.success) return null;
 
   const { data } = decoded;

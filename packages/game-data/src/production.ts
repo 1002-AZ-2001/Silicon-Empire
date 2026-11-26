@@ -1,7 +1,11 @@
+import { designParts } from './design';
+import type { PublishedDesign } from './design';
 import type { MachineType } from './construction';
 import type { ItemType } from './items';
 
-export const PRODUCT_MODELS = ['office', 'gaming', 'professional'] as const;
+export const STANDARD_MODELS = ['office', 'gaming', 'professional'] as const;
+export type StandardModel = (typeof STANDARD_MODELS)[number];
+export const PRODUCT_MODELS = [...STANDARD_MODELS, 'custom'] as const;
 export type ProductModel = (typeof PRODUCT_MODELS)[number];
 
 export interface Recipe {
@@ -80,14 +84,21 @@ export const PROFESSIONAL_RECIPES = {
   },
 } as const satisfies Record<ProductionMachine, Recipe>;
 
-const recipes: Record<ProductModel, Partial<Record<MachineType, Recipe>>> = {
+const recipes: Record<StandardModel, Partial<Record<MachineType, Recipe>>> = {
   office: RECIPES,
   gaming: GAMING_RECIPES,
   professional: PROFESSIONAL_RECIPES,
 };
 
-export function recipeOf(type: MachineType, model: ProductModel = 'office'): Recipe | undefined {
-  return recipes[model]?.[type];
+export function recipeOf(
+  type: MachineType, model: ProductModel = 'office', design?: PublishedDesign | null,
+): Recipe | undefined {
+  if (model !== 'custom') return recipes[model]?.[type];
+  if (!design) return undefined;
+  if (type === 'assembler') return { inputs: designParts(design.spec), output: 'pc-custom', ticks: 900 };
+  if (type === 'tester') return { inputs: { 'pc-custom': 1 }, output: 'pc-custom-tested', ticks: 240 };
+  if (type === 'packager') return { inputs: { 'pc-custom-tested': 1, carton: 1 }, output: 'pc-custom-packaged', ticks: 160 };
+  return undefined;
 }
 
 export const PRODUCTION = {

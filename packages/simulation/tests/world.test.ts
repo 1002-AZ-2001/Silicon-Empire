@@ -20,6 +20,7 @@ describe('construction', () => {
       machines: [], stocks: {}, belts: {}, routers: {}, production: {},
       progress: { sandbox: true, completed: [], active: null, delivered: {} },
       sales: { active: null, completed: [] },
+      design: null, deliveries: [],
       ledger: {
         purchased: {}, discarded: {}, purchaseSpentCents: 0, produced: {}, consumed: {}, delivered: {},
       },

@@ -5,13 +5,16 @@ export const ITEM_CATEGORIES = [
 ] as const;
 export type ItemCategory = (typeof ITEM_CATEGORIES)[number];
 
+export const CUSTOM_ITEMS = ['pc-custom', 'pc-custom-tested', 'pc-custom-packaged'] as const;
+
 /** Order of this list is the stable order used when a machine releases mixed stock. */
 export const ITEM_TYPES = [
   'cpu-8c', 'gpu-8g', 'ram-16g', 'ssd-1t', 'motherboard-atx', 'psu-650', 'case-standard', 'carton',
-  'ram-32g', 'ssd-2t',
+  'ram-32g', 'ssd-2t', 'psu-450',
   'pc-office', 'pc-office-tested', 'pc-office-packaged',
   'pc-gaming', 'pc-gaming-tested', 'pc-gaming-packaged',
   'pc-professional', 'pc-professional-tested', 'pc-professional-packaged', 'pc-professional-rejected',
+  ...CUSTOM_ITEMS,
 ] as const;
 export type ItemType = (typeof ITEM_TYPES)[number];
 
@@ -57,6 +60,11 @@ export const ITEMS = z.record(z.enum(ITEM_TYPES), itemDefinition.readonly()).rea
     category: 'power-supply',
     manufacturer: 'Kelvane',
     unitCostCents: 5_500,
+  },
+  'psu-450': {
+    category: 'power-supply',
+    manufacturer: 'Kelvane',
+    unitCostCents: 4_000,
   },
   'case-standard': {
     category: 'case',
@@ -127,5 +135,14 @@ export const ITEMS = z.record(z.enum(ITEM_TYPES), itemDefinition.readonly()).rea
     category: 'product',
     manufacturer: 'Silicon Empire',
     unitCostCents: null,
+  },
+  'pc-custom': {
+    category: 'product', manufacturer: 'Silicon Empire', unitCostCents: null,
+  },
+  'pc-custom-tested': {
+    category: 'product', manufacturer: 'Silicon Empire', unitCostCents: null,
+  },
+  'pc-custom-packaged': {
+    category: 'product', manufacturer: 'Silicon Empire', unitCostCents: null,
   },
 } satisfies Record<ItemType, z.input<typeof itemDefinition>>);

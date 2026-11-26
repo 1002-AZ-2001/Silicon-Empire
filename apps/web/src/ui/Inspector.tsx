@@ -1,5 +1,5 @@
 import {
-  CONVEYOR, ITEMS, ITEM_TYPES, MACHINES, PRODUCTION, PRODUCT_MODELS, PURCHASE, isConveyor, recipeOf,
+  CONVEYOR, ITEMS, ITEM_TYPES, MACHINES, PRODUCTION, PRODUCT_MODELS, PURCHASE, SUPPLIER_IDS, isConveyor, recipeOf,
 } from '@silicon-empire/game-data';
 import {
   ROUTER_SIDES, beltStatus, beltTarget, checkBuild, checkLine, checkOrder, checkProductModel, footprintOf,
@@ -13,8 +13,8 @@ import { isBuildTool } from '../game/controls';
 import { useI18n } from '../i18n';
 import { MilestoneParts } from './ProgressionPanel';
 import { ShippingDetails } from './SalesPanel';
-import { Icon } from './shared';
-import type { ItemType, ProductModel } from '@silicon-empire/game-data';
+import { Icon, gameTime } from './shared';
+import type { ItemType, ProductModel, SupplierId } from '@silicon-empire/game-data';
 import type { Inventory, Machine, Placement, RouterSide, World } from '@silicon-empire/simulation';
 import type { WorkshopControls } from '../game/controls';
 
@@ -80,9 +80,9 @@ function RouterDetails({ world, machine }: { world: World; machine: Machine }) {
 function ProductionDetails({ world, machine, controls }: { world: World; machine: Machine; controls: WorkshopControls }) {
   const { t } = useI18n();
   const model = machine.model ?? 'office';
-  const recipe = recipeOf(machine.type, model);
+  const recipe = recipeOf(machine.type, model, world.design);
   if (!recipe) return null;
-  const options = PRODUCT_MODELS.filter(option => modelUnlocked(world.progress, option))
+  const options = PRODUCT_MODELS.filter(option => modelUnlocked(world.progress, option) && (option !== 'custom' || world.design))
     .map(value => ({ value, error: checkProductModel(world, machine, value) }));
   const canChange = options.some(option => option.value !== model && option.error === null);
   const changeBlocked = canChange ? null : options.find(option => option.error !== null)?.error;
@@ -106,7 +106,9 @@ function ProductionDetails({ world, machine, controls }: { world: World; machine
               onChange={event => controls.setProductModel(machine.id, event.target.value as ProductModel)}
             >
               {options.map(({ value, error }) => (
-                <option key={value} value={value} disabled={error !== null}>{t.production.models[value]}</option>
+                <option key={value} value={value} disabled={error !== null}>
+                  {value === 'custom' ? world.design?.spec.name : t.production.models[value]}
+                </option>
               ))}
             </select>
           </label>
@@ -213,15 +215,17 @@ function StockList({ stock, label }: { stock: Inventory; label: string }) {
 
 function OrderForm({ controls, world, dock }: { controls: WorkshopControls; world: World; dock: Machine }) {
   const [item, setItem] = useState<ItemType>(ITEM_TYPES[0]);
+  const [supplier, setSupplier] = useState<SupplierId>('express');
   const orderable = orderableItems(world.progress);
-  const error = checkOrder(world, dock.id, item);
+  const pending = world.deliveries.filter(delivery => delivery.dockId === dock.id);
+  const error = checkOrder(world, dock.id, item, supplier);
   const { t, money } = useI18n();
   return (
     <form
       className="order-form"
       onSubmit={event => {
         event.preventDefault();
-        controls.order(dock.id, item);
+        controls.order(dock.id, item, supplier);
       }}
     >
       <h4>{t.inspector.order}</h4>
@@ -233,10 +237,24 @@ function OrderForm({ controls, world, dock }: { controls: WorkshopControls; worl
           ))}
         </select>
       </label>
+      <label>
+        <span>{t.supply.supplier}</span>
+        <select value={supplier} onChange={event => setSupplier(event.target.value as SupplierId)}>
+          {SUPPLIER_IDS.map(option => <option key={option} value={option}>{t.supply[option]}</option>)}
+        </select>
+      </label>
       <button className="button button-primary" type="submit" disabled={error !== null}>
-        {t.inspector.orderButton(PURCHASE.lotSize, money(orderCost(item)))}
+        {t.inspector.orderButton(PURCHASE.lotSize, money(orderCost(item, supplier)))}
       </button>
       {error && <p className="order-hint text-error">{t.errors[error]}</p>}
+      {pending.length > 0 && (
+        <ul className="stock-list" aria-label={t.supply.pending}>
+          {pending.map((delivery, index) => (
+            <li key={index}><img src={ITEM_ART[delivery.item]} alt="" /><span>{PURCHASE.lotSize} × {t.items[delivery.item]}</span>
+              <strong>{gameTime(delivery.dueTick - world.tick)}</strong></li>
+          ))}
+        </ul>
+      )}
     </form>
   );
 }
@@ -261,7 +279,7 @@ function Logistics({ world, machine, controls }: { world: World; machine: Machin
     );
   }
   if (machine.type === 'splitter' || machine.type === 'merger') return <RouterDetails world={world} machine={machine} />;
-  if (recipeOf(machine.type, machine.model)) return <ProductionDetails world={world} machine={machine} controls={controls} />;
+  if (recipeOf(machine.type, machine.model, world.design)) return <ProductionDetails world={world} machine={machine} controls={controls} />;
   if (definition.capacity === 0) return null;
 
   const stock = world.stocks[machine.id] ?? {};

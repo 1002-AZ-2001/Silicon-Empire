@@ -1,4 +1,4 @@
-import { PROFESSIONAL_RECIPES, WORKSHOP, recipeOf } from '@silicon-empire/game-data';
+import { DEFAULT_DESIGN, PROFESSIONAL_RECIPES, SUPPLIERS, WORKSHOP, recipeOf } from '@silicon-empire/game-data';
 import { applyCommand, createWorld, step } from '@silicon-empire/simulation';
 import { describe, expect, it } from 'vitest';
 import { SAVE_VERSION, decodeSave } from './save-data';
@@ -75,7 +75,7 @@ describe('schéma de sauvegarde', () => {
 
   it('migre une sauvegarde v0.2.0 avec ses unités en transit', () => {
     const v2 = JSON.parse(JSON.stringify({ ...inTransit, version: 2 }));
-    for (const key of ['routers', 'production', 'progress', 'sales']) delete v2.world[key];
+    for (const key of ['routers', 'production', 'progress', 'sales', 'design', 'deliveries']) delete v2.world[key];
     for (const key of ['produced', 'consumed', 'delivered']) delete v2.world.ledger[key];
     expect(decodeSave(v2)).toEqual(inTransit);
     expect(decodeSave({ ...v2, world: { ...v2.world, routers: {} } })).toBeNull();
@@ -83,7 +83,7 @@ describe('schéma de sauvegarde', () => {
 
   it('migre une sauvegarde v0.2.x en bac à sable et refuse ses champs v4', () => {
     const v3 = JSON.parse(JSON.stringify({ ...inTransit, version: 3 }));
-    for (const key of ['production', 'progress', 'sales']) delete v3.world[key];
+    for (const key of ['production', 'progress', 'sales', 'design', 'deliveries']) delete v3.world[key];
     for (const key of ['produced', 'consumed', 'delivered']) delete v3.world.ledger[key];
     const migrated = decodeSave(v3);
     expect(migrated?.world.progress).toEqual({ sandbox: true, completed: [], active: null, delivered: {} });
@@ -93,11 +93,11 @@ describe('schéma de sauvegarde', () => {
 
   it('migre un lot bureautique v4 en cours et poursuit la même recette', () => {
     const world = runningAssembler('office');
-    const { sales, ...oldWorld } = world;
+    const { sales, design, deliveries, ...oldWorld } = world;
     const legacy = { ...record, version: 4, world: oldWorld };
     const restored = decodeSave(legacy);
     expect(restored).toEqual({ ...record, world });
-    expect(restored?.world.sales).toEqual(sales);
+    expect(restored?.world).toMatchObject({ sales, design, deliveries });
     expect(restored?.world.production[3]?.batch?.item).toBe('pc-office');
     if (!restored) throw new Error('La sauvegarde v4 doit pouvoir être relue.');
     expect(step(restored.world)).toEqual(step(world));
@@ -115,10 +115,10 @@ describe('schéma de sauvegarde', () => {
 
   it('migre le modèle gaming et le lot en cours d’une sauvegarde v5', () => {
     const world = runningAssembler('gaming');
-    const { sales, ...oldWorld } = world;
+    const { sales, design, deliveries, ...oldWorld } = world;
     const restored = decodeSave({ ...record, version: 5, world: oldWorld });
     expect(restored).toEqual({ ...record, world });
-    expect(restored?.world.sales).toEqual(sales);
+    expect(restored?.world).toMatchObject({ sales, design, deliveries });
     expect(restored?.world.machines[2]?.model).toBe('gaming');
     expect(restored?.world.production[3]?.batch?.item).toBe('pc-gaming');
   });
@@ -149,6 +149,23 @@ describe('schéma de sauvegarde', () => {
     for (let tick = 0; tick < ticks; tick++) finished = step(finished);
     expect(finished.production[1]?.output).toEqual({ [output]: 2, [rejection.item]: 1 });
     expect(decodeSave({ ...record, world: finished })?.world).toEqual(finished);
+  });
+
+  it('reprend une livraison réservée et une révision de modèle après sauvegarde', () => {
+    const world = ([
+      { kind: 'build', type: 'receiving', x: 10, y: 10, rotation: 0 },
+      { kind: 'order', id: 1, item: 'psu-450', supplier: 'economy' },
+      { kind: 'publish-design', spec: { ...DEFAULT_DESIGN, name: 'Nacre' } },
+    ] satisfies Command[]).reduce(run, createWorld());
+    const saved: SaveRecord = { ...record, world: { ...world, tick: SUPPLIERS.economy.leadTicks - 1 } };
+    const restored = decodeSave(JSON.parse(JSON.stringify(saved)));
+    expect(restored).toEqual(saved);
+    if (!restored) throw new Error('La livraison réservée doit reprendre.');
+    const received = step(restored.world);
+    expect(received.stocks[1]).toEqual({ 'psu-450': 10 });
+    expect(received.deliveries).toEqual([]);
+    expect(received.capitalCents).toBe(world.capitalCents);
+    expect(step(received).stocks[1]).toEqual(received.stocks[1]);
   });
 
   it('restaure une partie en progression avec un jalon en cours et un lot en fabrication', () => {

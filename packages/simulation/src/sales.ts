@@ -1,4 +1,4 @@
-import { saleOffer } from '@silicon-empire/game-data';
+import { designPower, saleOffer } from '@silicon-empire/game-data';
 import { addItems } from './inventory';
 import type { ItemType, SaleTerms } from '@silicon-empire/game-data';
 import type { Inventory } from './inventory';
@@ -31,7 +31,13 @@ export function salesAccounts({ active, completed }: Sales) {
 }
 
 export function validSaleTerms(terms: SaleTerms): boolean {
-  const offer = saleOffer(terms.model);
+  if (terms.model === 'custom') {
+    if (!terms.design) return false;
+    const power = designPower(terms.design.spec);
+    if (power.required > power.available) return false;
+  } else if (terms.design) return false;
+  const offer = saleOffer(terms.model, terms.design);
+  if (!offer) return false;
   return terms.revision === offer.revision && terms.item === offer.item && terms.units === offer.units &&
     terms.unitPriceCents === offer.unitPriceCents && terms.unitMaterialCents === offer.unitMaterialCents;
 }

@@ -1,5 +1,5 @@
 import {
-  CONVEYOR, CONVEYOR_SPEEDS, ITEM_TYPES, MACHINES, MILESTONES, PRODUCTION, isConveyor, recipeOf,
+  CONVEYOR, CONVEYOR_SPEEDS, ITEM_TYPES, MACHINES, MILESTONES, PRODUCTION, PURCHASE, isConveyor, recipeOf,
 } from '@silicon-empire/game-data';
 import type { Direction, ItemType, PortDefinition, Recipe } from '@silicon-empire/game-data';
 import { addItems, inputRoom, inventoryTotal, mergeInventories, mostStocked } from './inventory';
@@ -83,7 +83,8 @@ interface Links {
   readonly speeds: ReadonlyMap<number, number>;
 }
 
-const linkCache = new WeakMap<readonly Machine[], Links>();
+type Layout = Pick<World, 'machines' | 'columns' | 'rows' | 'design'>;
+const linkCache = new WeakMap<readonly Machine[], { design: World['design']; links: Links }>();
 
 function isRouter(machine: Machine | undefined): machine is Machine & { type: 'splitter' | 'merger' } {
   return machine?.type === 'splitter' || machine?.type === 'merger';
@@ -104,7 +105,7 @@ function receiverOf(next: Tile, receiver: Machine | undefined, direction: Direct
   return entry ? { kind: 'stock', id: receiver.id } : null;
 }
 
-function computeLinks(world: Pick<World, 'machines' | 'columns' | 'rows'>): Links {
+function computeLinks(world: Layout): Links {
   const grid = new Map<number, Machine>();
   const at = (tile: Tile) =>
     tile.x >= 0 && tile.y >= 0 && tile.x < world.columns && tile.y < world.rows
@@ -137,7 +138,7 @@ function computeLinks(world: Pick<World, 'machines' | 'columns' | 'rows'>): Link
   });
 
   const outputs = world.machines.flatMap(machine => {
-    const recipe = recipeOf(machine.type, machine.model);
+    const recipe = recipeOf(machine.type, machine.model, world.design);
     return portsOf(machine).flatMap(port => {
       if (port.kind === 'input') return [];
       const target = targetFrom(port.tile, port.side);
@@ -167,19 +168,18 @@ function computeLinks(world: Pick<World, 'machines' | 'columns' | 'rows'>): Link
   });
 
   const producers = world.machines.flatMap(machine => {
-    const recipe = recipeOf(machine.type, machine.model);
+    const recipe = recipeOf(machine.type, machine.model, world.design);
     return recipe ? [{ id: machine.id, recipe }] : [];
   });
 
   return { conveyors, outputs, routers, producers, feeds, speeds };
 }
 
-export function linksOf(world: Pick<World, 'machines' | 'columns' | 'rows'>): Links {
-  let links = linkCache.get(world.machines);
-  if (!links) {
-    links = computeLinks(world);
-    linkCache.set(world.machines, links);
-  }
+export function linksOf(world: Layout): Links {
+  const cached = linkCache.get(world.machines);
+  if (cached && cached.design === world.design) return cached.links;
+  const links = computeLinks(world);
+  linkCache.set(world.machines, { design: world.design, links });
   return links;
 }
 
@@ -194,7 +194,7 @@ export function previewTarget(world: World, tile: Tile, direction: Direction): B
 
 /** Whether a machine fed through an input port takes one more unit of `item`. */
 export function canReceive(
-  world: Pick<World, 'machines' | 'stocks' | 'progress' | 'sales'>,
+  world: Pick<World, 'machines' | 'stocks' | 'progress' | 'sales' | 'design'>,
   id: number,
   item: ItemType,
 ): boolean {
@@ -203,7 +203,7 @@ export function canReceive(
   if (machine.type === 'headquarters') return stillNeeded(world.progress, item) > 0;
   if (machine.type === 'shipping') return acceptsSale(world.sales, item);
   const stock = world.stocks[id] ?? {};
-  const recipe = recipeOf(machine.type, machine.model);
+  const recipe = recipeOf(machine.type, machine.model, world.design);
   if (recipe) return inputRoom(recipe, stock, item) > 0;
   return MACHINES[machine.type].capacity - inventoryTotal(stock) > 0;
 }
@@ -280,7 +280,7 @@ export function step(world: World): World {
   const record = (change: Partial<Ledger>) => { ledger = { ...ledger, ...change }; };
   const accepts = (target: BeltTarget | null, item: ItemType, entry = 0) =>
     target?.kind === 'belt' ? beltHasRoom(belts[target.id], entry)
-      : target?.kind === 'stock' && canReceive({ machines: world.machines, stocks, progress, sales }, target.id, item);
+      : target?.kind === 'stock' && canReceive({ machines: world.machines, stocks, progress, sales, design: world.design }, target.id, item);
   const deliver = (target: BeltTarget, unit: { id: number; item: ItemType }, entry = 0) => {
     if (target.kind === 'belt') {
       enterBelt(target.id, { ...unit, position: entry });
@@ -304,6 +304,17 @@ export function step(world: World): World {
       setStock(target.id, stock => addItems(stock, unit.item, 1));
     }
   };
+
+  const tick = world.tick + 1;
+  let deliveries = world.deliveries;
+  if (deliveries.some(delivery => delivery.dueTick <= tick)) {
+    deliveries = deliveries.filter(delivery => {
+      if (delivery.dueTick > tick) return true;
+      setStock(delivery.dockId, stock => addItems(stock, delivery.item, PURCHASE.lotSize));
+      record({ purchased: addItems(ledger.purchased, delivery.item, PURCHASE.lotSize) });
+      return false;
+    });
+  }
 
   for (const { id, speed, target } of links.conveyors) {
     let units = belts[id];
@@ -426,7 +437,7 @@ export function step(world: World): World {
   }
 
   return {
-    ...world, tick: world.tick + 1, capitalCents, belts, stocks, routers, production, progress, sales, ledger, nextItemId,
+    ...world, tick, capitalCents, belts, stocks, routers, production, progress, sales, deliveries, ledger, nextItemId,
   };
 }
 

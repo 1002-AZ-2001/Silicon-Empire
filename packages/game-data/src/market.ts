@@ -1,7 +1,8 @@
 import { ITEMS, ITEM_TYPES } from './items';
 import { recipeOf } from './production';
+import type { PublishedDesign } from './design';
 import type { ItemType } from './items';
-import type { ProductModel } from './production';
+import type { ProductModel, StandardModel } from './production';
 
 export interface SaleTerms {
   readonly model: ProductModel;
@@ -10,18 +11,26 @@ export interface SaleTerms {
   readonly units: number;
   readonly unitPriceCents: number;
   readonly unitMaterialCents: number;
+  readonly design?: PublishedDesign;
 }
 
-const MARKET_PRICE: Record<ProductModel, number> = { office: 65_000, gaming: 97_500, professional: 115_000 };
+const MARKET_PRICE: Record<StandardModel, number> = { office: 65_000, gaming: 97_500, professional: 115_000 };
 
-export function saleOffer(model: ProductModel): SaleTerms {
-  const assembly = recipeOf('assembler', model);
-  const testing = recipeOf('tester', model);
-  const packaging = recipeOf('packager', model);
-  if (!assembly || !packaging) throw new Error('Recette commerciale inconnue.');
+export function saleOffer(model: StandardModel): SaleTerms;
+export function saleOffer(model: ProductModel, design?: PublishedDesign | null): SaleTerms | undefined;
+export function saleOffer(model: ProductModel, design?: PublishedDesign | null): SaleTerms | undefined {
+  const assembly = recipeOf('assembler', model, design);
+  const testing = recipeOf('tester', model, design);
+  const packaging = recipeOf('packager', model, design);
+  if (!assembly || !packaging) return undefined;
   const parts = ITEM_TYPES.reduce((total, item) =>
     total + (assembly.inputs[item] ?? 0) * (ITEMS[item].unitCostCents ?? 0), 0);
   const every = testing?.rejection?.every;
   const material = (every ? Math.ceil(parts * every / (every - 1)) : parts) + (ITEMS.carton.unitCostCents ?? 0);
+  if (model === 'custom') {
+    if (!design) return undefined;
+    const unitPriceCents = Math.ceil(material * 1.3 / 1000) * 1000;
+    return { model, revision: design.revision, item: packaging.output, units: 10, unitPriceCents, unitMaterialCents: material, design };
+  }
   return { model, revision: 1, item: packaging.output, units: 10, unitPriceCents: MARKET_PRICE[model], unitMaterialCents: material };
 }
