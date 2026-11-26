@@ -1,7 +1,9 @@
-import { CONVEYOR, ITEMS, ITEM_TYPES, MACHINES, PRODUCTION, PURCHASE, isConveyor, recipeOf } from '@silicon-empire/game-data';
 import {
-  ROUTER_SIDES, beltStatus, beltTarget, checkBuild, checkLine, checkOrder, footprintOf, inventoryTotal, lineCost,
-  orderCost, orderableItems, portConnections, portsOf, productionStatus, routerLinks,
+  CONVEYOR, ITEMS, ITEM_TYPES, MACHINES, PRODUCTION, PRODUCT_MODELS, PURCHASE, isConveyor, recipeOf,
+} from '@silicon-empire/game-data';
+import {
+  ROUTER_SIDES, beltStatus, beltTarget, checkBuild, checkLine, checkOrder, checkProductModel, footprintOf,
+  inventoryTotal, lineCost, modelUnlocked, orderCost, orderableItems, portConnections, portsOf, productionStatus, routerLinks,
 } from '@silicon-empire/simulation';
 import { useState } from 'react';
 import { useStore } from 'zustand';
@@ -11,7 +13,7 @@ import { isBuildTool } from '../game/controls';
 import { useI18n } from '../i18n';
 import { MilestoneParts } from './ProgressionPanel';
 import { Icon } from './shared';
-import type { ItemType } from '@silicon-empire/game-data';
+import type { ItemType, ProductModel } from '@silicon-empire/game-data';
 import type { Inventory, Machine, Placement, RouterSide, World } from '@silicon-empire/simulation';
 import type { WorkshopControls } from '../game/controls';
 
@@ -74,25 +76,47 @@ function RouterDetails({ world, machine }: { world: World; machine: Machine }) {
   );
 }
 
-function ProductionDetails({ world, machine }: { world: World; machine: Machine }) {
+function ProductionDetails({ world, machine, controls }: { world: World; machine: Machine; controls: WorkshopControls }) {
   const { t } = useI18n();
-  const recipe = recipeOf(machine.type);
+  const model = machine.model ?? 'office';
+  const recipe = recipeOf(machine.type, model);
   if (!recipe) return null;
+  const models = PRODUCT_MODELS.filter(option => modelUnlocked(world.progress, option));
+  const alternative = models.find(option => option !== model);
+  const changeBlocked = alternative && checkProductModel(world, machine, alternative);
   const stock = world.stocks[machine.id] ?? {};
   const state = world.production[machine.id];
   const done = state?.batch ? recipe.ticks - state.batch.remaining : 0;
+  const output = inventoryTotal(state?.output ?? {});
   const status = productionStatus(world, machine.id);
   return (
     <>
+      {alternative && (
+        <div className="order-form">
+          <label>
+            <span>{t.production.model}</span>
+            <select
+              value={model}
+              disabled={Boolean(changeBlocked)}
+              aria-describedby={changeBlocked ? 'model-switch-help' : undefined}
+              onChange={event => controls.setProductModel(machine.id, event.target.value as ProductModel)}
+            >
+              {models.map(option => <option key={option} value={option}>{t.production.models[option]}</option>)}
+            </select>
+          </label>
+          {changeBlocked && <p className="order-hint" id="model-switch-help">{t.errors[changeBlocked]}</p>}
+        </div>
+      )}
       <dl className="machine-stats logistics-stats">
         <div><dt>{t.inspector.state}</dt><dd className={`production-${status}`}>{t.production.status[status]}</dd></div>
         <div>
           <dt>{t.production.progress}</dt>
           <dd><progress max={recipe.ticks} value={done} aria-label={t.production.progress} /> {Math.floor(done * 100 / recipe.ticks)}&#8201;%</dd>
         </div>
-        <div><dt>{t.production.output}</dt><dd>{t.items[recipe.output]} · {state ? Object.values(state.output).reduce((total, count) => total + (count ?? 0), 0) : 0} / {PRODUCTION.outputCapacity}</dd></div>
+        <div><dt>{t.production.output}</dt><dd>{t.items[recipe.output]} · {output} / {PRODUCTION.outputCapacity}</dd></div>
       </dl>
       <h4 className="inspector-subtitle">{t.production.recipe}</h4>
+      {machine.type === 'packager' && <p className="placement-status">{t.production.packagerInputs}</p>}
       <ul className="stock-list" aria-label={t.production.recipe}>
         {ITEM_TYPES.filter(item => (recipe.inputs[item] ?? 0) > 0).map(item => (
           <li key={item}>
@@ -199,7 +223,7 @@ function OrderForm({ controls, world, dock }: { controls: WorkshopControls; worl
   );
 }
 
-function Logistics({ world, machine }: { world: World; machine: Machine }) {
+function Logistics({ world, machine, controls }: { world: World; machine: Machine; controls: WorkshopControls }) {
   const definition = MACHINES[machine.type];
   const { t } = useI18n();
   if (isConveyor(machine.type)) {
@@ -219,7 +243,7 @@ function Logistics({ world, machine }: { world: World; machine: Machine }) {
     );
   }
   if (machine.type === 'splitter' || machine.type === 'merger') return <RouterDetails world={world} machine={machine} />;
-  if (recipeOf(machine.type)) return <ProductionDetails world={world} machine={machine} />;
+  if (recipeOf(machine.type, machine.model)) return <ProductionDetails world={world} machine={machine} controls={controls} />;
   if (definition.capacity === 0) return null;
 
   const stock = world.stocks[machine.id] ?? {};
@@ -283,7 +307,7 @@ export function Inspector({ controls, world }: { controls: WorkshopControls; wor
               {previewMessage}
             </p>
           )}
-          {selected && <Logistics world={world} machine={selected} />}
+          {selected && <Logistics world={world} machine={selected} controls={controls} />}
           {selected?.type === 'receiving' && <OrderForm controls={controls} world={world} dock={selected} />}
           {selected?.type === 'splitter' && <FilterForm controls={controls} splitter={selected} />}
           {selected?.type === 'headquarters' && <HeadquartersDetails world={world} controls={controls} />}

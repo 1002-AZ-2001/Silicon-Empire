@@ -1,11 +1,11 @@
-import { MILESTONES, RECIPES } from '@silicon-empire/game-data';
+import { CONVEYOR, ITEMS, ITEM_TYPES, MILESTONES, RECIPES } from '@silicon-empire/game-data';
 import { describe, expect, it } from 'vitest';
 import {
-  applyCommand, canReceive, checkIntegrity, contentsOf, createWorld, milestoneAvailable, productionStatus, step,
-  unlockedMachines,
+  addItems, applyCommand, canReceive, checkIntegrity, contentsOf, createWorld, mergeInventories, milestoneAvailable,
+  modelUnlocked, productionStatus, step, tierOpen, unlockedMachines,
 } from '../src';
 import type { ItemType } from '@silicon-empire/game-data';
-import type { Command, World } from '../src';
+import type { Command, Inventory, World } from '../src';
 
 function run(world: World, command: Command): World {
   const result = applyCommand(world, command);
@@ -187,5 +187,145 @@ describe('convoyeur rapide', () => {
     expect(world.belts[2]?.[0]?.position).toBe(10);
     world = ticks(world, 400);
     expect(world.stocks[5]).toEqual({ 'cpu-8c': 10 });
+  });
+});
+
+const BEFORE_CAMPUS = [
+  'assembly-bench', 'quality-control', 'flow-control', 'packaging', 'fast-belts', 'regional-grant',
+] as const;
+
+describe('contrat phare', () => {
+  it('exige les deux jalons du palier 2 et débloque le gaming en bac à sable', () => {
+    const progress = createWorld('progression').progress;
+    const withGrant = { ...progress, completed: BEFORE_CAMPUS.filter(id => id !== 'fast-belts') };
+    const withBelts = { ...progress, completed: BEFORE_CAMPUS.filter(id => id !== 'regional-grant') };
+    expect(milestoneAvailable(withGrant, 'campus-contract')).toBe(false);
+    expect(milestoneAvailable(withBelts, 'campus-contract')).toBe(false);
+    expect(milestoneAvailable({ ...progress, completed: BEFORE_CAMPUS }, 'campus-contract')).toBe(true);
+    expect(tierOpen({ ...progress, completed: BEFORE_CAMPUS }, 3)).toBe(false);
+    expect(modelUnlocked({ ...progress, completed: BEFORE_CAMPUS }, 'gaming')).toBe(false);
+    expect(modelUnlocked(createWorld().progress, 'gaming')).toBe(true);
+  });
+
+  it('crédite le contrat une seule fois, garde le surplus sur la bande et ouvre le palier 3', () => {
+    const initial = createWorld('progression');
+    const almost = (MILESTONES['campus-contract'].cost['pc-office-packaged'] ?? 0) - 1;
+    const delivered = BEFORE_CAMPUS.reduce<Inventory>(
+      (inventory, id) => mergeInventories(inventory, MILESTONES[id].cost),
+      { 'pc-office-packaged': almost },
+    );
+    const { purchased, produced } = ITEM_TYPES.reduce<{ purchased: Inventory; produced: Inventory }>(
+      (ledger, item) => {
+        const count = delivered[item] ?? 0;
+        if (count === 0) return ledger;
+        const side = ITEMS[item].unitCostCents === null ? 'produced' : 'purchased';
+        return { ...ledger, [side]: addItems(ledger[side], item, count) };
+      },
+      { purchased: {}, produced: {} },
+    );
+    let world = run(initial, { kind: 'build', type: 'headquarters', x: 20, y: 20, rotation: 0 });
+    world = run(world, { kind: 'build', type: 'conveyor', x: 20, y: 22, rotation: 0 });
+    const front = CONVEYOR.lengthUnits - 1;
+    world = {
+      ...world,
+      progress: {
+        ...world.progress, completed: BEFORE_CAMPUS, delivered: { 'campus-contract': { 'pc-office-packaged': almost } },
+      },
+      nextItemId: 3,
+      belts: { 2: [
+        { id: 1, item: 'pc-office-packaged', position: front },
+        { id: 2, item: 'pc-office-packaged', position: front - CONVEYOR.spacingUnits },
+      ] },
+      ledger: {
+        ...world.ledger, delivered, purchased, produced: addItems(produced, 'pc-office-packaged', 2),
+      },
+    };
+    const capital = world.capitalCents;
+    world = run(world, { kind: 'select-milestone', milestone: 'campus-contract' });
+    expect(checkIntegrity(world)).toBe(true);
+    expect(canReceive(world, 1, 'pc-office-tested')).toBe(false);
+    world = ticks(world, 40);
+    expect(world.progress.completed).toEqual([...BEFORE_CAMPUS, 'campus-contract']);
+    expect(world.progress.active).toBeNull();
+    expect(world.progress.delivered).toEqual({});
+    expect(world.belts[2]).toEqual([{ id: 2, item: 'pc-office-packaged', position: front }]);
+    expect(world.capitalCents).toBe(capital + MILESTONES['campus-contract'].rewardCents);
+    expect(modelUnlocked(world.progress, 'gaming')).toBe(true);
+    expect(milestoneAvailable(world.progress, 'gaming-tournament')).toBe(true);
+    expect(applyCommand(world, { kind: 'select-milestone', milestone: 'campus-contract' })).toEqual({
+      ok: false, reason: 'milestone-unavailable',
+    });
+  });
+});
+
+describe('gamme gaming', () => {
+  it('conserve les ingrédients compatibles quand la machine change de modèle', () => {
+    let world = assemblyLine.reduce(run, createWorld());
+    world = run(world, { kind: 'order', id: 1, item: 'cpu-8c' });
+    world = ticks(world, 100);
+    const stock = world.stocks[4];
+    expect(stock).toEqual({ 'cpu-8c': 2 });
+    const configured = run(world, { kind: 'set-product-model', id: 4, model: 'gaming' });
+    expect(configured.stocks[4]).toBe(stock);
+    expect(configured.ledger).toBe(world.ledger);
+    expect(checkIntegrity(configured)).toBe(true);
+  });
+
+  it('refuse la configuration prématurée, incompatible ou pendant une fabrication', () => {
+    const before = {
+      ...createWorld('progression'),
+      progress: { ...createWorld('progression').progress, completed: BEFORE_CAMPUS },
+    };
+    const locked = run(before, { kind: 'build', type: 'assembler', x: 5, y: 5, rotation: 0 });
+    expect(applyCommand(locked, { kind: 'set-product-model', id: 1, model: 'gaming' })).toEqual({
+      ok: false, reason: 'locked',
+    });
+    let world = assemblyLine.reduce(run, createWorld());
+    expect(applyCommand(world, { kind: 'set-product-model', id: 1, model: 'gaming' })).toEqual({
+      ok: false, reason: 'not-a-producer',
+    });
+    world = run(world, { kind: 'set-product-model', id: 4, model: 'gaming' });
+    expect(canReceive(world, 4, 'gpu-8g')).toBe(true);
+    world = run(world, { kind: 'order', id: 1, item: 'gpu-8g' });
+    world = ticks(world, 100);
+    expect(world.stocks[4]).toEqual({ 'gpu-8g': 2 });
+    expect(applyCommand(world, { kind: 'set-product-model', id: 4, model: 'office' })).toEqual({
+      ok: false, reason: 'incompatible-inputs',
+    });
+    // An independent office line has a batch to protect.
+    world = assemblyLine.reduce(run, createWorld());
+    for (const item of PC_PARTS) world = run(world, { kind: 'order', id: 1, item });
+    world = ticks(world, 300, current => Boolean(current.production[4]?.batch));
+    expect(world.production[4]?.batch?.item).toBe('pc-office');
+    expect(applyCommand(world, { kind: 'set-product-model', id: 4, model: 'gaming' })).toEqual({
+      ok: false, reason: 'production-busy',
+    });
+  });
+
+  it('assemble, teste et emballe dix PC gaming avec une carte graphique par unité', () => {
+    let world = ([
+      ...assemblyLine.slice(0, 5),
+      { kind: 'build', type: 'tester', x: 12, y: 14, rotation: 0 },
+      { kind: 'build', type: 'conveyor', x: 13, y: 13, rotation: 0 },
+      { kind: 'build', type: 'packager', x: 13, y: 12, rotation: 0 },
+      { kind: 'build', type: 'conveyor', x: 14, y: 11, rotation: 0 },
+      { kind: 'build', type: 'storage', x: 14, y: 10, rotation: 0 },
+      { kind: 'build', type: 'receiving', x: 13, y: 15, rotation: 0 },
+      { kind: 'build-line', tiles: [
+        { x: 14, y: 14, rotation: 0 }, { x: 14, y: 13, rotation: 0 },
+      ] },
+      { kind: 'set-product-model', id: 4, model: 'gaming' },
+      { kind: 'set-product-model', id: 6, model: 'gaming' },
+      { kind: 'set-product-model', id: 8, model: 'gaming' },
+      { kind: 'order', id: 11, item: 'carton' },
+    ] satisfies Command[]).reduce(run, createWorld());
+    for (const item of [...PC_PARTS, 'gpu-8g'] as const) world = run(world, { kind: 'order', id: 1, item });
+    expect(canReceive(world, 6, 'pc-office')).toBe(false);
+    expect(canReceive(world, 6, 'pc-gaming')).toBe(true);
+    world = ticks(world, 11000, current => current.stocks[10]?.['pc-gaming-packaged'] === 10);
+    expect(world.stocks[10]).toEqual({ 'pc-gaming-packaged': 10 });
+    expect(world.ledger.produced).toEqual({ 'pc-gaming': 10, 'pc-gaming-tested': 10, 'pc-gaming-packaged': 10 });
+    expect(world.ledger.consumed['gpu-8g']).toBe(10);
+    expect(world.ledger.discarded).toEqual({});
   });
 });

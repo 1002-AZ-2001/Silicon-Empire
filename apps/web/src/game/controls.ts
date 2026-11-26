@@ -1,5 +1,5 @@
 import { PURCHASE, isConveyor } from '@silicon-empire/game-data';
-import type { ConveyorType, MilestoneId } from '@silicon-empire/game-data';
+import type { ConveyorType, MilestoneId, ProductModel } from '@silicon-empire/game-data';
 import { FixedStepClock, lineCost, machineAt, turnClockwise } from '@silicon-empire/simulation';
 import { createStore } from 'zustand/vanilla';
 import type { Messages, Translator } from '../i18n';
@@ -129,6 +129,11 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     if (!result.ok) store.setState({ feedback: { kind: 'error', message: errorMessage(result.reason) } });
   }
 
+  function setProductModel(id: number, model: ProductModel) {
+    const result = simulation.dispatch({ kind: 'set-product-model', id, model });
+    store.setState({ feedback: result.ok ? null : { kind: 'error', message: errorMessage(result.reason) } });
+  }
+
   function configure(id: number, filter: RouterFilter | null) {
     const result = simulation.dispatch({ kind: 'configure', id, filter });
     store.setState({
@@ -214,7 +219,8 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
   }
 
   return {
-    store, clock, setSpeed, togglePause, order, configure, selectMilestone, startLine, extendLine, cancelLine, finishLine,
+    store, clock, setSpeed, togglePause, order, configure, selectMilestone, setProductModel,
+    startLine, extendLine, cancelLine, finishLine,
     selectTool, aimAt, activateTile, rotate, confirmDemolition,
   };
 }

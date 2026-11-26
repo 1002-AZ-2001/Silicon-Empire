@@ -9,6 +9,7 @@ export type ItemCategory = (typeof ITEM_CATEGORIES)[number];
 export const ITEM_TYPES = [
   'cpu-8c', 'gpu-8g', 'ram-16g', 'ssd-1t', 'motherboard-atx', 'psu-650', 'case-standard', 'carton',
   'pc-office', 'pc-office-tested', 'pc-office-packaged',
+  'pc-gaming', 'pc-gaming-tested', 'pc-gaming-packaged',
 ] as const;
 export type ItemType = (typeof ITEM_TYPES)[number];
 
@@ -76,6 +77,21 @@ export const ITEMS = z.record(z.enum(ITEM_TYPES), itemDefinition.readonly()).rea
     unitCostCents: null,
   },
   'pc-office-packaged': {
+    category: 'product',
+    manufacturer: 'Silicon Empire',
+    unitCostCents: null,
+  },
+  'pc-gaming': {
+    category: 'product',
+    manufacturer: 'Silicon Empire',
+    unitCostCents: null,
+  },
+  'pc-gaming-tested': {
+    category: 'product',
+    manufacturer: 'Silicon Empire',
+    unitCostCents: null,
+  },
+  'pc-gaming-packaged': {
     category: 'product',
     manufacturer: 'Silicon Empire',
     unitCostCents: null,

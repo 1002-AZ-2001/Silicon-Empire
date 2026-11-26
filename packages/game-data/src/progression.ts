@@ -1,22 +1,29 @@
 import type { MachineType } from './construction';
 import type { ItemType } from './items';
+import type { ProductModel } from './production';
 
 /**
  * Progression by tiers and milestones. A milestone is completed by delivering parts to the headquarters.
  * Tier 0 milestones follow a fixed order; completing tier 0 opens tiers 1 and 2, whose milestones can be
- * done in any order. Later tiers will be opened by flagship contracts.
+ * done in any order unless a milestone names prerequisites.
  */
 export const MILESTONE_IDS = [
   'assembly-bench', 'quality-control', 'flow-control',
   'packaging', 'warehouse',
   'fast-belts', 'regional-grant',
+  'campus-contract', 'gaming-tournament',
 ] as const;
 export type MilestoneId = (typeof MILESTONE_IDS)[number];
 
 export interface Milestone {
   readonly tier: number;
   readonly cost: Readonly<Partial<Record<ItemType, number>>>;
-  readonly unlocks: { readonly machines: readonly MachineType[]; readonly items: readonly ItemType[] };
+  readonly requires?: readonly MilestoneId[];
+  readonly unlocks: {
+    readonly machines: readonly MachineType[];
+    readonly items: readonly ItemType[];
+    readonly models?: readonly ProductModel[];
+  };
   /** Capital granted on completion. Always higher than the supplier price of the parts it asks for. */
   readonly rewardCents: number;
 }
@@ -64,12 +71,26 @@ export const MILESTONES: Readonly<Record<MilestoneId, Milestone>> = {
     unlocks: { machines: [], items: [] },
     rewardCents: 2_500_000,
   },
+  'campus-contract': {
+    tier: 2,
+    requires: ['fast-belts', 'regional-grant'],
+    cost: { 'pc-office-packaged': 50 },
+    unlocks: { machines: [], items: [], models: ['gaming'] },
+    rewardCents: 3_800_000,
+  },
+  'gaming-tournament': {
+    tier: 3,
+    cost: { 'pc-gaming-packaged': 20 },
+    unlocks: { machines: [], items: [] },
+    rewardCents: 2_200_000,
+  },
 };
 
 export const TIERS = [
   { tier: 0, sequential: true, openedBy: null },
   { tier: 1, sequential: false, openedBy: 0 },
   { tier: 2, sequential: false, openedBy: 0 },
+  { tier: 3, sequential: false, openedBy: 2 },
 ] as const satisfies readonly { tier: number; sequential: boolean; openedBy: number | null }[];
 
 /** Available in a new progression game before any milestone. */

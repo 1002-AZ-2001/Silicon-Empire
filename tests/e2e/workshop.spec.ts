@@ -428,6 +428,10 @@ test('valide le premier jalon à la Direction, débloque l’établi et le garde
 
   await page.getByRole('button', { name: /^Progression/ }).click();
   const panel = page.getByRole('dialog', { name: 'Progression' });
+  const campus = panel.getByRole('listitem', { name: /Contrat phare/ });
+  await expect(campus).toContainText('50');
+  await expect(campus).toContainText('Convoyeurs rapides, Subvention régionale');
+  await expect(campus.getByRole('button')).toHaveCount(0);
   await panel.getByRole('listitem', { name: 'Poste de montage' }).getByRole('button', { name: 'Définir comme objectif' }).click();
   await expect(panel.getByRole('listitem', { name: 'Poste de montage' })).toContainText('Objectif en cours');
   await panel.getByRole('button', { name: 'Fermer' }).click();
@@ -456,4 +460,107 @@ test('valide le premier jalon à la Direction, débloque l’établi et le garde
   await expect(page.getByRole('dialog', { name: 'Progression' }).getByRole('listitem', { name: 'Poste de montage' })).toContainText('Terminé');
   await expect(page.getByRole('dialog', { name: 'Progression' }).getByRole('listitem', { name: 'Contrôle qualité' })).toContainText('Disponible');
   expect(pageErrors).toEqual([]);
+});
+
+test('choisit la gamme gaming sur les trois machines et garde les modèles après reprise', async ({ page }) => {
+  await page.goto('/');
+  await startWorkshop(page, 'Atelier Valmont');
+  const recipes = [
+    { tool: /^Assemblage/, x: 29, name: 'PC gaming assemblé', input: /Carte graphique 8 Go V8/ },
+    { tool: /^Banc de test/, x: 32, name: 'PC gaming testé', input: /PC gaming assemblé/ },
+    { tool: /^Emballeuse/, x: 35, name: 'PC gaming emballé', input: /PC gaming testé/ },
+  ];
+  const model = inspector(page).getByLabel('Modèle de PC');
+  const ingredients = inspector(page).getByRole('list', { name: 'Recette' });
+  for (const station of recipes) {
+    await page.getByRole('button', { name: station.tool }).click();
+    await clickTile(page, station.x, 32);
+    await page.keyboard.press('Escape');
+    await clickTile(page, station.x, 32);
+    await expect(model).toHaveValue('office');
+    await model.selectOption('gaming');
+    await expect(inspector(page)).toContainText(station.name);
+    await expect(ingredients).toContainText(station.input);
+  }
+  await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+  await expect(page.getByText('Atelier enregistré', { exact: true })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Reprendre Atelier Valmont' }).click();
+  await expect(canvas(page)).toBeVisible();
+  for (const station of recipes) {
+    await clickTile(page, station.x, 32);
+    await expect(model).toHaveValue('gaming');
+    await expect(ingredients).toContainText(station.input);
+  }
+});
+
+test('livre le dernier PC du contrat de Valmont, crédite la récompense et débloque la gamme', async ({ page }) => {
+  // Atelier sauvegardé avant sa dernière livraison. Les stocks et le registre reflètent les jalons déjà réglés.
+  const saved = {
+    version: 5,
+    id: '56414c4d4f4e54000000000000000001',
+    name: 'Contrat Valmont',
+    createdAt: 1000,
+    savedAt: 2000,
+    world: {
+      columns: 64, rows: 64, tick: 290_000, capitalCents: 1_500_000, nextMachineId: 4, nextItemId: 802,
+      machines: [
+        { id: 1, type: 'headquarters', x: 28, y: 30, rotation: 0, paidCents: 0 },
+        { id: 2, type: 'conveyor', x: 28, y: 32, rotation: 0, paidCents: 4_000 },
+        { id: 3, type: 'assembler', x: 32, y: 31, rotation: 0, paidCents: 180_000 },
+      ],
+      stocks: {},
+      belts: { 2: [{ id: 801, item: 'pc-office-packaged', position: 19 }] },
+      routers: {},
+      production: {},
+      progress: {
+        sandbox: false,
+        completed: ['assembly-bench', 'quality-control', 'flow-control', 'packaging', 'fast-belts', 'regional-grant'],
+        active: null,
+        delivered: { 'campus-contract': { 'pc-office-packaged': 49 } },
+      },
+      ledger: {
+        purchaseSpentCents: 6_710_000,
+        purchased: { 'cpu-8c': 140, 'ram-16g': 140, 'ssd-1t': 140, 'motherboard-atx': 140, 'psu-650': 150, 'case-standard': 150, carton: 100 },
+        discarded: { 'cpu-8c': 5, 'ram-16g': 5, 'ssd-1t': 5, 'motherboard-atx': 5, 'psu-650': 5, 'case-standard': 5 },
+        produced: { 'pc-office': 135, 'pc-office-tested': 130, 'pc-office-packaged': 100 },
+        consumed: { 'cpu-8c': 135, 'ram-16g': 135, 'ssd-1t': 135, 'motherboard-atx': 135, 'psu-650': 135, 'case-standard': 135, carton: 100, 'pc-office': 130, 'pc-office-tested': 100 },
+        delivered: { 'case-standard': 10, 'psu-650': 10, 'pc-office': 5, 'pc-office-tested': 30, 'pc-office-packaged': 99 },
+      },
+    },
+  };
+  await page.goto('/');
+  await expect(page.getByText('Aucun atelier enregistré')).toBeVisible();
+  await page.evaluate(value => new Promise<void>((resolve, reject) => {
+    const opening = indexedDB.open('silicon-empire', 1);
+    opening.onerror = () => reject(opening.error);
+    opening.onsuccess = () => {
+      const db = opening.result;
+      const transaction = db.transaction('workshops', 'readwrite');
+      transaction.objectStore('workshops').put(value);
+      transaction.oncomplete = () => { db.close(); resolve(); };
+      transaction.onabort = () => { db.close(); reject(transaction.error); };
+    };
+  }), saved);
+  await page.reload();
+  await page.getByRole('button', { name: 'Reprendre Contrat Valmont' }).click();
+  await expect(canvas(page)).toBeVisible();
+  await clickTile(page, 32, 31);
+  const model = inspector(page).getByLabel('Modèle de PC');
+  await expect(model).toHaveCount(0);
+  await expect(capital(page)).toHaveText(euros(15_000));
+
+  await page.getByRole('button', { name: /^Progression/ }).click();
+  const panel = page.getByRole('dialog', { name: 'Progression' });
+  const contract = panel.getByRole('listitem', { name: /Contrat phare/ });
+  await expect(contract).toContainText('49 / 50');
+  await contract.getByRole('button', { name: 'Définir comme objectif' }).click();
+  await panel.getByRole('button', { name: 'Fermer' }).click();
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: '×1' }).click();
+  await expect(capital(page)).toHaveText(euros(53_000));
+  await model.selectOption('gaming');
+  await expect(inspector(page).getByRole('list', { name: 'Recette' })).toContainText('Carte graphique');
+  await page.getByRole('button', { name: /^Progression/ }).click();
+  await expect(contract).toContainText('Terminé');
+  await expect(panel.getByRole('listitem', { name: 'Tournoi de Valmont' })).toContainText('Disponible');
 });

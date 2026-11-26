@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1 — Contrat de Valmont et gamme gaming
+
+- Le contrat de l’Université de Valmont demande 50 PC bureautiques emballés après les deux jalons initiaux du palier 2. La livraison complète verse 38 000 € et ouvre le palier 3.
+- Les trois machines de production peuvent fabriquer la gamme gaming. L’assemblage ajoute une carte graphique par PC. Le tournoi de Valmont récompense la livraison de 20 PC gaming emballés.
+- L’emballeuse possède deux entrées pour recevoir les PC testés et les cartons par des convoyeurs distincts.
+- Le changement de modèle conserve les stocks compatibles et attend la fin du lot en cours et l’évacuation des produits finis.
+- La sauvegarde v5 mémorise le modèle de chaque machine. Les anciens ateliers reprennent leur production bureautique en cours.
+
 ## 0.3.0 — Production et progression par paliers
 
 - Progression inspirée des jeux d’automatisation : une **Direction** reçoit par convoyeur les pièces demandées par des **jalons**. Chaque jalon terminé débloque des équipements ou des composants et verse une récompense en capital, toujours supérieure au prix des pièces demandées.

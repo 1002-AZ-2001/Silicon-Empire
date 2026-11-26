@@ -2,7 +2,7 @@ import {
   CONVEYOR, CONVEYOR_SPEEDS, ITEM_TYPES, MACHINES, MILESTONES, PRODUCTION, isConveyor, recipeOf,
 } from '@silicon-empire/game-data';
 import type { Direction, ItemType, Recipe } from '@silicon-empire/game-data';
-import { addItems, inventoryTotal, mergeInventories, mostStocked } from './inventory';
+import { addItems, inputRoom, inventoryTotal, mergeInventories, mostStocked } from './inventory';
 import type { Inventory } from './inventory';
 import { milestoneDone, stillNeeded } from './progress';
 import type { Progress } from './progress';
@@ -162,7 +162,7 @@ function computeLinks(world: Pick<World, 'machines' | 'columns' | 'rows'>): Link
   });
 
   const producers = world.machines.flatMap(machine => {
-    const recipe = recipeOf(machine.type);
+    const recipe = recipeOf(machine.type, machine.model);
     return recipe ? [{ id: machine.id, recipe }] : [];
   });
 
@@ -187,12 +187,6 @@ export function previewTarget(world: World, tile: Tile, direction: Direction): B
   }), direction);
 }
 
-/** Units of `item` a production machine still accepts in its input buffer. */
-export function inputRoom(recipe: Recipe, stock: Inventory, item: ItemType): number {
-  const perBatch = recipe.inputs[item] ?? 0;
-  return perBatch * PRODUCTION.inputBatches - (stock[item] ?? 0);
-}
-
 /** Whether a machine fed through an input port takes one more unit of `item`. */
 export function canReceive(
   world: Pick<World, 'machines' | 'stocks' | 'progress'>,
@@ -203,7 +197,7 @@ export function canReceive(
   if (!machine) return false;
   if (machine.type === 'headquarters') return stillNeeded(world.progress, item) > 0;
   const stock = world.stocks[id] ?? {};
-  const recipe = recipeOf(machine.type);
+  const recipe = recipeOf(machine.type, machine.model);
   if (recipe) return inputRoom(recipe, stock, item) > 0;
   return MACHINES[machine.type].capacity - inventoryTotal(stock) > 0;
 }

@@ -1,9 +1,9 @@
-import { CONVEYOR, ITEM_TYPES, MACHINE_TYPES, MILESTONE_IDS, WORKSHOP } from '@silicon-empire/game-data';
+import { CONVEYOR, ITEM_TYPES, MACHINE_TYPES, MILESTONE_IDS, PRODUCT_MODELS, WORKSHOP } from '@silicon-empire/game-data';
 import { ROTATIONS, ROUTER_SIDES, checkIntegrity } from '@silicon-empire/simulation';
 import { z } from 'zod';
 import type { World } from '@silicon-empire/simulation';
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 export const MAX_WORKSHOP_NAME = 40;
 
 export interface SaveRecord {
@@ -101,33 +101,45 @@ const saveV3 = z.strictObject({
 const milestoneId = z.enum(MILESTONE_IDS);
 
 /** Version 4 (v0.3.0): production machines, progression and the extended ledger. */
+const worldV4 = {
+  ...worldV3,
+  production: z.record(machineId, z.strictObject({
+    batch: z.strictObject({
+      item: z.enum(ITEM_TYPES),
+      remaining: z.int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    }).nullable(),
+    output: inventory,
+  })),
+  progress: z.strictObject({
+    sandbox: z.boolean(),
+    completed: z.array(milestoneId).max(MILESTONE_IDS.length),
+    active: milestoneId.nullable(),
+    delivered: z.partialRecord(milestoneId, inventory),
+  }),
+  capitalCents: z.int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  ledger: z.strictObject({
+    purchased: inventory,
+    discarded: inventory,
+    purchaseSpentCents: z.int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    produced: inventory,
+    consumed: inventory,
+    delivered: inventory,
+  }),
+};
+
 const saveV4 = z.strictObject({
+  version: z.literal(4),
+  ...header,
+  world: z.strictObject(worldV4),
+});
+
+/** Version 5: the model chosen for each production machine. */
+const saveV5 = z.strictObject({
   version: z.literal(SAVE_VERSION),
   ...header,
   world: z.strictObject({
-    ...worldV3,
-    production: z.record(machineId, z.strictObject({
-      batch: z.strictObject({
-        item: z.enum(ITEM_TYPES),
-        remaining: z.int().nonnegative().max(Number.MAX_SAFE_INTEGER),
-      }).nullable(),
-      output: inventory,
-    })),
-    progress: z.strictObject({
-      sandbox: z.boolean(),
-      completed: z.array(milestoneId).max(MILESTONE_IDS.length),
-      active: milestoneId.nullable(),
-      delivered: z.partialRecord(milestoneId, inventory),
-    }),
-    capitalCents: z.int().nonnegative().max(Number.MAX_SAFE_INTEGER),
-    ledger: z.strictObject({
-      purchased: inventory,
-      discarded: inventory,
-      purchaseSpentCents: z.int().nonnegative().max(Number.MAX_SAFE_INTEGER),
-      produced: inventory,
-      consumed: inventory,
-      delivered: inventory,
-    }),
+    ...worldV4,
+    machines: z.array(machine.extend({ model: z.enum(PRODUCT_MODELS).optional() })).max(WORKSHOP.columns * WORKSHOP.rows),
   }),
 });
 
@@ -163,7 +175,7 @@ function migrateV3(value: unknown): z.input<typeof saveV4> | null {
   const { data } = v3;
   return {
     ...data,
-    version: SAVE_VERSION,
+    version: 4,
     world: {
       ...data.world,
       production: {},
@@ -173,6 +185,13 @@ function migrateV3(value: unknown): z.input<typeof saveV4> | null {
   };
 }
 
+function migrateV4(value: unknown): z.input<typeof saveV5> | null {
+  const v4 = saveV4.safeParse(value);
+  if (!v4.success) return null;
+  // Unconfigured machines continue their office recipes, including batches already in progress.
+  return { ...v4.data, version: SAVE_VERSION };
+}
+
 function versionOf(value: unknown): unknown {
   return typeof value === 'object' && value !== null && 'version' in value ? value.version : undefined;
 }
@@ -180,11 +199,12 @@ function versionOf(value: unknown): unknown {
 /** Reads a stored record, migrating older versions. Returns null when the record is unusable. */
 export function decodeSave(value: unknown): SaveRecord | null {
   const version = versionOf(value);
-  const current = version === 1 ? migrateV3(migrateV2(migrateV1(value)))
+  const legacy = version === 1 ? migrateV3(migrateV2(migrateV1(value)))
     : version === 2 ? migrateV3(migrateV2(value))
       : version === 3 ? migrateV3(value)
         : value;
-  const decoded = saveV4.safeParse(current);
+  const current = version === SAVE_VERSION ? value : migrateV4(legacy);
+  const decoded = saveV5.safeParse(current);
   if (!decoded.success) return null;
 
   const { data } = decoded;

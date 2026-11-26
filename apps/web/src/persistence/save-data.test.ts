@@ -1,8 +1,9 @@
-import { WORKSHOP } from '@silicon-empire/game-data';
+import { WORKSHOP, recipeOf } from '@silicon-empire/game-data';
 import { applyCommand, createWorld, step } from '@silicon-empire/simulation';
 import { describe, expect, it } from 'vitest';
 import { SAVE_VERSION, decodeSave } from './save-data';
 import type { Command, World } from '@silicon-empire/simulation';
+import type { ItemType, ProductModel } from '@silicon-empire/game-data';
 import type { SaveRecord } from './save-data';
 
 function run(world: World, command: Command): World {
@@ -34,6 +35,20 @@ let transit = ([
 ] satisfies Command[]).reduce(run, createWorld());
 for (let tick = 0; tick < 45; tick++) transit = step(transit);
 const inTransit: SaveRecord = { ...record, world: transit };
+
+function runningAssembler(model: ProductModel): World {
+  let world = ([
+    { kind: 'build', type: 'receiving', x: 10, y: 19, rotation: 0 },
+    { kind: 'build', type: 'conveyor', x: 11, y: 18, rotation: 0 },
+    { kind: 'build', type: 'assembler', x: 11, y: 16, rotation: 0 },
+    { kind: 'set-product-model', id: 3, model },
+  ] satisfies Command[]).reduce(run, createWorld());
+  const recipe = recipeOf('assembler', model);
+  if (!recipe) throw new Error('Recette de test introuvable.');
+  for (const item of Object.keys(recipe.inputs) as ItemType[]) world = run(world, { kind: 'order', id: 1, item });
+  for (let tick = 0; tick < 200; tick++) world = step(world);
+  return world;
+}
 
 describe('schéma de sauvegarde', () => {
   it('restaure le capital, l’orientation et le prix réellement payé', () => {
@@ -74,6 +89,26 @@ describe('schéma de sauvegarde', () => {
     expect(migrated?.world.progress).toEqual({ sandbox: true, completed: [], active: null, delivered: {} });
     expect(migrated).toEqual(inTransit);
     expect(decodeSave({ ...v3, world: { ...v3.world, production: {} } })).toBeNull();
+  });
+
+  it('migre un lot bureautique v4 en cours et poursuit la même recette', () => {
+    const world = runningAssembler('office');
+    const legacy = { ...record, version: 4, world };
+    const restored = decodeSave(legacy);
+    expect(restored).toEqual({ ...record, world });
+    expect(restored?.world.production[3]?.batch?.item).toBe('pc-office');
+    if (!restored) throw new Error('La sauvegarde v4 doit pouvoir être relue.');
+    expect(step(restored.world)).toEqual(step(world));
+  });
+
+  it('restaure un lot gaming en cours et rejette un modèle incohérent avec ce lot', () => {
+    const world = runningAssembler('gaming');
+    const saved: SaveRecord = { ...record, world };
+    expect(world.production[3]?.batch?.item).toBe('pc-gaming');
+    expect(decodeSave(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+    const machines = world.machines.map(machine => machine.id === 3 ? { ...machine, model: 'office' } : machine);
+    expect(decodeSave({ ...saved, world: { ...world, machines } })).toBeNull();
+    expect(decodeSave({ ...saved, version: 4 })).toBeNull();
   });
 
   it('restaure une partie en progression avec un jalon en cours et un lot en fabrication', () => {
@@ -121,7 +156,7 @@ describe('schéma de sauvegarde', () => {
 
   it.each([
     null,
-    { ...record, version: 5 },
+    { ...record, version: SAVE_VERSION + 1 },
     { ...record, name: '' },
     { ...record, savedAt: 500 },
     { ...record, world: { ...record.world, columns: 32 } },
