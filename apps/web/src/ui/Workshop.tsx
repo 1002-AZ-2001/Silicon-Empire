@@ -12,6 +12,7 @@ import { Inspector } from './Inspector';
 import { useI18n } from '../i18n';
 import { ProgressionPanel } from './ProgressionPanel';
 import { ResearchPanel } from './ResearchPanel';
+import { ShopPanel } from './ShopPanel';
 import { SalesPanel } from './SalesPanel';
 import { Dialog, Icon, gameTime } from './shared';
 import { useWorld } from './use-world';
@@ -36,6 +37,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
   const speed = useStore(controls.store, state => state.speed);
   const progressionOpen = useStore(controls.store, state => state.progressionOpen);
   const salesOpen = useStore(controls.store, state => state.salesOpen);
+  const shopOpen = useStore(controls.store, state => state.shopOpen);
   const [designerOpen, setDesignerOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const completedCount = useRef(world.progress.completed.length);
@@ -194,6 +196,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
             {world.research.analysing && <small className="button-detail"> · {t.research.analysing}</small>}
           </button>
         )}
+        <button type="button" className="button" onClick={() => controls.store.setState({ shopOpen: true })}>{t.workshop.shop}</button>
         <button type="button" className="button" onClick={() => controls.store.setState({ salesOpen: true })}>{t.trade.title}</button>
         {modelUnlocked(world.progress, 'custom') && (
           <button type="button" className="button" onClick={() => setDesignerOpen(true)}>{t.design.title}</button>
@@ -225,6 +228,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
         <ProgressionPanel world={world} controls={controls} onClose={() => controls.store.setState({ progressionOpen: false })} />
       )}
       {salesOpen && <SalesPanel world={world} controls={controls} />}
+      {shopOpen && <ShopPanel world={world} controls={controls} onClose={() => controls.store.setState({ shopOpen: false })} />}
       {researchOpen && (
         <ResearchPanel world={world} controls={controls} onClose={() => controls.store.setState({ researchOpen: false })} />
       )}

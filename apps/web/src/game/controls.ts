@@ -1,12 +1,26 @@
 import { PURCHASE, isConveyor } from '@silicon-empire/game-data';
 import type { ConveyorType, MilestoneId, ResearchId, PcDesign, ProductModel, SupplierId } from '@silicon-empire/game-data';
-import { FixedStepClock, lineCost, machineAt, turnClockwise } from '@silicon-empire/simulation';
+import { FixedStepClock, lineCost, machineAt, purchaseCost, turnClockwise } from '@silicon-empire/simulation';
 import { createStore } from 'zustand/vanilla';
 import type { Messages, Translator } from '../i18n';
 import type { ItemType, MachineType } from '@silicon-empire/game-data';
 import type {
-  LineTile, Rotation, RouterFilter, Simulation, Speed, Tile,
+  LineTile, PurchaseLine, Rotation, RouterFilter, Simulation, Speed, Tile,
 } from '@silicon-empire/simulation';
+
+/** Shop cart: lots per component, all from one supplier. Kept while the shop is closed. */
+export interface Cart {
+  readonly supplier: SupplierId;
+  readonly lots: Readonly<Partial<Record<ItemType, number>>>;
+}
+
+export const EMPTY_CART: Cart = { supplier: 'express', lots: {} };
+
+export function cartLines(cart: Cart): PurchaseLine[] {
+  return (Object.entries(cart.lots) as [ItemType, number][])
+    .filter(([, lots]) => lots > 0)
+    .map(([item, lots]) => ({ item, supplier: cart.supplier, lots }));
+}
 
 export type Tool = 'inspect' | MachineType | 'demolish';
 
@@ -30,6 +44,8 @@ interface WorkshopUi {
   progressionOpen: boolean;
   researchOpen: boolean;
   salesOpen: boolean;
+  shopOpen: boolean;
+  cart: Cart;
 }
 
 
@@ -72,6 +88,8 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     progressionOpen: false,
     researchOpen: false,
     salesOpen: false,
+    shopOpen: false,
+    cart: EMPTY_CART,
   }));
   const clock = new FixedStepClock();
   clock.speed = initialSpeed;
@@ -175,6 +193,30 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     });
   }
 
+  /** Buys the whole cart for one dock; the cart is emptied only when the order goes through. */
+  function checkout(dock: number) {
+    const lines = cartLines(store.getState().cart);
+    const lots = lines.reduce((total, line) => total + line.lots, 0);
+    const cost = purchaseCost(lines);
+    const result = simulation.dispatch({ kind: 'purchase', id: dock, lines });
+    store.setState(state => ({
+      cart: result.ok ? { ...state.cart, lots: {} } : state.cart,
+      feedback: result.ok
+        ? { kind: 'success', message: ({ t, money }) => t.feedback.purchased(lots, money(cost)) }
+        : { kind: 'error', message: errorMessage(result.reason) },
+    }));
+    return result.ok;
+  }
+
+  function setCartLots(item: ItemType, lots: number) {
+    store.setState(({ cart }) => {
+      const next = { ...cart.lots };
+      if (lots > 0) next[item] = Math.min(lots, PURCHASE.maxLots);
+      else delete next[item];
+      return { cart: { ...cart, lots: next } };
+    });
+  }
+
   function publishDesign(spec: PcDesign) {
     const result = simulation.dispatch({ kind: 'publish-design', spec });
     return result.ok ? null : result.reason;
@@ -247,7 +289,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
   }
 
   return {
-    store, clock, setSpeed, togglePause, order, configure, selectMilestone, selectResearch, upgrade, setProductModel,
+    store, clock, setSpeed, togglePause, order, checkout, setCartLots, configure, selectMilestone, selectResearch, upgrade, setProductModel,
     startSale: (model: ProductModel) => changeSale(model), cancelSale: () => changeSale(),
     publishDesign,
     startLine, extendLine, cancelLine, finishLine,

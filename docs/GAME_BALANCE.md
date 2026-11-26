@@ -10,6 +10,16 @@
 | Assemblage initial | 30 s simulées par PC |
 | Prix exemple Gaming X1 | 899 € |
 
+## Boutique v0.7.0
+
+| Lots d’un même composant dans le panier | Remise |
+|---:|---:|
+| 1 à 4 | 0 % |
+| 5 à 9 | 5 % |
+| 10 à 20 | 10 % |
+
+La remise s’applique après le tarif du fournisseur : 10 lots de processeurs chez Relais Fret coûtent 18 000 € × 0,85 × 0,90 = 13 770 €, au lieu de 18 000 € chez Circuit Direct sans remise. Le quai de réception (100 unités, 200 après Quai agrandi) limite un panier à 10 lots, 20 avec la recherche. La plus forte remise demande donc tout le quai pour un seul composant. Le prix est arrondi au centime inférieur par ligne.
+
 ## Monnaies d’affichage v0.6.1
 
 Toute l’économie est calculée en euros. L’interface convertit avec des taux fixes, arrondis depuis les cours de référence de la BCE de novembre 2026.

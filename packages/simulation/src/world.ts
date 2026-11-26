@@ -141,11 +141,19 @@ export type Command =
   | { readonly kind: 'set-product-model'; readonly id: number; readonly model: ProductModel }
   | { readonly kind: 'rotate'; readonly id: number }
   | { readonly kind: 'demolish'; readonly id: number }
-  | { readonly kind: 'order'; readonly id: number; readonly item: ItemType; readonly supplier?: SupplierId };
+  | { readonly kind: 'order'; readonly id: number; readonly item: ItemType; readonly supplier?: SupplierId }
+  | { readonly kind: 'purchase'; readonly id: number; readonly lines: readonly PurchaseLine[] };
+
+/** One line of a shop order: `lots` lots of one component from one supplier. */
+export interface PurchaseLine {
+  readonly item: ItemType;
+  readonly supplier: SupplierId;
+  readonly lots: number;
+}
 
 type FootprintError = 'out-of-bounds' | 'occupied';
 type BuildError = FootprintError | 'insufficient-funds' | 'id-limit' | 'invalid-line' | 'locked' | 'unique';
-type OrderError = 'not-a-dock' | 'insufficient-funds' | 'dock-full' | 'id-limit' | 'locked';
+type OrderError = 'not-a-dock' | 'insufficient-funds' | 'dock-full' | 'id-limit' | 'locked' | 'empty-order' | 'invalid-order';
 type ModelError = 'not-a-producer' | 'locked' | 'production-busy' | 'incompatible-inputs' | 'design-required';
 type SaleError = 'no-shipping-dock' | 'sale-in-progress' | 'sale-already-shipped';
 type DesignError = 'design-invalid' | 'design-power' | 'design-in-use';
@@ -282,19 +290,52 @@ export function lineCost(length: number, type: ConveyorType = 'conveyor'): numbe
 }
 
 /** Price of a lot; 0 for items that cannot be bought. */
-export function orderCost(item: ItemType, supplier: SupplierId = 'express'): number {
-  return Math.floor((ITEMS[item].unitCostCents ?? 0) * PURCHASE.lotSize * SUPPLIERS[supplier].pricePercent / 100);
+/** Volume discount in percent for a line of `lots` lots of one component. */
+export function volumeDiscount(lots: number): number {
+  return PURCHASE.volumeDiscounts.find(discount => lots >= discount.lots)?.percent ?? 0;
 }
 
-export function checkOrder(world: World, id: number, item: ItemType, supplier: SupplierId = 'express'): CommandError | null {
+/** Price of a shop line, supplier rate and volume discount included, rounded down to the cent. */
+export function purchaseLineCost({ item, supplier, lots }: PurchaseLine): number {
+  const percent = SUPPLIERS[supplier].pricePercent * (100 - volumeDiscount(lots));
+  return Math.floor((ITEMS[item].unitCostCents ?? 0) * PURCHASE.lotSize * lots * percent / 10_000);
+}
+
+export function purchaseCost(lines: readonly PurchaseLine[]): number {
+  return lines.reduce((total, line) => total + purchaseLineCost(line), 0);
+}
+
+export function orderCost(item: ItemType, supplier: SupplierId = 'express'): number {
+  return purchaseLineCost({ item, supplier, lots: 1 });
+}
+
+/** Units a receiving dock can still accept: capacity minus its stock and the lots it awaits. */
+export function dockSpace(world: World, id: number): number {
+  const reserved = world.deliveries.filter(delivery => delivery.dockId === id).length * PURCHASE.lotSize;
+  return capacityOf(world.progress, world.research, 'receiving') - inventoryTotal(world.stocks[id] ?? {}) - reserved;
+}
+
+/** Validates a whole shop order for one dock: every line or none is bought. */
+export function checkPurchase(world: World, id: number, lines: readonly PurchaseLine[]): CommandError | null {
   const dock = world.machines.find(machine => machine.id === id);
   if (!dock) return 'missing-machine';
   if (dock.type !== 'receiving') return 'not-a-dock';
-  if (!orderableItems(world.progress).has(item)) return 'locked';
-  if (world.capitalCents < orderCost(item, supplier)) return 'insufficient-funds';
-  const reserved = world.deliveries.filter(delivery => delivery.dockId === id).length * PURCHASE.lotSize;
-  if (inventoryTotal(world.stocks[id] ?? {}) + reserved + PURCHASE.lotSize > capacityOf(world.progress, world.research, 'receiving')) return 'dock-full';
+  if (lines.length === 0) return 'empty-order';
+  const orderable = orderableItems(world.progress);
+  let lots = 0;
+  for (const line of lines) {
+    if (!Number.isSafeInteger(line.lots) || line.lots < 1 || line.lots > PURCHASE.maxLots ||
+      !(line.item in ITEMS) || !(line.supplier in SUPPLIERS)) return 'invalid-order';
+    if (!orderable.has(line.item)) return 'locked';
+    lots += line.lots;
+  }
+  if (world.capitalCents < purchaseCost(lines)) return 'insufficient-funds';
+  if (lots * PURCHASE.lotSize > dockSpace(world, id)) return 'dock-full';
   return null;
+}
+
+export function checkOrder(world: World, id: number, item: ItemType, supplier: SupplierId = 'express'): CommandError | null {
+  return checkPurchase(world, id, [{ item, supplier, lots: 1 }]);
 }
 
 /** A model switch keeps the existing stock and cannot change a running or finished batch. */
@@ -462,35 +503,34 @@ export function applyCommand(world: World, command: Command): CommandResult {
     };
   }
 
-  if (command.kind === 'order') {
-    const supplier = command.supplier ?? 'express';
-    const reason = checkOrder(world, machine.id, command.item, supplier);
+  if (command.kind === 'order' || command.kind === 'purchase') {
+    const lines = command.kind === 'purchase' ? command.lines : [{ item: command.item, supplier: command.supplier ?? 'express', lots: 1 }];
+    const reason = checkPurchase(world, machine.id, lines);
     if (reason) return { ok: false, reason };
-    const cost = orderCost(command.item, supplier);
-    const lead = SUPPLIERS[supplier].leadTicks;
-    if (lead > 0) {
+    const cost = purchaseCost(lines);
+    let stock = world.stocks[machine.id] ?? {};
+    let purchased = world.ledger.purchased;
+    const deliveries = [...world.deliveries];
+    for (const { item, supplier, lots } of lines) {
+      const lead = SUPPLIERS[supplier].leadTicks;
+      if (lead === 0) {
+        stock = addItems(stock, item, PURCHASE.lotSize * lots);
+        purchased = addItems(purchased, item, PURCHASE.lotSize * lots);
+        continue;
+      }
+      // Each lot travels as its own delivery, so that the save format and dock reservations stay per lot.
       const dueTick = world.tick + lead;
       if (!Number.isSafeInteger(dueTick)) return { ok: false, reason: 'id-limit' };
-      const delivery: PendingDelivery = { dockId: machine.id, item: command.item, supplier, dueTick };
-      return {
-        ok: true, machine,
-        world: {
-          ...world, capitalCents: world.capitalCents - cost, deliveries: [...world.deliveries, delivery],
-          ledger: { ...world.ledger, purchaseSpentCents: world.ledger.purchaseSpentCents + cost },
-        },
-      };
+      for (let lot = 0; lot < lots; lot++) deliveries.push({ dockId: machine.id, item, supplier, dueTick });
     }
     return {
       ok: true,
       world: {
         ...world,
         capitalCents: world.capitalCents - cost,
-        stocks: { ...world.stocks, [machine.id]: addItems(world.stocks[machine.id] ?? {}, command.item, PURCHASE.lotSize) },
-        ledger: {
-          ...world.ledger,
-          purchased: addItems(world.ledger.purchased, command.item, PURCHASE.lotSize),
-          purchaseSpentCents: world.ledger.purchaseSpentCents + cost,
-        },
+        stocks: inventoryTotal(stock) > 0 ? { ...world.stocks, [machine.id]: stock } : world.stocks,
+        deliveries,
+        ledger: { ...world.ledger, purchased, purchaseSpentCents: world.ledger.purchaseSpentCents + cost },
       },
       machine,
     };

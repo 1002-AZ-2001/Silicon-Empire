@@ -840,3 +840,38 @@ test('affiche les montants dans la devise choisie au menu et garde ce choix', as
   await page.reload();
   await expect(page.getByLabel('通貨')).toHaveValue('auto');
 });
+
+test('remplit le panier de la boutique avec remise de volume et livre le quai en une commande', async ({ page }) => {
+  await page.goto('/');
+  await startWorkshop(page, 'Atelier Lisière');
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: 'Pause' }).click();
+  await page.getByRole('button', { name: /^Réception/ }).click();
+  await clickTile(page, 35, 34);
+  await page.keyboard.press('Escape');
+  const before = await capital(page).innerText();
+
+  await page.getByRole('button', { name: 'Boutique', exact: true }).click();
+  const shop = page.getByRole('dialog', { name: 'Boutique de composants' });
+  await expect(shop.getByLabel('Quai de livraison')).toContainText('100 places libres');
+  const cpu = shop.getByRole('listitem', { name: 'Processeur 8 cœurs K8' }).first();
+  for (let lot = 0; lot < 5; lot++) await cpu.getByRole('button', { name: 'Ajouter un lot' }).click();
+  await shop.getByRole('listitem', { name: 'Barrette 16 Go' }).first().getByRole('button', { name: 'Ajouter un lot' }).click();
+  const cart = shop.getByRole('region', { name: 'Panier' });
+  await expect(cart.getByRole('listitem', { name: 'Processeur 8 cœurs K8' })).toContainText('5 lots');
+  await expect(cart.getByRole('listitem', { name: 'Processeur 8 cœurs K8' })).toContainText('−5');
+  await expect(cart).toContainText('60 unités pour 100 places libres');
+  // 5 lots of CPUs at 1 800 € with 5 % off, plus one lot of memory at 400 €.
+  const checkout = cart.getByRole('button', { name: /^Commander/ });
+  await expect(checkout).toContainText(euros(8950));
+  await checkout.click();
+  await expect(page.getByText(`Commande passée\u2009: 6 lots pour ${euros(8950)}.`)).toBeVisible();
+  await expect(cart).toContainText('Le panier est vide.');
+  await shop.getByRole('button', { name: 'Fermer' }).click();
+
+  await expect(capital(page)).not.toHaveText(before);
+  await clickTile(page, 35, 34);
+  const stock = inspector(page).getByRole('list', { name: 'Contenu du stock' });
+  await expect(stock).toContainText('Processeur 8 cœurs K8');
+  await expect(stock).toContainText('50');
+  await expect(stock).toContainText('Barrette 16 Go');
+});

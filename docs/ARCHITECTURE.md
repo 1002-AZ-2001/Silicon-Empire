@@ -65,6 +65,12 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - Les livraisons différées réservent la capacité du quai et débitent le capital à la commande. Elles entrent dans le stock et le registre des unités achetées au tick d’arrivée. Un quai qui attend des lots reste en place jusqu’à leur arrivée.
 - Le format v8 conserve les révisions, les délais et la réservation des stocks. Les commandes standard du format v7 gardent leurs conditions.
 
+## Boutique (v0.7.0)
+
+- La commande `purchase { id, lines }` achète plusieurs lignes `{ item, supplier, lots }` pour un quai. `checkPurchase` valide tout avant d’appliquer : quai existant, lignes non vides, lots entiers de 1 à `PURCHASE.maxLots`, composants débloqués, capital et place (`dockSpace` déduit le stock et les lots attendus). La commande `order` historique passe par le même chemin avec une ligne d’un lot.
+- `purchaseLineCost` applique le tarif du fournisseur puis `volumeDiscount(lots)` et arrondit au centime inférieur. Les lots différés restent des `PendingDelivery` d’un lot chacun : le format v9, l’intégrité et la réservation au quai ne changent pas.
+- Le panier (`cart`) vit dans le magasin Zustand de l’interface ; il n’est pas sauvegardé. Le panneau `ShopPanel` ne fait que composer les lignes et appeler `checkout`.
+
 ## Recherche et machines Mk2 (v0.6.0)
 
 - `ResearchState` (`packages/simulation/src/research.ts`) garde le projet actif, les pièces livrées par projet, l’analyse en cours et les projets terminés dans l’ordre. Les effets sont lus dans le catalogue `RESEARCH` (`packages/game-data/src/research.ts`) : déblocage de bâtiment, amélioration Mk2, capacité du quai, rythme des rebuts.
