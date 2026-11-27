@@ -1,4 +1,4 @@
-import { FLOOR_COST_CENTS, MACHINES, MACHINE_TYPES } from '@silicon-empire/game-data';
+import { FLOOR_COST_CENTS, MACHINES, MACHINE_TYPES, isComponentMachine } from '@silicon-empire/game-data';
 import { machineUnlocked } from '@silicon-empire/simulation';
 import { useStore } from 'zustand';
 import { FLOOR_ART } from '../art/floors';
@@ -8,6 +8,7 @@ import { useI18n } from '../i18n';
 import { Icon } from './shared';
 import type { World } from '@silicon-empire/simulation';
 import type { FloorTool, Tool, WorkshopControls } from '../game/controls';
+import type { TutorialTarget } from './Tutorial';
 
 type ToolEntry =
   | { readonly tool: 'inspect' | 'demolish'; readonly key: string; readonly icon: 'target' | 'trash' }
@@ -30,14 +31,19 @@ export function getShortcut(world: World, key: string): Tool | undefined {
   return toolsFor(world).find(item => item.key?.toLowerCase() === key)?.tool;
 }
 
-export function ConstructionBar({ controls, world, onGuide }: {
+export function ConstructionBar({ controls, world, onGuide, highlight = null }: {
   controls: WorkshopControls;
   world: World;
   onGuide: () => void;
+  /** Tool the tutorial points at; `machine` is the production machine of the specialty. */
+  highlight?: TutorialTarget;
 }) {
   const tool = useStore(controls.store, state => state.tool);
   const { t, money } = useI18n();
   const tools = toolsFor(world);
+  const pointed = (tool: Tool) => highlight !== null && (
+    tool === highlight || (highlight === 'machine' && isBuildTool(tool) && isComponentMachine(tool) && tool !== 'smt-line')
+  );
   const label = (item: ToolEntry) => {
     const floor = floorOf(item.tool);
     if (floor) return t.floors[floor];
@@ -65,7 +71,7 @@ export function ConstructionBar({ controls, world, onGuide }: {
           <button
             type="button"
             aria-pressed={tool === item.tool}
-            className={`tool-card${item.tool === 'demolish' ? ' tool-danger' : ''}`}
+            className={`tool-card${item.tool === 'demolish' ? ' tool-danger' : ''}${pointed(item.tool) ? ' tutorial-target' : ''}`}
             aria-keyshortcuts={item.key ?? undefined}
             onClick={() => controls.selectTool(item.tool)}
             key={item.tool}

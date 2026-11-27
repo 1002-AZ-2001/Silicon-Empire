@@ -1,14 +1,14 @@
 import {
-  CUSTOM_ITEMS, FLOOR_COST_CENTS, FLOOR_TYPES, ITEMS, ITEM_TYPES, LAND, MACHINES, MAX_LINE_LENGTH, MK2, PURCHASE, STAFF, SUPPLIERS,
+  CAREER, CUSTOM_ITEMS, FLOOR_COST_CENTS, LOANS, SPECIALTIES, TECHNOLOGIES, FLOOR_TYPES, ITEMS, ITEM_TYPES, LAND, MACHINES, MAX_LINE_LENGTH, MK2, PURCHASE, STAFF, SUPPLIERS,
   WORKSHOP, designParts, designPower, isLineType, pcDesignSchema, recipeOf, saleOffer,
 } from '@silicon-empire/game-data';
 import type {
-  Direction, FloorType, ItemType, LineType, MachineType, MilestoneId, PcDesign, ProductModel, PublishedDesign, ResearchId,
+  Direction, FloorType, ItemType, LineType, LoanId, MachineType, Specialty, TechId, MilestoneId, PcDesign, ProductModel, PublishedDesign, ResearchId,
   SupplierId,
 } from '@silicon-empire/game-data';
 import { addItems, fitsInputStock, inventoryTotal, mergeInventories } from './inventory';
 import type { Inventory } from './inventory';
-import { createProgress, milestoneAvailable, modelUnlocked, orderableItems, unlockedMachines } from './progress';
+import { createCareerProgress, createProgress, milestoneAvailable, modelUnlocked, orderableItems, unlockedMachines } from './progress';
 import type { Progress } from './progress';
 import { NO_RESEARCH, capacityOf, researchAvailable, researchMachines, upgradeUnlocked } from './research';
 import type { ResearchState } from './research';
@@ -16,6 +16,8 @@ import type { Sales } from './sales';
 import { assignBaseOperators, createStaff, isStaffed, severance, staffRequired } from './staff';
 import type { Employee, StaffState } from './staff';
 import type { Floors } from './rooms';
+import { loanAvailable, payoff, techAvailable } from './career';
+import type { CareerState } from './career';
 import { ownsFootprint, ownsTile, parcelForSale, parcelPrice } from './land';
 
 export const ROTATIONS = [0, 1, 2, 3] as const satisfies readonly Direction[];
@@ -142,6 +144,10 @@ export type Command =
   | { readonly kind: 'build-line'; readonly tiles: readonly LineTile[]; readonly type?: LineType }
   | { readonly kind: 'paint-floor'; readonly tiles: readonly Tile[]; readonly floor: FloorType }
   | { readonly kind: 'buy-parcel'; readonly parcel: number }
+  | { readonly kind: 'choose-specialty'; readonly specialty: Specialty }
+  | { readonly kind: 'take-loan'; readonly offer: LoanId }
+  | { readonly kind: 'repay-loan'; readonly offer: LoanId }
+  | { readonly kind: 'buy-tech'; readonly tech: TechId }
   | { readonly kind: 'select-milestone'; readonly milestone: MilestoneId | null }
   | { readonly kind: 'select-research'; readonly research: ResearchId | null }
   | { readonly kind: 'upgrade'; readonly id: number }
@@ -174,7 +180,7 @@ type DesignError = 'design-invalid' | 'design-power' | 'design-in-use';
 export type CommandError = BuildError | OrderError | ModelError | SaleError | DesignError |
   'missing-machine' | 'not-a-splitter' | 'milestone-unavailable' | 'deliveries-pending' |
   'research-unavailable' | 'not-upgradable' | 'missing-candidate' | 'missing-employee' | 'staff-full' | 'not-staffed' |
-  'parcel-unavailable';
+  'parcel-unavailable' | 'not-career' | 'specialty-chosen' | 'loan-unavailable' | 'tech-unavailable' | 'bankrupt';
 
 export type CommandResult =
   | { readonly ok: true; readonly world: World; readonly machine: Machine | null }
@@ -185,12 +191,14 @@ export const EMPTY_LEDGER: Ledger = {
 };
 
 /** A new workshop. Sandbox mode unlocks everything; progression mode starts at tier 0. */
-export function createWorld(mode: 'sandbox' | 'progression' = 'sandbox'): World {
+export type GameMode = 'sandbox' | 'progression' | 'career';
+
+export function createWorld(mode: GameMode = 'sandbox'): World {
   return {
     columns: WORKSHOP.columns,
     rows: WORKSHOP.rows,
     tick: 0,
-    capitalCents: WORKSHOP.initialCapitalCents,
+    capitalCents: mode === 'career' ? CAREER.initialCapitalCents : WORKSHOP.initialCapitalCents,
     nextMachineId: 1,
     nextItemId: 1,
     machines: [],
@@ -198,7 +206,7 @@ export function createWorld(mode: 'sandbox' | 'progression' = 'sandbox'): World 
     belts: {},
     routers: {},
     production: {},
-    progress: createProgress(mode === 'sandbox'),
+    progress: mode === 'career' ? createCareerProgress() : createProgress(mode === 'sandbox'),
     sales: { active: null, completed: [] },
     design: null,
     deliveries: [],
@@ -325,7 +333,7 @@ export function floorCost(world: World, tiles: readonly Tile[], floor: FloorType
 
 /** Buying land opens at a milestone in progression; the parcel must be next to the owned land. */
 export function landUnlocked(progress: Progress): boolean {
-  return progress.sandbox || progress.completed.includes(LAND.requiredFrom);
+  return progress.sandbox || progress.career !== undefined || progress.completed.includes(LAND.requiredFrom);
 }
 
 export function checkParcel(world: World, parcel: number): CommandError | null {
@@ -415,7 +423,64 @@ function withoutKey<T>(record: Readonly<Record<string, T>>, key: number): Readon
   return copy;
 }
 
+function withCareer(world: World, career: CareerState, capitalCents = world.capitalCents): World {
+  return { ...world, capitalCents, progress: { ...world.progress, career } };
+}
+
+/** Career commands: the specialty, loans and licences. */
+type CareerCommand = Extract<Command, { kind: 'choose-specialty' | 'take-loan' | 'repay-loan' | 'buy-tech' }>;
+
+function applyCareer(world: World, command: CareerCommand): CommandResult {
+  const career = world.progress.career;
+  if (command.kind === 'choose-specialty') {
+    if (!career) return { ok: false, reason: 'not-career' };
+    if (career.specialty !== null || !SPECIALTIES.includes(command.specialty)) return { ok: false, reason: 'specialty-chosen' };
+    return { ok: true, machine: null, world: withCareer(world, { ...career, specialty: command.specialty, technologies: [command.specialty] }) };
+  }
+  if (command.kind === 'take-loan') {
+    if (!career) return { ok: false, reason: 'not-career' };
+    if (!loanAvailable(career, command.offer)) return { ok: false, reason: 'loan-unavailable' };
+    const offer = LOANS[command.offer];
+    return {
+      ok: true, machine: null,
+      world: withCareer(world, {
+        ...career,
+        loans: [...career.loans, { offer: command.offer, remaining: offer.months }],
+        borrowedCents: career.borrowedCents + offer.principalCents,
+      }, world.capitalCents + offer.principalCents),
+    };
+  }
+  if (command.kind === 'repay-loan') {
+    if (!career) return { ok: false, reason: 'not-career' };
+    const loan = career.loans.find(candidate => candidate.offer === command.offer);
+    if (!loan) return { ok: false, reason: 'loan-unavailable' };
+    const cost = payoff(loan);
+    if (world.capitalCents < cost) return { ok: false, reason: 'insufficient-funds' };
+    return {
+      ok: true, machine: null,
+      world: withCareer(world, {
+        ...career, loans: career.loans.filter(candidate => candidate !== loan), repaidCents: career.repaidCents + cost,
+      }, world.capitalCents - cost),
+    };
+  }
+  {
+    if (!career) return { ok: false, reason: 'not-career' };
+    if (!techAvailable(career, command.tech)) return { ok: false, reason: 'tech-unavailable' };
+    const cost = TECHNOLOGIES[command.tech].costCents;
+    if (world.capitalCents < cost) return { ok: false, reason: 'insufficient-funds' };
+    return {
+      ok: true, machine: null,
+      world: withCareer(world, { ...career, technologies: [...career.technologies, command.tech] }, world.capitalCents - cost),
+    };
+  }
+}
+
 export function applyCommand(world: World, command: Command): CommandResult {
+  // A bankrupt company is frozen: the game is over.
+  if (world.progress.career?.bankrupt) return { ok: false, reason: 'bankrupt' };
+  if (command.kind === 'choose-specialty' || command.kind === 'take-loan' || command.kind === 'repay-loan' || command.kind === 'buy-tech') {
+    return applyCareer(world, command);
+  }
   if (command.kind === 'publish-design') {
     if (!modelUnlocked(world.progress, 'custom')) return { ok: false, reason: 'locked' };
     const parsed = pcDesignSchema.safeParse(command.spec);

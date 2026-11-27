@@ -2,11 +2,15 @@
 
 *From components to an industrial empire.*
 
-Jeu de gestion industrielle informatique en 2D, solo et jouable dans un navigateur. On construit un atelier de 64 × 64 tuiles, agrandissable par parcelles jusqu’à 128 × 128, avec un capital initial de 25 000 €, on commande des composants, on assemble, teste et emballe des PC sur des chaînes de convoyeurs, et on livre des pièces à la Direction pour débloquer de nouveaux équipements, palier après palier. Le mode bac à sable débloque tout dès le départ.
+Jeu de gestion industrielle électronique et informatique en 2D, solo et jouable dans un navigateur. En mode **Carrière**, on part de zéro : un prêt à la banque, une spécialité (composants passifs, circuits imprimés ou énergie), puis des licences pour fabriquer des cartes électroniques et enfin des ordinateurs. L’atelier fait 64 × 64 tuiles et s’agrandit par parcelles jusqu’à 128 × 128. Le mode **Classique** démarre avec 25 000 € pour assembler des PC et débloquer des équipements palier après palier ; le **bac à sable** débloque tout dès le départ.
 
 ## Langues
 
 Français, English, Español, Deutsch, 简体中文, 日本語. Le jeu suit la langue du système au premier lancement ; le sélecteur **Langue** du menu principal permet d’en changer. Les montants s’affichent dans la monnaie de la langue (€, $, £, ¥ pour le yuan comme pour le yen) ; le sélecteur **Devise** en impose une autre.
+
+## Apprendre à jouer
+
+Le mode **Carrière** démarre avec un tutoriel guidé dans le jeu. Le guide écrit est dans **[Comment jouer](docs/HOW_TO_PLAY.md)**.
 
 ## Installer le jeu
 

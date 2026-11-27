@@ -90,9 +90,23 @@ const recipes: Record<StandardModel, Partial<Record<MachineType, Recipe>>> = {
   professional: PROFESSIONAL_RECIPES,
 };
 
+/** Career component machines: one recipe each, whatever the PC model setting. */
+export const COMPONENT_RECIPES = {
+  'capacitor-press': { inputs: { 'ceramic-powder': 2, 'copper-foil': 1 }, output: 'capacitor-reel', ticks: 240 },
+  'pcb-etcher': { inputs: { 'fiberglass-sheet': 1, 'copper-foil': 2 }, output: 'bare-pcb', ticks: 300 },
+  'coil-winder': { inputs: { 'copper-foil': 2, 'ferrite-core': 2 }, output: 'transformer', ticks: 400 },
+  'smt-line': { inputs: { 'bare-pcb': 1, 'capacitor-reel': 2, transformer: 1 }, output: 'circuit-board', ticks: 600 },
+} as const satisfies Partial<Record<MachineType, Recipe>>;
+export type ComponentMachine = keyof typeof COMPONENT_RECIPES;
+
+export function isComponentMachine(type: MachineType): type is ComponentMachine {
+  return type in COMPONENT_RECIPES;
+}
+
 export function recipeOf(
   type: MachineType, model: ProductModel = 'office', design?: PublishedDesign | null,
 ): Recipe | undefined {
+  if (isComponentMachine(type)) return COMPONENT_RECIPES[type];
   if (model !== 'custom') return recipes[model]?.[type];
   if (!design) return undefined;
   if (type === 'assembler') return { inputs: designParts(design.spec), output: 'pc-custom', ticks: 900 };

@@ -5,13 +5,14 @@ import { BACKUP_LIMIT_BYTES, downloadBackup, parseBackup } from '../persistence/
 import { addSave, listSaves, loadSave, removeSave } from '../persistence/indexed-saves';
 import { MAX_WORKSHOP_NAME, createSaveId } from '../persistence/save-data';
 import { CURRENCIES, LOCALES, LOCALE_NAMES, resolveCurrency, setCurrency, setLocale, useCurrencyChoice, useI18n } from '../i18n';
+import type { GameMode } from '@silicon-empire/simulation';
 import type { CurrencyChoice } from '../i18n';
 import { Dialog, Icon } from './shared';
 import { UpdatePanel } from './UpdatePanel';
 import type { SaveRecord } from '../persistence/save-data';
 
 export function MainMenu({ onNewGame, onResume }: {
-  onNewGame: (name: string, sandbox: boolean) => void;
+  onNewGame: (name: string, mode: GameMode) => void;
   onResume: (save: SaveRecord) => void;
 }) {
   const [saves, setSaves] = useState<SaveRecord[] | null>(null);
@@ -139,14 +140,23 @@ export function MainMenu({ onNewGame, onResume }: {
             event.preventDefault();
             const form = new FormData(event.currentTarget);
             const name = form.get('name');
-            onNewGame(typeof name === 'string' && name.trim() ? name.trim() : t.menu.defaultName, form.get('sandbox') === 'on');
+            const mode = form.get('mode');
+            onNewGame(
+              typeof name === 'string' && name.trim() ? name.trim() : t.menu.defaultName,
+              mode === 'sandbox' || mode === 'progression' ? mode : 'career',
+            );
           }}>
             <label htmlFor="workshop-name">{t.menu.nameLabel}</label>
             <input id="workshop-name" name="name" placeholder={t.menu.defaultName} maxLength={MAX_WORKSHOP_NAME} autoComplete="off" disabled={busy} />
-            <label className="sandbox-option">
-              <input type="checkbox" name="sandbox" disabled={busy} />
-              <span><strong>{t.menu.sandbox}</strong> {t.menu.sandboxHint}</span>
-            </label>
+            <fieldset className="mode-options">
+              <legend>{t.menu.mode}</legend>
+              {(['career', 'progression', 'sandbox'] as const).map(mode => (
+                <label className="sandbox-option" key={mode}>
+                  <input type="radio" name="mode" value={mode} defaultChecked={mode === 'career'} disabled={busy} />
+                  <span><strong>{t.menu.modes[mode].name}</strong> {t.menu.modes[mode].hint}</span>
+                </label>
+              ))}
+            </fieldset>
             <button className="button button-primary new-game-button" disabled={busy}>
               {t.menu.newGame} <Icon name="arrow" />
             </button>
@@ -172,7 +182,11 @@ export function MainMenu({ onNewGame, onResume }: {
                       onClick={() => void resume(record.id)}
                     >
                       <span className="save-row-info">
-                        <strong>{record.name}{record.world.progress.sandbox && <em className="save-badge">{t.menu.sandboxBadge}</em>}</strong>
+                        <strong>
+                          {record.name}
+                          {record.world.progress.sandbox && <em className="save-badge">{t.menu.sandboxBadge}</em>}
+                          {record.world.progress.career && <em className="save-badge">{t.menu.careerBadge}</em>}
+                        </strong>
                         <small>{date(record.savedAt)} · {money(record.world.capitalCents)}</small>
                       </span>
                       <Icon name="arrow" />

@@ -1,6 +1,7 @@
-import { PRODUCT_MODELS, WORKSHOP, saleOffer } from '@silicon-empire/game-data';
-import { modelUnlocked, rewardsEarned, salesAccounts } from '@silicon-empire/simulation';
+import { CAREER, PRODUCT_MODELS, WORKSHOP, saleOffer } from '@silicon-empire/game-data';
+import { landSpent, modelUnlocked, rewardsEarned, salesAccounts, techSpent } from '@silicon-empire/simulation';
 import { useI18n } from '../i18n';
+import { MarketPrices } from './CareerPanels';
 import { Dialog } from './shared';
 import type { SaleTerms } from '@silicon-empire/game-data';
 import type { World } from '@silicon-empire/simulation';
@@ -34,7 +35,10 @@ export function SalesPanel({ world, controls }: { world: World; controls: Worksh
   const { revenueCents, materialCents } = salesAccounts(world.sales);
   const grants = rewardsEarned(world.progress);
   const purchases = world.ledger.purchaseSpentCents;
-  const investment = WORKSHOP.initialCapitalCents + revenueCents + grants - purchases - world.capitalCents;
+  const career = world.progress.career;
+  // Net construction: what is neither in the till nor spent on parts, wages, land, loans or licences.
+  const investment = (career ? CAREER.initialCapitalCents + career.borrowedCents + career.marketRevenueCents - career.repaidCents - techSpent(career)
+    : WORKSHOP.initialCapitalCents) + revenueCents + grants - purchases - world.staff.paidCents - landSpent(world) - world.capitalCents;
   const active = world.sales.active;
   const latest = world.sales.completed.at(-1);
   const dock = world.machines.some(machine => machine.type === 'shipping');
@@ -75,6 +79,7 @@ export function SalesPanel({ world, controls }: { world: World; controls: Worksh
           </ul>
         )}
       </section>
+      {career && <MarketPrices career={career} />}
       <section className="tier" aria-label={t.trade.finance}>
         <h3>{t.trade.finance}</h3>
         <dl className="machine-stats">

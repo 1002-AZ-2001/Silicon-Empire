@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.10.0 — Mode Carrière et tutoriel
+
+- Nouveau mode **Carrière**, choisi par défaut : l’entreprise démarre avec 0 €. Les modes **Classique** (l’ancienne progression) et **Bac à sable** restent proposés dans le menu.
+- Choix d’une **spécialité** de départ, gratuite : composants passifs (presse à condensateurs), circuits imprimés (graveuse) ou énergie (bobineuse). Quatre matières premières arrivent à la boutique : poudre céramique, feuille de cuivre, stratifié verre-époxy et noyau de ferrite.
+- **Banque** : trois prêts (20 000 € à 4 % sur 24 mois, 50 000 € à 6 % sur 24 mois, 100 000 € à 9 % sur 36 mois). Mensualités prélevées à chaque mois de jeu, remboursement anticipé du capital restant, faillite après trois mensualités impayées d’affilée.
+- Le quai d’expédition vend les composants au **grossiste**, à prix fixe : bobine de condensateurs 140 €, circuit imprimé nu 180 €, transformateur 240 €, carte électronique 900 €.
+- **Technologies** : licences des autres spécialités (20 000 €), assemblage de cartes CMS (40 000 €, deux spécialités) avec la ligne CMS, puis assemblage d’ordinateurs (80 000 €) qui ouvre les machines et composants de PC.
+- **Tutoriel guidé** en neuf étapes, en surimpression sur la carte, avec surbrillance du bouton ou de l’outil concerné ; masquable et relançable. Guide écrit : `docs/HOW_TO_PLAY.md`.
+- Un stock relié par convoyeurs à une machine de production envoie l’ingrédient qui lui manque, en tenant compte des unités déjà en route, et n’envoie rien quand la machine n’a besoin d’aucun des articles stockés. Un seul quai peut ainsi nourrir une recette à plusieurs ingrédients sans bloquer le convoyeur.
+- La barre de construction tient sur deux lignes qui défilent latéralement : les nouveaux équipements ne réduisent plus la carte.
+- La trésorerie du panneau Ventes déduit aussi les salaires, le terrain, les emprunts et les licences de la construction nette.
+- La sauvegarde v13 enregistre la carrière. Les ateliers précédents s’ouvrent en mode Classique ou Bac à sable, comme avant.
+
 ## 0.9.1 — Parcelles
 
 - Le terrain fait maintenant 128 × 128 tuiles, découpé en 16 parcelles de 32 × 32. Un atelier commence avec les 4 parcelles du nord-ouest, soit le 64 × 64 des versions précédentes.

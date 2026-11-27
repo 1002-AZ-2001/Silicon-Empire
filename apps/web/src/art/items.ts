@@ -1,3 +1,11 @@
+import fiberglassSheet from './items/fiberglass-sheet.png';
+import barePcb from './items/bare-pcb.png';
+import capacitorReel from './items/capacitor-reel.png';
+import ceramicPowder from './items/ceramic-powder.png';
+import circuitBoard from './items/circuit-board.png';
+import copperFoil from './items/copper-foil.png';
+import ferriteCore from './items/ferrite-core.png';
+import transformer from './items/transformer.png';
 import carton from './items/carton.png';
 import caseStandard from './items/case-standard.png';
 import cpu from './items/cpu-8c.png';
@@ -49,4 +57,12 @@ export const ITEM_ART: Record<ItemType, string> = {
   'pc-professional-tested': pcProfessionalTested,
   'pc-professional-packaged': pcProfessionalPackaged,
   'pc-professional-rejected': pcProfessionalRejected,
+  'ceramic-powder': ceramicPowder,
+  'copper-foil': copperFoil,
+  'fiberglass-sheet': fiberglassSheet,
+  'ferrite-core': ferriteCore,
+  'capacitor-reel': capacitorReel,
+  'bare-pcb': barePcb,
+  transformer,
+  'circuit-board': circuitBoard,
 };

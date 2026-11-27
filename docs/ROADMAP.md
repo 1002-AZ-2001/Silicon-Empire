@@ -55,7 +55,9 @@ L’assembleur et le banc de test restent sans ports ni inventaire jusqu’à la
 
 **v0.9.1** agrandit le terrain à 128 × 128 tuiles et vend les parcelles voisines de l’atelier.
 
-Ordre retenu ensuite, une version par étape : une carte du monde pour ouvrir des usines dans d’autres pays, conception de composants maison (CPU, GPU, RAM, carte mère), concurrents simulés sur le marché. L’électricité, la maintenance et le confort de construction suivront.
+**v0.10.0** ajoute le mode Carrière (prêt, spécialité, composants, licences, vente au grossiste) et le tutoriel guidé.
+
+Ordre retenu ensuite, une version par étape : puces (semi-conducteurs) et chaîne complète jusqu’aux ordinateurs en carrière, une carte du monde pour ouvrir des usines dans d’autres pays, conception de composants maison (CPU, GPU, RAM, carte mère), concurrents simulés sur le marché. L’électricité, la maintenance et le confort de construction suivront.
 
 La version 0.2.0 publie la tranche 1 avec l’application de bureau (Windows, Debian, Arch, AppImage) et ses mises à jour. La version 0.2.1 publie la tranche 2.
 

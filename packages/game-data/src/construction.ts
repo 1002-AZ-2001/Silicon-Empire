@@ -41,6 +41,7 @@ export const MACHINE_TYPES = [
   'storage', 'assembler', 'tester', 'receiving', 'conveyor', 'splitter', 'merger',
   'packager', 'warehouse', 'conveyor-fast', 'headquarters', 'shipping', 'lab', 'conveyor-express',
   'wall', 'door', 'sofa', 'coffee', 'desk', 'air-filter',
+  'capacitor-press', 'pcb-etcher', 'coil-winder', 'smt-line',
 ] as const;
 export type MachineType = (typeof MACHINE_TYPES)[number];
 
@@ -229,4 +230,20 @@ export const MACHINES = z.record(z.enum(MACHINE_TYPES), machineDefinition.readon
   coffee: { width: 1, height: 1, costCents: 60_000, capacity: 0, ports: [] },
   desk: { width: 2, height: 1, costCents: 80_000, capacity: 0, ports: [] },
   'air-filter': { width: 1, height: 1, costCents: 250_000, capacity: 0, ports: [] },
+  'capacitor-press': {
+    width: 2, height: 2, costCents: 600_000, capacity: 0,
+    ports: [{ kind: 'input', side: 2, offset: 0 }, { kind: 'output', side: 0, offset: 1 }],
+  },
+  'pcb-etcher': {
+    width: 2, height: 2, costCents: 800_000, capacity: 0,
+    ports: [{ kind: 'input', side: 2, offset: 0 }, { kind: 'output', side: 0, offset: 1 }],
+  },
+  'coil-winder': {
+    width: 2, height: 2, costCents: 900_000, capacity: 0,
+    ports: [{ kind: 'input', side: 2, offset: 0 }, { kind: 'output', side: 0, offset: 1 }],
+  },
+  'smt-line': {
+    width: 3, height: 2, costCents: 2_500_000, capacity: 0,
+    ports: [{ kind: 'input', side: 2, offset: 0 }, { kind: 'input', side: 2, offset: 2 }, { kind: 'output', side: 0, offset: 1 }],
+  },
 } satisfies Record<MachineType, z.input<typeof machineDefinition>>);

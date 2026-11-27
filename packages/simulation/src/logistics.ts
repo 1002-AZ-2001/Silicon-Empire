@@ -10,6 +10,7 @@ import { RESEARCH } from '@silicon-empire/game-data';
 import { capacityOf, researchPartsDone, researchStillNeeded } from './research';
 import type { ResearchState } from './research';
 import { acceptsSale } from './sales';
+import { advanceCareer, marketPrice, sellToMarket } from './career';
 import { advanceStaff, assignBaseOperators, batchTicks, operatorOf, staffRequired } from './staff';
 import { poolSizeOf, rejectionFor, staffRested } from './rooms';
 import { ROUTER_SIDES, footprintOf } from './world';
@@ -180,6 +181,56 @@ function computeLinks(world: Layout): Links {
   return { conveyors, outputs, routers, producers, feeds, speeds };
 }
 
+/** Conveyors from an output belt to the place its units end up, and that place if it is a machine stock. */
+interface FeedChain {
+  readonly belts: readonly number[];
+  readonly stock: number | null;
+}
+
+const chainCache = new WeakMap<Links, Map<number, FeedChain>>();
+
+function feedChain(links: Links, belt: number): FeedChain {
+  let chains = chainCache.get(links);
+  if (!chains) {
+    chains = new Map();
+    chainCache.set(links, chains);
+  }
+  const cached = chains.get(belt);
+  if (cached) return cached;
+  const targets = new Map(links.conveyors.map(conveyor => [conveyor.id, conveyor.target]));
+  const belts: number[] = [];
+  let current: number | null = belt;
+  let stock: number | null = null;
+  while (current !== null && !belts.includes(current)) {
+    belts.push(current);
+    const target: BeltTarget | null | undefined = targets.get(current);
+    current = target?.kind === 'belt' ? target.id : null;
+    if (target?.kind === 'stock') stock = target.id;
+  }
+  const chain = { belts, stock };
+  chains.set(belt, chain);
+  return chain;
+}
+
+/**
+ * Item a stock sends down a conveyor line that ends at a production machine: the ingredient the
+ * machine lacks most once the units already on the line arrive. Nothing is sent when the machine
+ * needs none of the stocked items, so a full ingredient cannot block the line for the others.
+ */
+function neededItem(stock: Inventory, recipe: Recipe, machineStock: Inventory, inTransit: Inventory): ItemType | undefined {
+  let best: ItemType | undefined;
+  let bestRoom = 0;
+  for (const item of ITEM_TYPES) {
+    if ((stock[item] ?? 0) === 0 || (recipe.inputs[item] ?? 0) === 0) continue;
+    const room = inputRoom(recipe, machineStock, item) - (inTransit[item] ?? 0);
+    if (room > bestRoom) {
+      best = item;
+      bestRoom = room;
+    }
+  }
+  return best;
+}
+
 export function linksOf(world: Layout): Links {
   const cached = linkCache.get(world.machines);
   if (cached && cached.design === world.design) return cached.links;
@@ -206,7 +257,9 @@ export function canReceive(
   const machine = world.machines.find(candidate => candidate.id === id);
   if (!machine) return false;
   if (machine.type === 'headquarters') return stillNeeded(world.progress, item) > 0;
-  if (machine.type === 'shipping') return acceptsSale(world.sales, item);
+  if (machine.type === 'shipping') {
+    return acceptsSale(world.sales, item) || (world.progress.career !== undefined && marketPrice(item) !== undefined);
+  }
   if (machine.type === 'lab') return researchStillNeeded(world.research, item) > 0;
   const stock = world.stocks[id] ?? {};
   const recipe = recipeOf(machine.type, machine.model, world.design);
@@ -241,6 +294,8 @@ function batchOutput(recipe: Recipe, produced: Inventory, every: number | null):
  * A unit that changed place during the tick does not move again before the next tick.
  */
 export function step(world: World): World {
+  // A bankrupt company is frozen: the game is over.
+  if (world.progress.career?.bankrupt) return world;
   const { lengthUnits, spacingUnits } = CONVEYOR;
   const links = linksOf(world);
   const machines = new Map(world.machines.map(machine => [machine.id, machine]));
@@ -307,6 +362,10 @@ export function step(world: World): World {
         delivered: { ...research.delivered, [active]: addItems(research.delivered[active] ?? {}, unit.item, 1) },
       };
       record({ delivered: addItems(ledger.delivered, unit.item, 1) });
+    } else if (machines.get(target.id)?.type === 'shipping' && progress.career && !acceptsSale(sales, unit.item)) {
+      // The wholesaler buys career components at the market price, one unit at a time.
+      capitalCents += marketPrice(unit.item) ?? 0;
+      progress = { ...progress, career: sellToMarket(progress.career, unit.item) };
     } else if (machines.get(target.id)?.type === 'shipping' && sales.active) {
       const { terms, delivered } = sales.active;
       const total = delivered + 1;
@@ -435,12 +494,22 @@ export function step(world: World): World {
     if (batch !== previous.batch || output !== previous.output) setProduction(id, { batch, output });
   }
 
+  const producerRecipes = new Map(links.producers.map(producer => [producer.id, producer.recipe]));
   for (const { id, belt, product } of links.outputs) {
     // Each production port releases its own finished item. Ordinary storage releases mixed stock.
     const fromProduction = product ? production[id] ?? IDLE : null;
-    const item = product
-      ? (fromProduction?.output[product] ?? 0) > 0 ? product : undefined
-      : mostStocked(stocks[id] ?? {});
+    let item: ItemType | undefined;
+    if (product) item = (fromProduction?.output[product] ?? 0) > 0 ? product : undefined;
+    else {
+      const chain = feedChain(links, belt);
+      const consumer = chain.stock === null ? undefined : producerRecipes.get(chain.stock);
+      if (consumer && chain.stock !== null) {
+        const inTransit = chain.belts.reduce<Inventory>(
+          (units, conveyor) => (belts[conveyor] ?? []).reduce((total, unit) => addItems(total, unit.item, 1), units), {},
+        );
+        item = neededItem(stocks[id] ?? {}, consumer, stocks[chain.stock] ?? {}, inTransit);
+      } else item = mostStocked(stocks[id] ?? {});
+    }
     if (!item || !beltHasRoom(belts[belt]) || nextItemId >= Number.MAX_SAFE_INTEGER) continue;
     if (fromProduction) setProduction(id, { ...fromProduction, output: addItems(fromProduction.output, item, -1) });
     else setStock(id, current => addItems(current, item, -1));
@@ -470,6 +539,12 @@ export function step(world: World): World {
     progress = { ...progress, completed: [...progress.completed, done], active: null, delivered };
     capitalCents += MILESTONES[done].rewardCents;
     if (!required && staffRequired(progress)) staff = assignBaseOperators(staff, world.machines);
+  }
+
+  if (progress.career) {
+    let career;
+    ({ career, capitalCents } = advanceCareer(progress.career, tick, capitalCents));
+    if (career !== progress.career) progress = { ...progress, career };
   }
 
   ({ staff, capitalCents } = advanceStaff(staff, tick, capitalCents, () => ({
