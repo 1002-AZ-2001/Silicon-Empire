@@ -51,7 +51,9 @@ export const MILESTONES: Readonly<Record<MilestoneId, Milestone>> = {
   packaging: {
     tier: 1,
     cost: { 'pc-office-tested': 20 },
-    unlocks: { machines: ['packager', 'shipping'], items: ['carton', 'psu-450'], models: ['custom'] },
+    unlocks: {
+      machines: ['packager', 'shipping', 'wall', 'door', 'sofa', 'coffee', 'desk'], items: ['carton', 'psu-450'], models: ['custom'],
+    },
     rewardCents: 1_200_000,
   },
   warehouse: {
@@ -82,7 +84,7 @@ export const MILESTONES: Readonly<Record<MilestoneId, Milestone>> = {
   'gaming-tournament': {
     tier: 3,
     cost: { 'pc-gaming-packaged': 20 },
-    unlocks: { machines: [], items: ['ram-32g', 'ssd-2t'], models: ['professional'] },
+    unlocks: { machines: ['air-filter'], items: ['ram-32g', 'ssd-2t'], models: ['professional'] },
     rewardCents: 2_200_000,
   },
   'professional-rollout': {

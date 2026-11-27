@@ -7,3 +7,4 @@ export * from './design';
 export * from './suppliers';
 export * from './research';
 export * from './staff';
+export * from './rooms';

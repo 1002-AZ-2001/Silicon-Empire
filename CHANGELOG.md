@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.0 — Murs, sols et pièces
+
+- Nouveaux éléments de construction : mur (20 €, tracé au glisser comme un convoyeur), porte (150 €), canapé (400 €, 2 × 1), machine à café (600 €), bureau de travail (800 €, 2 × 1) et filtre à air (2 500 €).
+- Sols peints au glisser, sous les machines : carrelage (10 € la tuile), parquet (15 €) et sol de salle blanche (40 €). Le béton nu retire un revêtement gratuitement.
+- Une zone entourée de murs et de portes, qui ne touche pas le bord de la carte et fait de 4 à 400 tuiles, devient une pièce. Son type dépend du mobilier :
+  - **salle blanche** : un filtre à air et le sol de salle blanche sur toutes les tuiles. Les bancs de test entièrement à l’intérieur écartent deux fois moins de PC professionnels ;
+  - **bureau** : chaque bureau de travail ajoute un candidat aux prochains viviers, trois au plus ;
+  - **salle de repos** : un canapé et une machine à café. Chaque canapé assoit 4 employés. Si tout le personnel a une place, une paie versée donne +20 de moral au lieu de +10, et une paie manquée retire 25 au lieu de 40.
+- Les pièces sont teintées et nommées sur la carte. L’inspecteur d’un meuble indique sa pièce et son effet ; le panneau Personnel résume les places assises et les candidats en plus.
+- En progression, murs, portes, sols, canapé, café et bureau s’ouvrent au Conditionnement, le filtre à air au tournoi de Valmont.
+- La sauvegarde v11 enregistre les sols. Les ateliers précédents reprennent sur béton nu.
+
 ## 0.8.0 — Personnel
 
 - Le panneau **Personnel** propose cinq candidats fictifs avec un niveau de 1 à 5 et un salaire demandé entre 85 % et 115 % du salaire de leur niveau. Le vivier se renouvelle toutes les 3 minutes simulées ; il est identique dans toutes les parties.

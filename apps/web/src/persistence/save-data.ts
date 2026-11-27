@@ -6,7 +6,7 @@ import { ROTATIONS, ROUTER_SIDES, checkIntegrity, createStaff, withRequiredStaff
 import { z } from 'zod';
 import type { World } from '@silicon-empire/simulation';
 
-export const SAVE_VERSION = 10;
+export const SAVE_VERSION = 11;
 export const MAX_WORKSHOP_NAME = 40;
 
 export function createSaveId(): string {
@@ -296,7 +296,7 @@ const tick = z.int().positive().max(Number.MAX_SAFE_INTEGER);
 
 /** Version 10 (v0.8.0): staff, candidate pool and salaries. */
 const saveV10 = z.strictObject({
-  version: z.literal(SAVE_VERSION),
+  version: z.literal(10),
   ...header,
   world: z.strictObject({
     ...saveV9.shape.world.shape,
@@ -304,13 +304,25 @@ const saveV10 = z.strictObject({
       employees: z.array(z.strictObject({
         id: count, ...person, morale: z.int().min(1).max(100), machineId: count.nullable(),
       })).max(STAFF.maxEmployees),
-      candidates: z.array(z.strictObject({ id: z.int().nonnegative().max(Number.MAX_SAFE_INTEGER), ...person })).max(STAFF.poolSize),
+      candidates: z.array(z.strictObject({ id: z.int().nonnegative().max(Number.MAX_SAFE_INTEGER), ...person })).max(STAFF.maxPoolSize),
       pool: z.int().nonnegative().max(Number.MAX_SAFE_INTEGER),
       nextEmployeeId: count,
       paidCents: z.int().nonnegative().max(Number.MAX_SAFE_INTEGER),
       nextPayday: tick,
       nextPool: tick,
     }),
+  }),
+});
+
+const tileIndex = z.string().regex(/^(0|[1-9][0-9]{0,15})$/);
+
+/** Version 11 (v0.9.0): walls, doors, furniture and painted floors. */
+const saveV11 = z.strictObject({
+  version: z.literal(SAVE_VERSION),
+  ...header,
+  world: z.strictObject({
+    ...saveV10.shape.world.shape,
+    floors: z.record(tileIndex, z.enum(['tiles', 'wood', 'clean'])),
   }),
 });
 
@@ -340,11 +352,17 @@ function migrateV8(value: unknown): z.input<typeof saveV9> | null {
 function migrateV9(value: unknown): unknown {
   const v9 = saveV9.safeParse(value);
   if (!v9.success) return null;
-  const world = withRequiredStaff({ ...v9.data.world, staff: createStaff(v9.data.world.tick) });
-  return { ...v9.data, version: SAVE_VERSION, world };
+  const { staff } = withRequiredStaff({ ...v9.data.world, staff: createStaff(v9.data.world.tick), floors: {} });
+  return { ...v9.data, version: 10, world: { ...v9.data.world, staff } };
 }
 
-const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9];
+/** Older workshops have bare concrete everywhere. */
+function migrateV10(value: unknown): z.input<typeof saveV11> | null {
+  const v10 = saveV10.safeParse(value);
+  return v10.success ? { ...v10.data, version: SAVE_VERSION, world: { ...v10.data.world, floors: {} } } : null;
+}
+
+const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9, migrateV10];
 
 function versionOf(value: unknown): unknown {
   return typeof value === 'object' && value !== null && 'version' in value ? value.version : undefined;
@@ -357,7 +375,7 @@ export function decodeSave(value: unknown): SaveRecord | null {
   if (typeof version === 'number' && Number.isInteger(version) && version >= 1) {
     for (const migrate of migrations.slice(version - 1)) current = migrate(current);
   }
-  const decoded = saveV10.safeParse(current);
+  const decoded = saveV11.safeParse(current);
   if (!decoded.success) return null;
 
   const { data } = decoded;

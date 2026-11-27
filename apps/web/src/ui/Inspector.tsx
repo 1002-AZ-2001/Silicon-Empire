@@ -1,25 +1,26 @@
 import {
-  CONVEYOR, ITEMS, ITEM_TYPES, MACHINES, MK2, PRODUCTION, PRODUCT_MODELS, PURCHASE, SUPPLIER_IDS, isConveyor, recipeOf,
+  CONVEYOR, ITEMS, ITEM_TYPES, MACHINES, MK2, PRODUCTION, PRODUCT_MODELS, PURCHASE, ROOMS, SUPPLIER_IDS, isConveyor, isFurniture,
+  isLineType, recipeOf,
 } from '@silicon-empire/game-data';
 import {
-  ROUTER_SIDES, batchTicks, beltStatus, beltTarget, checkBuild, checkLine, checkOrder, checkProductModel, footprintOf,
-  inventoryTotal, lineCost, modelUnlocked, operatorOf, operatorRejection, orderCost, orderableItems, portConnections, portsOf,
-  productionStatus, rejectionEvery, routerLinks,
+  ROUTER_SIDES, batchTicks, beltStatus, beltTarget, checkBuild, checkFloor, checkLine, checkOrder, checkProductModel, footprintOf,
+  floorCost, inventoryTotal, lineCost, modelUnlocked, operatorOf, orderCost, orderableItems, portConnections, portsOf,
+  productionStatus, rejectionFor, roomOfMachine, routerLinks,
   upgradeUnlocked,
 } from '@silicon-empire/simulation';
 import { useState } from 'react';
 import { useStore } from 'zustand';
 import { ITEM_ART } from '../art/items';
 import { MACHINE_ART } from '../art/machines';
-import { isBuildTool } from '../game/controls';
+import { floorOf, isBuildTool } from '../game/controls';
 import { useI18n } from '../i18n';
 import { MilestoneParts } from './ProgressionPanel';
 import { AnalysisProgress, ResearchParts } from './ResearchPanel';
 import { ShippingDetails } from './SalesPanel';
 import { Icon, gameTime } from './shared';
-import type { ItemType, ProductModel, SupplierId } from '@silicon-empire/game-data';
+import type { ItemType, LineType, ProductModel, SupplierId } from '@silicon-empire/game-data';
 import type { Inventory, Machine, Placement, RouterSide, World } from '@silicon-empire/simulation';
-import type { WorkshopControls } from '../game/controls';
+import type { Tool, WorkshopControls } from '../game/controls';
 
 const UNITS_PER_BELT = Math.ceil(CONVEYOR.lengthUnits / CONVEYOR.spacingUnits);
 
@@ -80,6 +81,23 @@ function RouterDetails({ world, machine }: { world: World; machine: Machine }) {
   );
 }
 
+function RoomDetails({ world, machine }: { world: World; machine: Machine }) {
+  const { t } = useI18n();
+  const room = roomOfMachine(world, machine);
+  if (!room) return <div className="room-details"><p className="placement-status">{t.rooms.outside}</p></div>;
+  const effect = room.type === 'clean-room' ? t.rooms.effects['clean-room'](ROOMS.cleanRejectionFactor)
+    : room.type === 'office' ? t.rooms.effects.office(Math.min(ROOMS.maxExtraCandidates, room.desks))
+      : room.type === 'break-room' ? t.rooms.effects['break-room'](room.sofas * ROOMS.seatsPerSofa)
+        : t.rooms.effects.empty;
+  return (
+    <div className="room-details">
+      <h4 className="inspector-subtitle">{t.rooms.room}</h4>
+      <p><strong>{t.rooms.types[room.type]}</strong> · {t.rooms.size(room.tiles.length)}</p>
+      <p>{effect}</p>
+    </div>
+  );
+}
+
 function LabDetails({ world, controls }: { world: World; controls: WorkshopControls }) {
   const { t } = useI18n();
   const { active, analysing } = world.research;
@@ -132,7 +150,7 @@ function ProductionDetails({ world, machine, controls }: { world: World; machine
   const operator = operatorOf(world.staff, machine.id);
   const duration = batchTicks(recipe, machine, operator?.skill);
   const done = state?.batch ? Math.max(0, duration - state.batch.remaining) : 0;
-  const every = operatorRejection(rejectionEvery(world.progress, world.research, recipe), operator?.skill);
+  const every = rejectionFor(world, machine, recipe);
   const output = state?.output[recipe.output] ?? 0;
   const rejection = recipe.rejection;
   const rejectPort = rejection && portConnections(world, machine).find(port => port.kind === 'reject');
@@ -232,19 +250,22 @@ function HeadquartersDetails({ world, controls }: { world: World; controls: Work
   );
 }
 
-function LinePreview({ world, line, type }: {
+function LinePreview({ world, line, tool }: {
   world: World;
   line: NonNullable<ReturnType<WorkshopControls['store']['getState']>['line']>;
-  type: 'conveyor' | 'conveyor-fast';
+  tool: Tool;
 }) {
-  const error = checkLine(world, line, type);
+  const floor = floorOf(tool);
+  const type: LineType = isBuildTool(tool) && isLineType(tool) ? tool : 'conveyor';
+  const error = floor ? checkFloor(world, line, floor) : checkLine(world, line, type);
+  const cost = floor ? floorCost(world, line, floor) : lineCost(line.length, type);
   const { t, money } = useI18n();
   return (
     <div className="inspector-detail">
       <h3>{t.inspector.line}</h3>
       <dl className="machine-stats">
         <div><dt>{t.inspector.length}</dt><dd>{t.inspector.lineTiles(line.length)}</dd></div>
-        <div><dt>{t.inspector.cost}</dt><dd aria-label={t.inspector.lineCost}>{money(lineCost(line.length, type))}</dd></div>
+        <div><dt>{t.inspector.cost}</dt><dd aria-label={t.inspector.lineCost}>{money(cost)}</dd></div>
       </dl>
       <p className={error ? 'placement-status text-error' : 'placement-status'}>
         {error ? t.errors[error] : t.inspector.lineRelease}
@@ -383,7 +404,7 @@ export function Inspector({ controls, world }: { controls: WorkshopControls; wor
     <aside className="inspector" aria-labelledby="inspector-heading">
       <h2 id="inspector-heading"><Icon name="target" /> {t.inspector.title}</h2>
 
-      {line && line.length > 1 ? <LinePreview world={world} line={line} type={tool === 'conveyor-fast' ? 'conveyor-fast' : 'conveyor'} /> : placement && definition && footprint ? (
+      {line && line.length > 1 ? <LinePreview world={world} line={line} tool={tool} /> : placement && definition && footprint ? (
         <div className="inspector-detail">
           <MachinePreview placement={placement} />
           <h3>{t.machines[placement.type].name}</h3>
@@ -413,6 +434,7 @@ export function Inspector({ controls, world }: { controls: WorkshopControls; wor
           {selected?.type === 'splitter' && <FilterForm controls={controls} splitter={selected} />}
           {selected?.type === 'headquarters' && <HeadquartersDetails world={world} controls={controls} />}
           {selected?.type === 'lab' && <LabDetails world={world} controls={controls} />}
+          {selected && isFurniture(selected.type) && <RoomDetails world={world} machine={selected} />}
           {selected?.type === 'shipping' && <ShippingDetails world={world} controls={controls} />}
         </div>
       ) : (

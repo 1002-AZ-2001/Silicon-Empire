@@ -39,6 +39,7 @@ export const MAX_LINE_LENGTH = 256;
 export const MACHINE_TYPES = [
   'storage', 'assembler', 'tester', 'receiving', 'conveyor', 'splitter', 'merger',
   'packager', 'warehouse', 'conveyor-fast', 'headquarters', 'shipping', 'lab', 'conveyor-express',
+  'wall', 'door', 'sofa', 'coffee', 'desk', 'air-filter',
 ] as const;
 export type MachineType = (typeof MACHINE_TYPES)[number];
 
@@ -48,6 +49,26 @@ export type ConveyorType = keyof typeof CONVEYOR_SPEEDS;
 
 export function isConveyor(type: MachineType): type is ConveyorType {
   return type in CONVEYOR_SPEEDS;
+}
+
+/** Buildings drawn as a line by dragging: conveyors and walls. */
+export type LineType = ConveyorType | 'wall';
+
+export function isLineType(type: MachineType): type is LineType {
+  return isConveyor(type) || type === 'wall';
+}
+
+/** Walls and doors close rooms; furniture gives a room its purpose. None has an inventory or ports. */
+export const ROOM_BOUNDARIES = ['wall', 'door'] as const;
+export const FURNITURE = ['sofa', 'coffee', 'desk', 'air-filter'] as const;
+export type Furniture = (typeof FURNITURE)[number];
+
+export function isRoomBoundary(type: MachineType): boolean {
+  return (ROOM_BOUNDARIES as readonly MachineType[]).includes(type);
+}
+
+export function isFurniture(type: MachineType): type is Furniture {
+  return (FURNITURE as readonly MachineType[]).includes(type);
 }
 
 /** Directions and port sides: 0 north, 1 east, 2 south, 3 west. */
@@ -201,4 +222,10 @@ export const MACHINES = z.record(z.enum(MACHINE_TYPES), machineDefinition.readon
     capacity: 0,
     ports: [],
   },
+  wall: { width: 1, height: 1, costCents: 2_000, capacity: 0, ports: [] },
+  door: { width: 1, height: 1, costCents: 15_000, capacity: 0, ports: [] },
+  sofa: { width: 2, height: 1, costCents: 40_000, capacity: 0, ports: [] },
+  coffee: { width: 1, height: 1, costCents: 60_000, capacity: 0, ports: [] },
+  desk: { width: 2, height: 1, costCents: 80_000, capacity: 0, ports: [] },
+  'air-filter': { width: 1, height: 1, costCents: 250_000, capacity: 0, ports: [] },
 } satisfies Record<MachineType, z.input<typeof machineDefinition>>);

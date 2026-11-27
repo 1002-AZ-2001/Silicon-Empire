@@ -1001,3 +1001,8 @@ kbd {
 .staff-effect { color: var(--muted); }
 .staff-morale { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; }
 .staff-morale meter { width: 100%; }
+
+/* Floors and rooms */
+.floor-swatch { display: block; width: 32px; height: 32px; border: 1px solid #36423d; background: #26312f; image-rendering: pixelated; }
+.tool-art img[src*="floors"] { width: 32px; height: 32px; image-rendering: pixelated; }
+.room-details { display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid #364940; font-size: .82rem; }

@@ -914,3 +914,40 @@ test('embauche un candidat, l’affecte à l’établi depuis l’inspecteur pui
   await expect(staff.getByText('Aucun employé.')).toBeVisible();
   await expect(capital(page)).not.toHaveText(before);
 });
+
+test('trace des murs au glisser, ferme une salle de repos et pose un parquet', async ({ page }) => {
+  await page.goto('/');
+  await startWorkshop(page, 'Atelier Tilleul');
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: 'Pause' }).click();
+  await page.getByRole('button', { name: /^Mur/ }).click();
+  const path: [number, number][] = [[30, 28], [33, 28], [33, 32], [28, 32], [28, 28]];
+  const [start, ...rest] = path;
+  if (!start) throw new Error('Tracé vide.');
+  const first = await tileAtCenterZoom(page, start[0], start[1]);
+  await page.mouse.move(first.x, first.y);
+  await page.mouse.down();
+  for (const [x, y] of rest) {
+    const point = await tileAtCenterZoom(page, x, y);
+    await page.mouse.move(point.x, point.y, { steps: 6 });
+  }
+  await page.mouse.up();
+  await expect(page.getByText(`17 murs construits pour ${euros(340)}.`)).toBeVisible();
+
+  await page.getByRole('button', { name: /^Porte/ }).click();
+  await clickTile(page, 29, 28);
+  await page.getByRole('button', { name: /^Canapé/ }).click();
+  await clickTile(page, 29, 29);
+  await page.getByRole('button', { name: /^Café/ }).click();
+  await clickTile(page, 32, 31);
+  await page.getByRole('button', { name: /^Parquet/ }).click();
+  await clickTile(page, 31, 30);
+  await expect(page.getByText(`Parquet posé pour ${euros(15)}.`)).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  await clickTile(page, 29, 29);
+  await expect(inspector(page)).toContainText('Salle de repos');
+  await expect(inspector(page)).toContainText('12 tuiles');
+  await expect(inspector(page)).toContainText('4 places assises');
+  await page.getByRole('button', { name: 'Personnel', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Personnel' })).toContainText('Salles de repos : 4 places pour 0 employé');
+});

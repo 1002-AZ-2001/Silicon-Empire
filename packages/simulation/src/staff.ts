@@ -1,4 +1,4 @@
-import { MK2, SKILL_LEVELS, STAFF, STAFF_NAMES, UPGRADABLE_MACHINES } from '@silicon-empire/game-data';
+import { MK2, ROOMS, SKILL_LEVELS, STAFF, STAFF_NAMES, UPGRADABLE_MACHINES } from '@silicon-empire/game-data';
 import type { MachineType, Recipe, SkillLevel, UpgradableMachine } from '@silicon-empire/game-data';
 import type { Progress } from './progress';
 import type { Machine } from './world';
@@ -10,7 +10,10 @@ export interface Person {
   readonly salaryCents: number;
 }
 
-/** A candidate of the current pool. Ids are unique across pools: pool × pool size + rank. */
+/**
+ * A candidate of the current pool. Ids are pool × base pool size + rank: unique within a pool, which is all
+ * hiring needs, and unchanged from the v0.8.0 saves.
+ */
 export interface Candidate extends Person {
   readonly id: number;
 }
@@ -67,12 +70,15 @@ export function baseSalary(skill: SkillLevel): number {
   return STAFF.baseSalaryCents[skill];
 }
 
-/** Candidates of a pool, before any hiring. Skills lean towards the middle levels. */
-export function candidatesFor(pool: number): Candidate[] {
+/**
+ * Candidates of a pool, before any hiring. Skills lean towards the middle levels. A larger pool
+ * (offices) appends candidates: the first ones are the same whatever the size.
+ */
+export function candidatesFor(pool: number, size: number = STAFF.poolSize): Candidate[] {
   const next = random(Math.imul(pool + 1, 2_654_435_761));
   const { min, max, step } = STAFF.salaryVariationPercent;
   const steps = (max - min) / step + 1;
-  return Array.from({ length: STAFF.poolSize }, (_, rank) => {
+  return Array.from({ length: Math.min(size, STAFF.maxPoolSize) }, (_, rank) => {
     const name = nameFrom(next);
     const skill = SKILL_LEVELS[Math.min(4, Math.floor((next() + next()) * 2.5))] ?? 3;
     const percent = min + Math.floor(next() * steps) * step;
@@ -141,16 +147,25 @@ export function assignBaseOperators(staff: StaffState, machines: readonly { read
  * Runs the staff calendar for one tick: renews the candidate pool, then pays salaries on payday.
  * Unpaid employees lose morale and leave at zero. Returns the staff and the capital left.
  */
-export function advanceStaff(staff: StaffState, tick: number, capitalCents: number): { staff: StaffState; capitalCents: number } {
+/** Room effects on staff, read only on the ticks that need them. */
+export interface StaffEffects {
+  /** Every employee has a seat in a break room. */
+  readonly rested: boolean;
+  readonly poolSize: number;
+}
+
+export function advanceStaff(
+  staff: StaffState, tick: number, capitalCents: number, effects: () => StaffEffects,
+): { staff: StaffState; capitalCents: number } {
   let next = staff;
   if (tick >= staff.nextPool) {
     const pool = staff.pool + 1;
-    next = { ...next, pool, candidates: candidatesFor(pool), nextPool: staff.nextPool + STAFF.poolRefreshTicks };
+    next = { ...next, pool, candidates: candidatesFor(pool, effects().poolSize), nextPool: staff.nextPool + STAFF.poolRefreshTicks };
   }
   if (tick >= staff.nextPayday) {
     const due = payroll(next);
     const paid = capitalCents >= due;
-    const { paid: raise, unpaid: drop } = STAFF.morale;
+    const { paid: raise, unpaid: drop } = effects().rested ? ROOMS.restedMorale : STAFF.morale;
     const employees = next.employees
       .map(employee => ({ ...employee, morale: paid ? Math.min(100, employee.morale + raise) : Math.max(0, employee.morale - drop) }))
       .filter(employee => employee.morale > 0);

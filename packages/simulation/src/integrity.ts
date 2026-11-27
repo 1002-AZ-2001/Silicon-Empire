@@ -1,6 +1,6 @@
 import {
   CONVEYOR, ITEM_TYPES, MILESTONES, MILESTONE_IDS, PRODUCTION, PURCHASE, RESEARCH, RESEARCH_IDS, SKILL_LEVELS, STAFF, SUPPLIERS,
-  WORKSHOP,
+  WORKSHOP, FLOOR_TYPES,
   designParts, designPower, isConveyor, recipeOf, sameDesign,
 } from '@silicon-empire/game-data';
 import type { ItemType, MilestoneId, ResearchId } from '@silicon-empire/game-data';
@@ -63,10 +63,12 @@ function checkResearch(progress: Progress, research: ResearchState): boolean {
   });
 }
 
+const PAINTED_FLOORS: readonly string[] = FLOOR_TYPES.filter(floor => floor !== 'concrete');
+
 /** Staff ids, pool, calendar and assignments are consistent with the machines of the world. */
 function checkStaff(world: World): boolean {
   const { staff, tick } = world;
-  const pool = candidatesFor(staff.pool);
+  const pool = candidatesFor(staff.pool, STAFF.maxPoolSize);
   let rank = 0;
   for (const candidate of staff.candidates) {
     while (rank < pool.length && pool[rank]?.id !== candidate.id) rank += 1;
@@ -100,6 +102,12 @@ function checkStaff(world: World): boolean {
  */
 export function checkIntegrity(world: World): boolean {
   if (!checkProgress(world.progress) || !checkResearch(world.progress, world.research) || !checkStaff(world)) return false;
+  const tiles = world.columns * world.rows;
+  for (const [key, floor] of Object.entries(world.floors)) {
+    const index = Number(key);
+    if (!Number.isInteger(index) || index < 0 || index >= tiles || String(index) !== key ||
+      !PAINTED_FLOORS.includes(floor)) return false;
+  }
   const { active, completed } = world.sales;
   if (active && (!validSaleTerms(active.terms) || !modelUnlocked(world.progress, active.terms.model) ||
     !Number.isInteger(active.delivered) || active.delivered < 0 || active.delivered >= active.terms.units)) return false;

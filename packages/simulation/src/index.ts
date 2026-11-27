@@ -7,3 +7,4 @@ export * from './progress';
 export * from './sales';
 export * from './research';
 export * from './staff';
+export * from './rooms';

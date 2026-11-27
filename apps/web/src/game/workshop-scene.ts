@@ -1,14 +1,16 @@
-import { CONVEYOR, ITEM_TYPES, MACHINE_TYPES, WORKSHOP, isConveyor, recipeOf } from '@silicon-empire/game-data';
+import { CONVEYOR, ITEM_TYPES, MACHINE_TYPES, WORKSHOP, isConveyor, isLineType, recipeOf } from '@silicon-empire/game-data';
 import {
-  checkBuild, checkLine, fitsMap, footprintOf, linksOf, machineAt, neighbour, portsOf, previewTarget, productionStatus,
+  checkBuild, checkFloor, checkLine, fitsMap, footprintOf, linksOf, machineAt, neighbour, portsOf, previewTarget, productionStatus,
+  roomsOf,
 } from '@silicon-empire/simulation';
 import Phaser from 'phaser';
 import { ITEM_ART } from '../art/items';
+import { FLOOR_ART } from '../art/floors';
 import { CONVEYOR_EXPRESS_TURN_ART, CONVEYOR_FAST_TURN_ART, CONVEYOR_TURN_ART, MACHINE_ART } from '../art/machines';
 import { currentTranslator } from '../i18n';
-import { isBuildTool } from './controls';
+import { floorOf, isBuildTool, isDrawTool } from './controls';
 import { createFloor } from './floor';
-import type { Direction } from '@silicon-empire/game-data';
+import type { Direction, FloorType, RoomType } from '@silicon-empire/game-data';
 import type { Footprint, Machine, Placement, Simulation, Tile, World, WorldPort } from '@silicon-empire/simulation';
 import type { WorkshopControls } from './controls';
 
@@ -27,6 +29,9 @@ interface Point { x: number; y: number }
 
 const PORT_COLORS = { input: 0xbde778, output: 0xf0b24a, reject: 0xff8267 } as const;
 const itemKey = (item: string) => `item:${item}`;
+const floorKey = (floor: string) => `floor:${floor}`;
+const FLOOR_COLORS: Record<FloorType, number> = { concrete: 0x859c8e, tiles: 0xb0b4ac, wood: 0x80583a, clean: 0xcedee4 };
+const ROOM_COLORS: Record<RoomType, number> = { 'clean-room': 0x8cc8ff, office: 0xf0b24a, 'break-room': 0x7fd1b9, empty: 0x859c8e };
 
 /**
  * Direction in which units enter a conveyor. A conveyor fed only from one side turns:
@@ -92,6 +97,10 @@ export class WorkshopScene extends Phaser.Scene {
   private outline!: Phaser.GameObjects.Graphics;
   private ghost!: Phaser.GameObjects.Image;
   private drawnMachines: readonly Machine[] | null = null;
+  private drawnFloors: World['floors'] | null = null;
+  private floorLayer!: Phaser.GameObjects.Container;
+  private roomTint!: Phaser.GameObjects.Graphics;
+  private roomLabels!: Phaser.GameObjects.Container;
   private readonly unitSprites = new Map<number, Phaser.GameObjects.Image>();
   private positionCache = new WeakMap<World, Map<number, Point>>();
 
@@ -109,11 +118,15 @@ export class WorkshopScene extends Phaser.Scene {
     this.load.image('conveyor-turn', CONVEYOR_TURN_ART);
     this.load.image('conveyor-fast-turn', CONVEYOR_FAST_TURN_ART);
     this.load.image('conveyor-express-turn', CONVEYOR_EXPRESS_TURN_ART);
+    for (const [floor, art] of Object.entries(FLOOR_ART)) this.load.image(floorKey(floor), art);
   }
 
   create() {
     const world = this.simulation.getSnapshot();
     createFloor(this, world.columns, world.rows);
+    this.floorLayer = this.add.container(0, 0).setDepth(0.5);
+    this.roomTint = this.add.graphics().setDepth(0.6);
+    this.roomLabels = this.add.container(0, 0).setDepth(2.6);
     this.equipment = this.add.container(0, 0).setDepth(1);
     this.units = this.add.container(0, 0).setDepth(1.5);
     this.ports = this.add.graphics().setDepth(1.8);
@@ -257,7 +270,7 @@ export class WorkshopScene extends Phaser.Scene {
       const point = this.canvasPoint(event);
       const click = event.button === 0 && !this.keys.has(' ');
       const { tool } = this.controls.store.getState();
-      const drawing = click && event.pointerType !== 'touch' && isBuildTool(tool) && isConveyor(tool);
+      const drawing = click && event.pointerType !== 'touch' && isDrawTool(tool);
       this.gesture = {
         id: event.pointerId,
         start: point,
@@ -331,8 +344,45 @@ export class WorkshopScene extends Phaser.Scene {
     sprite.setAngle(placement.rotation * 90);
   }
 
+  /** Painted floors under the buildings, then a tint and a name for each room. */
+  private drawFloorsAndRooms(world: World) {
+    if (world.floors !== this.drawnFloors) {
+      this.drawnFloors = world.floors;
+      this.floorLayer.removeAll(true);
+      for (const [key, floor] of Object.entries(world.floors)) {
+        const index = Number(key);
+        const x = index % world.columns;
+        const y = Math.floor(index / world.columns);
+        this.floorLayer.add(this.add.image((x + 0.5) * TILE, (y + 0.5) * TILE, floorKey(floor)));
+      }
+    }
+    this.roomTint.clear();
+    this.roomLabels.removeAll(true);
+    const { t } = currentTranslator();
+    for (const room of roomsOf(world).rooms) {
+      const color = ROOM_COLORS[room.type];
+      let sumX = 0;
+      let sumY = 0;
+      for (const tile of room.tiles) {
+        const x = tile % world.columns;
+        const y = Math.floor(tile / world.columns);
+        sumX += x;
+        sumY += y;
+        this.roomTint.fillStyle(color, 0.07).fillRect(x * TILE, y * TILE, TILE, TILE);
+      }
+      const label = this.add.text(
+        (sumX / room.tiles.length + 0.5) * TILE, (sumY / room.tiles.length + 0.5) * TILE, t.rooms.types[room.type],
+        { fontFamily: 'Inter, system-ui, sans-serif', fontSize: '10px', fontStyle: '600', color: '#e6eee8', backgroundColor: '#101615cc', padding: { x: 4, y: 2 } },
+      ).setOrigin(0.5).setAlpha(0.85);
+      this.roomLabels.add(label);
+    }
+  }
+
   private drawEquipment(world: World) {
-    if (world.machines === this.drawnMachines) return;
+    if (world.machines === this.drawnMachines && world.floors === this.drawnFloors) return;
+    const layoutChanged = world.machines !== this.drawnMachines;
+    this.drawFloorsAndRooms(world);
+    if (!layoutChanged) return;
     this.drawnMachines = world.machines;
     this.equipment.removeAll(true);
     this.ports.clear();
@@ -475,20 +525,30 @@ export class WorkshopScene extends Phaser.Scene {
     const world = this.simulation.getSnapshot();
     const { tool, rotation, hover, selectedId, line } = this.controls.store.getState();
 
+    const floor = floorOf(tool);
     if (line) {
-      const valid = checkLine(world, line) === null;
+      const conveyor = isBuildTool(tool) && isConveyor(tool);
+      const valid = floor
+        ? checkFloor(world, line, floor) === null
+        : checkLine(world, line, isBuildTool(tool) && isLineType(tool) ? tool : 'conveyor') === null;
       for (const tile of line) {
-        this.markFootprint({ ...tile, width: 1, height: 1 }, valid ? 0xbde778 : 0xff8267, 0.22);
-        this.drawLineArrow(tile);
+        this.markFootprint({ ...tile, width: 1, height: 1 }, !valid ? 0xff8267 : floor ? FLOOR_COLORS[floor] : 0xbde778, 0.22);
+        if (conveyor) this.drawLineArrow(tile);
       }
       const last = line[line.length - 1];
-      if (last && !previewTarget(world, last, last.rotation)) this.drawDeadEnd(this.outline, last);
+      if (conveyor && last && !previewTarget(world, last, last.rotation)) this.drawDeadEnd(this.outline, last);
       return;
     }
 
     const selected = world.machines.find(machine => machine.id === selectedId);
     if (selected) this.markFootprint(footprintOf(selected), 0xa7e6da, 0.09);
     if (!hover) return;
+
+    if (floor) {
+      const error = checkFloor(world, [hover], floor);
+      this.markFootprint({ ...hover, width: 1, height: 1 }, error ? 0xff8267 : FLOOR_COLORS[floor], 0.3);
+      return;
+    }
 
     if (isBuildTool(tool)) {
       const placement = { ...hover, type: tool, rotation };
