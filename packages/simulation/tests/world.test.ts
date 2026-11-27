@@ -14,9 +14,9 @@ function run(world: World, command: Command): World {
 const tester = { kind: 'build', type: 'tester', x: 10, y: 10, rotation: 0 } as const;
 
 describe('construction', () => {
-  it('démarre avec une grille 64 × 64 vide et 25 000 €', () => {
+  it('démarre sur les quatre parcelles de départ d’un terrain de 128 × 128, vide, avec 25 000 €', () => {
     expect(createWorld()).toEqual({
-      columns: 64, rows: 64, tick: 0, capitalCents: 2_500_000, nextMachineId: 1, nextItemId: 1,
+      columns: 128, rows: 128, tick: 0, capitalCents: 2_500_000, nextMachineId: 1, nextItemId: 1,
       machines: [], stocks: {}, belts: {}, routers: {}, production: {},
       progress: { sandbox: true, completed: [], active: null, delivered: {} },
       sales: { active: null, completed: [] },
@@ -26,6 +26,7 @@ describe('construction', () => {
         nextPayday: STAFF.payPeriodTicks, nextPool: STAFF.poolRefreshTicks,
       },
       floors: {},
+      parcels: [0, 1, 4, 5],
       ledger: {
         purchased: {}, discarded: {}, purchaseSpentCents: 0, produced: {}, consumed: {}, delivered: {},
       },
@@ -44,13 +45,20 @@ describe('construction', () => {
 
   it.each([
     { x: -1, y: 0, rotation: 0 },
-    { x: 63, y: 63, rotation: 0 },
-    { x: 63, y: 63, rotation: 1 },
+    { x: 127, y: 127, rotation: 0 },
     { x: 0.5, y: 15, rotation: 1 },
   ] as const)('refuse un placement hors grille ou non entier ($x, $y, $rotation)', (position) => {
     const command = { ...tester, ...position };
     expect(checkBuild(createWorld(), command)).toBe('out-of-bounds');
     expect(applyCommand(createWorld(), command)).toEqual({ ok: false, reason: 'out-of-bounds' });
+  });
+
+  it.each([
+    { x: 63, y: 63, rotation: 0 },
+    { x: 63, y: 63, rotation: 1 },
+    { x: 70, y: 10, rotation: 0 },
+  ] as const)('refuse un placement hors des parcelles possédées ($x, $y, $rotation)', (position) => {
+    expect(applyCommand(createWorld(), { ...tester, ...position })).toEqual({ ok: false, reason: 'not-owned' });
   });
 
   it('accepte une emprise qui se termine exactement sur la limite', () => {
@@ -99,7 +107,7 @@ describe('rotation et démolition', () => {
     });
     const edge = run(createWorld(), { ...tester, y: 63 });
     expect(applyCommand(edge, { kind: 'rotate', id: 1 })).toEqual({
-      ok: false, reason: 'out-of-bounds',
+      ok: false, reason: 'not-owned',
     });
   });
 

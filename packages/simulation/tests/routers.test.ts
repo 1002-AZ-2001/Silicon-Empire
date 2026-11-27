@@ -163,7 +163,8 @@ describe('pose d’une ligne de convoyeurs', () => {
     [{ kind: 'build-line', tiles: [] }, 'invalid-line'],
     [{ kind: 'build-line', tiles: [{ x: 5, y: 5, rotation: 1 }, { x: 7, y: 5, rotation: 1 }] }, 'invalid-line'],
     [{ kind: 'build-line', tiles: [{ x: 5, y: 5, rotation: 1 }, { x: 6, y: 5, rotation: 3 }, { x: 5, y: 5, rotation: 1 }] }, 'invalid-line'],
-    [{ kind: 'build-line', tiles: [{ x: 63, y: 5, rotation: 1 }, { x: 64, y: 5, rotation: 1 }] }, 'out-of-bounds'],
+    [{ kind: 'build-line', tiles: [{ x: 63, y: 5, rotation: 1 }, { x: 64, y: 5, rotation: 1 }] }, 'not-owned'],
+    [{ kind: 'build-line', tiles: [{ x: 5, y: 0, rotation: 0 }, { x: 5, y: -1, rotation: 0 }] }, 'out-of-bounds'],
   ] satisfies [Command, string][])('refuse une ligne invalide sans rien construire %#', (command, reason) => {
     expect(applyCommand(createWorld(), command)).toEqual({ ok: false, reason });
   });

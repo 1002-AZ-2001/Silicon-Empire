@@ -7,6 +7,9 @@ import type { Command, World } from '@silicon-empire/simulation';
 import type { ItemType, ProductModel } from '@silicon-empire/game-data';
 import type { SaveRecord } from './save-data';
 
+/** Saves before v12 (v0.9.1) cover a 64 × 64 map. */
+const OLD_MAP = { columns: 64, rows: 64 };
+
 /** A world as read from a save older than v10: no staff yet, the first pool from the saved tick. */
 function asMigrated(world: World): World {
   return { ...world, staff: createStaff(world.tick) };
@@ -73,8 +76,8 @@ describe('schéma de sauvegarde', () => {
   });
 
   it('migre une sauvegarde v0.1 sans perdre les constructions', () => {
-    const { columns, rows, capitalCents, nextMachineId, machines } = built.world;
-    const v1 = { ...record, version: 1, world: { columns, rows, capitalCents, nextMachineId, machines } };
+    const { capitalCents, nextMachineId, machines } = built.world;
+    const v1 = { ...record, version: 1, world: { ...OLD_MAP, capitalCents, nextMachineId, machines } };
     expect(decodeSave(v1)).toEqual(record);
     expect(parseBackup(JSON.stringify(v1))).toEqual(record);
     expect(decodeSave({ ...v1, world: { ...v1.world, tick: 0 } })).toBeNull();
@@ -82,7 +85,8 @@ describe('schéma de sauvegarde', () => {
 
   it('migre une sauvegarde v0.2.0 avec ses unités en transit', () => {
     const v2 = JSON.parse(JSON.stringify({ ...inTransit, version: 2 }));
-    for (const key of ['routers', 'production', 'progress', 'sales', 'design', 'deliveries', 'research', 'staff', 'floors']) delete v2.world[key];
+    for (const key of ['routers', 'production', 'progress', 'sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels']) delete v2.world[key];
+    Object.assign(v2.world, OLD_MAP);
     for (const key of ['produced', 'consumed', 'delivered']) delete v2.world.ledger[key];
     expect(decodeSave(v2)).toEqual({ ...inTransit, world: asMigrated(inTransit.world) });
     expect(decodeSave({ ...v2, world: { ...v2.world, routers: {} } })).toBeNull();
@@ -90,7 +94,8 @@ describe('schéma de sauvegarde', () => {
 
   it('migre une sauvegarde v0.2.x en bac à sable et refuse ses champs v4', () => {
     const v3 = JSON.parse(JSON.stringify({ ...inTransit, version: 3 }));
-    for (const key of ['production', 'progress', 'sales', 'design', 'deliveries', 'research', 'staff', 'floors']) delete v3.world[key];
+    for (const key of ['production', 'progress', 'sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels']) delete v3.world[key];
+    Object.assign(v3.world, OLD_MAP);
     for (const key of ['produced', 'consumed', 'delivered']) delete v3.world.ledger[key];
     const migrated = decodeSave(v3);
     expect(migrated?.world.progress).toEqual({ sandbox: true, completed: [], active: null, delivered: {} });
@@ -102,7 +107,8 @@ describe('schéma de sauvegarde', () => {
     const world = runningAssembler('office');
     const { sales, design, deliveries } = world;
     const oldWorld: Record<string, unknown> = { ...world };
-    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff', 'floors']) delete oldWorld[key];
+    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels']) delete oldWorld[key];
+    Object.assign(oldWorld, OLD_MAP);
     const legacy = { ...record, version: 4, world: oldWorld };
     const restored = decodeSave(legacy);
     expect(restored).toEqual({ ...record, world: asMigrated(world) });
@@ -126,7 +132,8 @@ describe('schéma de sauvegarde', () => {
     const world = runningAssembler('gaming');
     const { sales, design, deliveries } = world;
     const oldWorld: Record<string, unknown> = { ...world };
-    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff', 'floors']) delete oldWorld[key];
+    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels']) delete oldWorld[key];
+    Object.assign(oldWorld, OLD_MAP);
     const restored = decodeSave({ ...record, version: 5, world: oldWorld });
     expect(restored).toEqual({ ...record, world: asMigrated(world) });
     expect(restored?.world).toMatchObject({ sales, design, deliveries });
@@ -243,6 +250,8 @@ describe('schéma de sauvegarde', () => {
     delete v8.world.research;
     delete v8.world.staff;
     delete v8.world.floors;
+    delete v8.world.parcels;
+    Object.assign(v8.world, OLD_MAP);
     expect(decodeSave(v8)?.world.research).toEqual({ active: null, delivered: {}, analysing: null, completed: [] });
     expect(decodeSave({ ...v8, world: { ...v8.world, research: world.research } })).toBeNull();
   });
@@ -339,6 +348,8 @@ describe('personnel dans la sauvegarde', () => {
     };
     delete legacyWorld.staff;
     delete legacyWorld.floors;
+    delete legacyWorld.parcels;
+    Object.assign(legacyWorld, OLD_MAP);
     const migrated = decodeSave({ ...record, version: 9, world: legacyWorld });
     expect(migrated?.world.staff.employees).toMatchObject([{ id: 1, skill: 2, machineId: 1, morale: 70 }]);
     expect(migrated?.world.staff.candidates).toHaveLength(5);
@@ -348,14 +359,33 @@ describe('personnel dans la sauvegarde', () => {
 describe('sols dans la sauvegarde', () => {
   it('restaure les sols peints, rejette un sol invalide et migre la v10 sur béton nu', () => {
     const world = run(createWorld(), { kind: 'paint-floor', tiles: [{ x: 3, y: 4 }, { x: 4, y: 4 }], floor: 'clean' });
-    expect(world.floors).toEqual({ 259: 'clean', 260: 'clean' });
+    expect(world.floors).toEqual({ 515: 'clean', 516: 'clean' });
     const saved: SaveRecord = { ...record, world };
     expect(decodeSave(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
-    expect(decodeSave({ ...saved, world: { ...world, floors: { 259: 'concrete' } } })).toBeNull();
-    expect(decodeSave({ ...saved, world: { ...world, floors: { 9999: 'wood' } } })).toBeNull();
+    expect(decodeSave({ ...saved, world: { ...world, floors: { 515: 'concrete' } } })).toBeNull();
+    expect(decodeSave({ ...saved, world: { ...world, floors: { 99999: 'wood' } } })).toBeNull();
     const v10 = JSON.parse(JSON.stringify({ ...saved, version: 10 }));
     delete v10.world.floors;
+    delete v10.world.parcels;
+    Object.assign(v10.world, OLD_MAP);
     expect(decodeSave(v10)?.world.floors).toEqual({});
     expect(decodeSave({ ...v10, world: { ...v10.world, floors: {} } })).toBeNull();
+  });
+});
+
+describe('parcelles dans la sauvegarde', () => {
+  it('restaure les parcelles achetées et migre un atelier v11 de 64 × 64 sans déplacer ses sols', () => {
+    const world = run(createWorld(), { kind: 'buy-parcel', parcel: 2 });
+    const saved: SaveRecord = { ...record, world };
+    expect(decodeSave(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+    expect(decodeSave({ ...saved, world: { ...world, parcels: [0, 1, 3, 4, 5] } })).toBeNull();
+
+    const painted = run(createWorld(), { kind: 'paint-floor', tiles: [{ x: 3, y: 4 }, { x: 63, y: 63 }], floor: 'wood' });
+    const v11 = JSON.parse(JSON.stringify({ ...record, version: 11, world: painted }));
+    delete v11.world.parcels;
+    Object.assign(v11.world, OLD_MAP, { floors: { [4 * 64 + 3]: 'wood', [63 * 64 + 63]: 'wood' } });
+    const migrated = decodeSave(v11);
+    expect(migrated?.world.floors).toEqual(painted.floors);
+    expect(migrated?.world).toMatchObject({ columns: 128, rows: 128, parcels: [0, 1, 4, 5] });
   });
 });

@@ -1,6 +1,8 @@
 import { FLOOR_TYPES, MACHINE_TYPES, PURCHASE, isLineType } from '@silicon-empire/game-data';
 import type { FloorType, LineType, MilestoneId, ResearchId, PcDesign, ProductModel, SupplierId } from '@silicon-empire/game-data';
-import { FixedStepClock, floorCost, lineCost, machineAt, purchaseCost, turnClockwise } from '@silicon-empire/simulation';
+import {
+  FixedStepClock, floorCost, lineCost, machineAt, ownsTile, parcelOf, parcelPrice, purchaseCost, turnClockwise,
+} from '@silicon-empire/simulation';
 import { createStore } from 'zustand/vanilla';
 import type { Messages, Translator } from '../i18n';
 import type { ItemType, MachineType } from '@silicon-empire/game-data';
@@ -48,6 +50,8 @@ interface WorkshopUi {
   rotation: Rotation;
   hover: Tile | null;
   selectedId: number | null;
+  /** Parcel not owned yet, picked on the map to see its price. */
+  selectedParcel: number | null;
   demolitionId: number | null;
   feedback: Feedback | null;
   zoom: number;
@@ -94,6 +98,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     rotation: 0,
     hover: null,
     selectedId: null,
+    selectedParcel: null,
     demolitionId: null,
     feedback: null,
     zoom: 1,
@@ -242,6 +247,17 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     return result.ok;
   }
 
+  function buyParcel(parcel: number) {
+    const cost = parcelPrice(simulation.getSnapshot());
+    const result = simulation.dispatch({ kind: 'buy-parcel', parcel });
+    store.setState({
+      selectedParcel: result.ok ? null : parcel,
+      feedback: result.ok
+        ? { kind: 'success', message: ({ t, money }) => t.feedback.parcelBought(money(cost)) }
+        : { kind: 'error', message: errorMessage(result.reason) },
+    });
+  }
+
   function hire(candidate: number) {
     const name = simulation.getSnapshot().staff.candidates.find(person => person.id === candidate)?.name ?? '';
     const result = simulation.dispatch({ kind: 'hire', candidate });
@@ -323,10 +339,12 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
       return;
     }
 
-    const id = machineAt(simulation.getSnapshot(), tile)?.id ?? null;
+    const world = simulation.getSnapshot();
+    const id = machineAt(world, tile)?.id ?? null;
+    const outside = tile.x >= 0 && tile.y >= 0 && tile.x < world.columns && tile.y < world.rows && !ownsTile(world, tile);
     store.setState(tool === 'demolish'
       ? { demolitionId: id, feedback: null }
-      : { selectedId: id, feedback: null });
+      : { selectedId: id, selectedParcel: outside ? parcelOf(tile) : null, feedback: null });
   }
 
   function rotate() {
@@ -357,7 +375,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
   }
 
   return {
-    store, clock, setSpeed, togglePause, order, checkout, setCartLots, hire, fire, assign, configure, selectMilestone, selectResearch, upgrade, setProductModel,
+    store, clock, setSpeed, togglePause, order, checkout, setCartLots, buyParcel, hire, fire, assign, configure, selectMilestone, selectResearch, upgrade, setProductModel,
     startSale: (model: ProductModel) => changeSale(model), cancelSale: () => changeSale(),
     publishDesign,
     startLine, extendLine, cancelLine, finishLine,

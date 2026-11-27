@@ -10,6 +10,18 @@
 | Assemblage initial | 30 s simulées par PC |
 | Prix exemple Gaming X1 | 899 € |
 
+## Parcelles v0.9.1
+
+| Achat | Prix | Total dépensé |
+|---:|---:|---:|
+| 1re parcelle | 10 000 € | 10 000 € |
+| 2e | 15 000 € | 25 000 € |
+| 3e | 20 000 € | 45 000 € |
+| 6e | 35 000 € | 135 000 € |
+| 12e (terrain complet) | 65 000 € | 450 000 € |
+
+Une parcelle fait 32 × 32 tuiles : la première double presque l’espace utile pour 10 000 €, soit moins que la récompense de l’Entrepôt (10 000 €) qui ouvre l’achat. La suite sert d’objectif de long terme.
+
 ## Pièces v0.9.0
 
 | Élément | Prix | Taille | Rôle |

@@ -18,7 +18,7 @@ export default function WorkshopViewport({ simulation, controls, name }: {
   const { t } = useI18n();
   const hover = useStore(controls.store, state => state.hover);
   const zoom = useStore(controls.store, state => state.zoom);
-  const { columns, rows } = simulation.getSnapshot();
+  const { columns, rows, parcels } = simulation.getSnapshot();
   const onGrid = hover && hover.x >= 0 && hover.y >= 0 && hover.x < columns && hover.y < rows;
 
   useEffect(() => {
@@ -92,7 +92,7 @@ export default function WorkshopViewport({ simulation, controls, name }: {
       </div>
 
       <div className="map-status">
-        <span><Icon name="grid" /> {t.menu.tiles(columns, rows)}</span>
+        <span><Icon name="grid" /> {t.land.owned(parcels.length)}</span>
         <span aria-label={t.viewport.hovered}>{onGrid ? `X ${hover.x + 1} / Y ${hover.y + 1}` : 'X — / Y —'}</span>
       </div>
     </section>

@@ -1,12 +1,13 @@
 import {
-  CONVEYOR, ITEM_TYPES, MACHINE_TYPES, MILESTONE_IDS, PRODUCT_MODELS, RESEARCH_IDS, STAFF, STANDARD_MODELS, SUPPLIER_IDS, WORKSHOP,
+  CONVEYOR, ITEM_TYPES, LAND, MACHINE_TYPES, MILESTONE_IDS, PRODUCT_MODELS, RESEARCH_IDS, STAFF, STANDARD_MODELS, SUPPLIER_IDS, WORKSHOP,
   publishedDesignSchema,
 } from '@silicon-empire/game-data';
 import { ROTATIONS, ROUTER_SIDES, checkIntegrity, createStaff, withRequiredStaff } from '@silicon-empire/simulation';
 import { z } from 'zod';
 import type { World } from '@silicon-empire/simulation';
 
-export const SAVE_VERSION = 11;
+export const SAVE_VERSION = 12;
+const OLD_MAP = 64;
 export const MAX_WORKSHOP_NAME = 40;
 
 export function createSaveId(): string {
@@ -50,8 +51,9 @@ const header = {
 };
 
 const layoutV1 = {
-  columns: z.literal(WORKSHOP.columns),
-  rows: z.literal(WORKSHOP.rows),
+  /** Workshops before v0.9.1 cover 64 × 64 tiles. */
+  columns: z.literal(OLD_MAP),
+  rows: z.literal(OLD_MAP),
   capitalCents: z.int().nonnegative().max(WORKSHOP.initialCapitalCents),
   nextMachineId: z.int().positive(),
   machines: z.array(machineV1).max(WORKSHOP.columns * WORKSHOP.rows),
@@ -318,7 +320,7 @@ const tileIndex = z.string().regex(/^(0|[1-9][0-9]{0,15})$/);
 
 /** Version 11 (v0.9.0): walls, doors, furniture and painted floors. */
 const saveV11 = z.strictObject({
-  version: z.literal(SAVE_VERSION),
+  version: z.literal(11),
   ...header,
   world: z.strictObject({
     ...saveV10.shape.world.shape,
@@ -352,17 +354,51 @@ function migrateV8(value: unknown): z.input<typeof saveV9> | null {
 function migrateV9(value: unknown): unknown {
   const v9 = saveV9.safeParse(value);
   if (!v9.success) return null;
-  const { staff } = withRequiredStaff({ ...v9.data.world, staff: createStaff(v9.data.world.tick), floors: {} });
+  const { staff } = withRequiredStaff({
+    ...v9.data.world, staff: createStaff(v9.data.world.tick), floors: {}, parcels: [...LAND.initialParcels],
+  });
   return { ...v9.data, version: 10, world: { ...v9.data.world, staff } };
 }
 
 /** Older workshops have bare concrete everywhere. */
 function migrateV10(value: unknown): z.input<typeof saveV11> | null {
   const v10 = saveV10.safeParse(value);
-  return v10.success ? { ...v10.data, version: SAVE_VERSION, world: { ...v10.data.world, floors: {} } } : null;
+  return v10.success ? { ...v10.data, version: 11, world: { ...v10.data.world, floors: {} } } : null;
 }
 
-const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9, migrateV10];
+/** Version 12 (v0.9.1): the 128 × 128 land and the parcels owned. */
+const saveV12 = z.strictObject({
+  version: z.literal(SAVE_VERSION),
+  ...header,
+  world: z.strictObject({
+    ...saveV11.shape.world.shape,
+    columns: z.literal(WORKSHOP.columns),
+    rows: z.literal(WORKSHOP.rows),
+    parcels: z.array(z.int().nonnegative().max(LAND.gridColumns * LAND.gridRows - 1)).max(LAND.gridColumns * LAND.gridRows),
+  }),
+});
+
+/**
+ * The 64 × 64 workshop becomes the four starting parcels of the larger land. Buildings keep their
+ * coordinates; floors are indexed again for the wider rows.
+ */
+function migrateV11(value: unknown): z.input<typeof saveV12> | null {
+  const v11 = saveV11.safeParse(value);
+  if (!v11.success) return null;
+  const floors = Object.fromEntries(Object.entries(v11.data.world.floors).map(([key, floor]) => {
+    const index = Number(key);
+    return [String(Math.floor(index / OLD_MAP) * WORKSHOP.columns + index % OLD_MAP), floor];
+  }));
+  return {
+    ...v11.data,
+    version: SAVE_VERSION,
+    world: {
+      ...v11.data.world, columns: WORKSHOP.columns, rows: WORKSHOP.rows, floors, parcels: [...LAND.initialParcels],
+    },
+  };
+}
+
+const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9, migrateV10, migrateV11];
 
 function versionOf(value: unknown): unknown {
   return typeof value === 'object' && value !== null && 'version' in value ? value.version : undefined;
@@ -375,7 +411,7 @@ export function decodeSave(value: unknown): SaveRecord | null {
   if (typeof version === 'number' && Number.isInteger(version) && version >= 1) {
     for (const migrate of migrations.slice(version - 1)) current = migrate(current);
   }
-  const decoded = saveV11.safeParse(current);
+  const decoded = saveV12.safeParse(current);
   if (!decoded.success) return null;
 
   const { data } = decoded;

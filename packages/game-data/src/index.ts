@@ -8,3 +8,4 @@ export * from './suppliers';
 export * from './research';
 export * from './staff';
 export * from './rooms';
+export * from './land';

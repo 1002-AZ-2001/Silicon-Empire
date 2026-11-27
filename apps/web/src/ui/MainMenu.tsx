@@ -1,4 +1,4 @@
-import { WORKSHOP } from '@silicon-empire/game-data';
+import { LAND, WORKSHOP } from '@silicon-empire/game-data';
 import { useEffect, useRef, useState } from 'react';
 import workshopArt from '../art/workshop-menu.webp';
 import { BACKUP_LIMIT_BYTES, downloadBackup, parseBackup } from '../persistence/backup';
@@ -212,7 +212,7 @@ export function MainMenu({ onNewGame, onResume }: {
       </main>
 
       <footer className="menu-footer menu-frame">
-        <span><Icon name="grid" /> {t.menu.tiles(WORKSHOP.columns, WORKSHOP.rows)}</span>
+        <span><Icon name="grid" /> {t.menu.tiles(LAND.parcelSize * 2, LAND.parcelSize * 2)}</span>
         <span>{t.menu.startingCapital} <strong>{money(WORKSHOP.initialCapitalCents)}</strong></span>
         <UpdatePanel />
       </footer>

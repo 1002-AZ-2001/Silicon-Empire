@@ -1,7 +1,7 @@
-import { CONVEYOR, ITEM_TYPES, MACHINE_TYPES, WORKSHOP, isConveyor, isLineType, recipeOf } from '@silicon-empire/game-data';
+import { CONVEYOR, ITEM_TYPES, LAND, MACHINE_TYPES, WORKSHOP, isConveyor, isLineType, recipeOf } from '@silicon-empire/game-data';
 import {
   checkBuild, checkFloor, checkLine, fitsMap, footprintOf, linksOf, machineAt, neighbour, portsOf, previewTarget, productionStatus,
-  roomsOf,
+  ownedBounds, parcelBounds, parcelForSale, parcelPrice, roomsOf,
 } from '@silicon-empire/simulation';
 import Phaser from 'phaser';
 import { ITEM_ART } from '../art/items';
@@ -101,6 +101,9 @@ export class WorkshopScene extends Phaser.Scene {
   private floorLayer!: Phaser.GameObjects.Container;
   private roomTint!: Phaser.GameObjects.Graphics;
   private roomLabels!: Phaser.GameObjects.Container;
+  private land!: Phaser.GameObjects.Graphics;
+  private landLabels!: Phaser.GameObjects.Container;
+  private drawnParcels: World['parcels'] | null = null;
   private readonly unitSprites = new Map<number, Phaser.GameObjects.Image>();
   private positionCache = new WeakMap<World, Map<number, Point>>();
 
@@ -127,6 +130,8 @@ export class WorkshopScene extends Phaser.Scene {
     this.floorLayer = this.add.container(0, 0).setDepth(0.5);
     this.roomTint = this.add.graphics().setDepth(0.6);
     this.roomLabels = this.add.container(0, 0).setDepth(2.6);
+    this.land = this.add.graphics().setDepth(2.7);
+    this.landLabels = this.add.container(0, 0).setDepth(2.75);
     this.equipment = this.add.container(0, 0).setDepth(1);
     this.units = this.add.container(0, 0).setDepth(1.5);
     this.ports = this.add.graphics().setDepth(1.8);
@@ -146,7 +151,8 @@ export class WorkshopScene extends Phaser.Scene {
     });
     const unsubscribeUi = this.controls.store.subscribe((state, previous) => {
       if (state.hover !== previous.hover || state.tool !== previous.tool || state.line !== previous.line ||
-          state.rotation !== previous.rotation || state.selectedId !== previous.selectedId) {
+          state.rotation !== previous.rotation || state.selectedId !== previous.selectedId ||
+          state.selectedParcel !== previous.selectedParcel) {
         this.drawPreview();
       }
     });
@@ -176,8 +182,9 @@ export class WorkshopScene extends Phaser.Scene {
 
   resetView() {
     if (!this.ready) return;
-    const world = this.simulation.getSnapshot();
-    this.center = { x: world.columns * TILE / 2, y: world.rows * TILE / 2 };
+    // Centre on the owned land, not on the whole map.
+    const { x, y, width, height } = ownedBounds(this.simulation.getSnapshot());
+    this.center = { x: (x + width / 2) * TILE, y: (y + height / 2) * TILE };
     this.cameras.main.setZoom(1);
     this.controls.store.setState({ zoom: 1 });
     this.syncCamera();
@@ -344,6 +351,30 @@ export class WorkshopScene extends Phaser.Scene {
     sprite.setAngle(placement.rotation * 90);
   }
 
+  /** Veil over the parcels not owned yet; parcels for sale show their price. */
+  private drawLand(world: World) {
+    if (world.parcels === this.drawnParcels) return;
+    this.drawnParcels = world.parcels;
+    this.land.clear();
+    this.landLabels.removeAll(true);
+    const { t, money } = currentTranslator();
+    const price = money(parcelPrice(world));
+    for (let parcel = 0; parcel < LAND.gridColumns * LAND.gridRows; parcel++) {
+      if (world.parcels.includes(parcel)) continue;
+      const { x, y, width, height } = parcelBounds(parcel);
+      this.land.fillStyle(0x0b100f, 0.62).fillRect(x * TILE, y * TILE, width * TILE, height * TILE);
+      if (!parcelForSale(world, parcel)) continue;
+      this.land.lineStyle(2, 0xbde778, 0.7).strokeRect(x * TILE + 3, y * TILE + 3, width * TILE - 6, height * TILE - 6);
+      this.landLabels.add(this.add.text(
+        (x + width / 2) * TILE, (y + height / 2) * TILE, `${t.land.forSale}\n${price}`,
+        {
+          fontFamily: 'Inter, system-ui, sans-serif', fontSize: '44px', fontStyle: '700', color: '#bde778', align: 'center',
+          backgroundColor: '#101615cc', padding: { x: 18, y: 10 },
+        },
+      ).setOrigin(0.5).setAlpha(0.9));
+    }
+  }
+
   /** Painted floors under the buildings, then a tint and a name for each room. */
   private drawFloorsAndRooms(world: World) {
     if (world.floors !== this.drawnFloors) {
@@ -379,6 +410,7 @@ export class WorkshopScene extends Phaser.Scene {
   }
 
   private drawEquipment(world: World) {
+    this.drawLand(world);
     if (world.machines === this.drawnMachines && world.floors === this.drawnFloors) return;
     const layoutChanged = world.machines !== this.drawnMachines;
     this.drawFloorsAndRooms(world);
@@ -542,6 +574,8 @@ export class WorkshopScene extends Phaser.Scene {
 
     const selected = world.machines.find(machine => machine.id === selectedId);
     if (selected) this.markFootprint(footprintOf(selected), 0xa7e6da, 0.09);
+    const { selectedParcel } = this.controls.store.getState();
+    if (selectedParcel !== null) this.markFootprint(parcelBounds(selectedParcel), 0xbde778, 0.08);
     if (!hover) return;
 
     if (floor) {

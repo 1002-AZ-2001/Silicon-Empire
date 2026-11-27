@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.1 — Parcelles
+
+- Le terrain fait maintenant 128 × 128 tuiles, découpé en 16 parcelles de 32 × 32. Un atelier commence avec les 4 parcelles du nord-ouest, soit le 64 × 64 des versions précédentes.
+- Les parcelles non possédées sont voilées. Celles qui touchent le terrain sont encadrées et affichent leur prix. Un clic dessus ouvre la parcelle dans l’inspecteur, avec le bouton d’achat.
+- Prix : 10 000 € la première parcelle, puis 5 000 € de plus à chaque achat. En progression, l’achat s’ouvre au jalon Entrepôt ; le bac à sable peut acheter dès le départ.
+- Construire ou peindre un sol hors du terrain possédé est refusé avec un message dédié. La caméra se centre sur le terrain possédé.
+- Le sol de béton est dessiné par motif répété : le terrain plus grand ne charge pas une texture de 4096 × 4096.
+- La sauvegarde v12 enregistre les parcelles. Les ateliers précédents gardent leurs bâtiments aux mêmes coordonnées ; leurs sols sont réindexés.
+
 ## 0.9.0 — Murs, sols et pièces
 
 - Nouveaux éléments de construction : mur (20 €, tracé au glisser comme un convoyeur), porte (150 €), canapé (400 €, 2 × 1), machine à café (600 €), bureau de travail (800 €, 2 × 1) et filtre à air (2 500 €).

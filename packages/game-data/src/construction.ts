@@ -1,8 +1,9 @@
 import { z } from 'zod';
 
 export const WORKSHOP = {
-  columns: 64,
-  rows: 64,
+  /** Whole land, bought parcel by parcel (see LAND). */
+  columns: 128,
+  rows: 128,
   tileSize: 32,
   initialCapitalCents: 2_500_000,
   demolitionRefundPercent: 50,
