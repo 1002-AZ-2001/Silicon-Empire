@@ -1,6 +1,6 @@
 import {
   CONVEYOR, ITEM_TYPES, MILESTONES, MILESTONE_IDS, PRODUCTION, PURCHASE, RESEARCH, RESEARCH_IDS, SKILL_LEVELS, STAFF, SUPPLIERS,
-  WORKSHOP, FLOOR_TYPES, LAND,
+  WORKSHOP, FLOOR_TYPES, LAND, CAREER, LOANS, LOAN_IDS, MARKET_PRICES,
   designParts, designPower, isConveyor, recipeOf, sameDesign,
 } from '@silicon-empire/game-data';
 import type { ItemType, MilestoneId, ResearchId } from '@silicon-empire/game-data';
@@ -12,12 +12,34 @@ import { NO_RESEARCH, capacityOf, researchAvailable, researchPartsDone, upgradeU
 import type { ResearchState } from './research';
 import { salesAccounts, validSaleTerms } from './sales';
 import { candidatesFor, isStaffed } from './staff';
+import { techAvailable, techSpent } from './career';
+import type { CareerState } from './career';
 import { landConnected, landSpent, ownsFootprint, ownsTile } from './land';
 import { fitsMap, footprintOf, landUnlocked, machineUnlocked } from './world';
 import type { Machine, World } from './world';
 
 /** Milestones were completed in an order the rules allow, and deliveries match the remaining costs. */
-function checkProgress(progress: Progress): boolean {
+/** Career state: licences bought in an allowed order, valid loans and counters. */
+function checkCareer(career: CareerState, tick: number): boolean {
+  const counters = [career.borrowedCents, career.repaidCents, career.missed, career.marketRevenueCents];
+  if (counters.some(value => !Number.isSafeInteger(value) || value < 0)) return false;
+  if (career.missed >= CAREER.maxMissed !== career.bankrupt) return false;
+  if (career.nextInstalment <= tick || career.nextInstalment - tick > STAFF.payPeriodTicks) return false;
+  if (career.specialty === null ? career.technologies.length > 0 : career.technologies[0] !== career.specialty) return false;
+  let replay: CareerState = { ...career, technologies: career.technologies.slice(0, 1) };
+  for (const tech of career.technologies.slice(1)) {
+    if (!techAvailable(replay, tech)) return false;
+    replay = { ...replay, technologies: [...replay.technologies, tech] };
+  }
+  if (new Set(career.loans.map(loan => loan.offer)).size !== career.loans.length) return false;
+  if (career.loans.some(loan => !LOAN_IDS.includes(loan.offer) || !Number.isInteger(loan.remaining) || loan.remaining < 1 ||
+    loan.remaining > LOANS[loan.offer].months)) return false;
+  return Object.entries(career.marketShipped).every(([item, count]) => MARKET_PRICES[item as ItemType] !== undefined && (count ?? 0) > 0);
+}
+
+function checkProgress(progress: Progress, tick = 0): boolean {
+  if (progress.career && (progress.sandbox || progress.completed.length > 0 || progress.active ||
+    Object.keys(progress.delivered).length > 0 || !checkCareer(progress.career, tick))) return false;
   if (new Set(progress.completed).size !== progress.completed.length) return false;
   let replay = createProgress(false);
   for (const id of progress.completed) {
@@ -102,7 +124,7 @@ function checkStaff(world: World): boolean {
  * capacities, belt spacing, production states, progression, conservation of units and booked capital.
  */
 export function checkIntegrity(world: World): boolean {
-  if (!checkProgress(world.progress) || !checkResearch(world.progress, world.research) || !checkStaff(world)) return false;
+  if (!checkProgress(world.progress, world.tick) || !checkResearch(world.progress, world.research) || !checkStaff(world)) return false;
   if (world.parcels.some((parcel, index) => !Number.isInteger(parcel) || parcel < 0 ||
     parcel >= LAND.gridColumns * LAND.gridRows || (index > 0 && parcel <= (world.parcels[index - 1] as number))) ||
     !landConnected(world) || (world.parcels.length > LAND.initialParcels.length && !landUnlocked(world.progress))) return false;
@@ -129,8 +151,11 @@ export function checkIntegrity(world: World): boolean {
   const occupiedTiles = new Set<number>();
   const machines = new Map<string, Machine>();
   let previousId = 0;
-  const capitalCeiling = WORKSHOP.initialCapitalCents + rewardsEarned(world.progress) + revenueCents;
-  let bookedCapital = world.capitalCents + world.ledger.purchaseSpentCents + world.staff.paidCents + landSpent(world);
+  const career = world.progress.career;
+  const capitalCeiling = (career ? CAREER.initialCapitalCents + career.borrowedCents + career.marketRevenueCents : WORKSHOP.initialCapitalCents) +
+    rewardsEarned(world.progress) + revenueCents;
+  let bookedCapital = world.capitalCents + world.ledger.purchaseSpentCents + world.staff.paidCents + landSpent(world) +
+    (career ? career.repaidCents + techSpent(career) : 0);
   if (bookedCapital > capitalCeiling) return false;
   if (world.machines.filter(machine => machine.type === 'headquarters').length > 1) return false;
 
@@ -233,7 +258,7 @@ export function checkIntegrity(world: World): boolean {
 
   const { purchased, produced, consumed, delivered, discarded } = world.ledger;
   const entered = mergeInventories(purchased, produced);
-  const left = [held, discarded, consumed, delivered, shipped].reduce(mergeInventories, {});
+  const left = [held, discarded, consumed, delivered, shipped, world.progress.career?.marketShipped ?? {}].reduce(mergeInventories, {});
   const completedCosts = world.progress.completed.map(id => MILESTONES[id].cost);
   const researchCosts = [
     ...world.research.completed.map(id => RESEARCH[id].cost),

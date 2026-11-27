@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const ITEM_CATEGORIES = [
-  'cpu', 'gpu', 'ram', 'storage', 'motherboard', 'power-supply', 'case', 'packaging', 'product',
+  'cpu', 'gpu', 'ram', 'storage', 'motherboard', 'power-supply', 'case', 'packaging', 'product', 'raw', 'component',
 ] as const;
 export type ItemCategory = (typeof ITEM_CATEGORIES)[number];
 
@@ -15,6 +15,8 @@ export const ITEM_TYPES = [
   'pc-gaming', 'pc-gaming-tested', 'pc-gaming-packaged',
   'pc-professional', 'pc-professional-tested', 'pc-professional-packaged', 'pc-professional-rejected',
   ...CUSTOM_ITEMS,
+  'ceramic-powder', 'copper-foil', 'fiberglass-sheet', 'ferrite-core',
+  'capacitor-reel', 'bare-pcb', 'transformer', 'circuit-board',
 ] as const;
 export type ItemType = (typeof ITEM_TYPES)[number];
 
@@ -153,4 +155,14 @@ export const ITEMS = z.record(z.enum(ITEM_TYPES), itemDefinition.readonly()).rea
   'pc-custom-packaged': {
     category: 'product', manufacturer: 'Silicon Empire', unitCostCents: null,
   },
+  // Career raw materials, sold by the bag, spool or sheet.
+  'ceramic-powder': { category: 'raw', manufacturer: 'Minéraux Arvel', unitCostCents: 2_500 },
+  'copper-foil': { category: 'raw', manufacturer: 'Cuprion', unitCostCents: 2_000 },
+  'fiberglass-sheet': { category: 'raw', manufacturer: 'Verrane', unitCostCents: 4_000 },
+  'ferrite-core': { category: 'raw', manufacturer: 'Magnetis', unitCostCents: 3_000 },
+  // Career components: made in the workshop, or bought at a premium once board assembly is licensed.
+  'capacitor-reel': { category: 'component', manufacturer: 'Silicon Empire', unitCostCents: 18_200 },
+  'bare-pcb': { category: 'component', manufacturer: 'Silicon Empire', unitCostCents: 23_400 },
+  transformer: { category: 'component', manufacturer: 'Silicon Empire', unitCostCents: 31_200 },
+  'circuit-board': { category: 'component', manufacturer: 'Silicon Empire', unitCostCents: null },
 } satisfies Record<ItemType, z.input<typeof itemDefinition>>);

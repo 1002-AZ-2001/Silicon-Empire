@@ -13,10 +13,10 @@ const euros = (amount: number) => new Intl.NumberFormat('fr-FR', {
   style: 'currency', currency: 'EUR', maximumFractionDigits: 0,
 }).format(amount);
 
-/** Sandbox games unlock every building; `progression: true` starts at tier 0. */
-async function startWorkshop(page: Page, name: string, { progression = false } = {}) {
+/** Sandbox games unlock every building; `progression: true` starts the classic mode at tier 0; `career` starts from zero. */
+async function startWorkshop(page: Page, name: string, { progression = false, career = false } = {}) {
   await page.getByLabel('Nom de l’atelier').fill(name);
-  await page.getByRole('checkbox', { name: /Bac à sable/ }).setChecked(!progression);
+  await page.getByRole('radio', { name: career ? /^Carrière/ : progression ? /^Classique/ : /^Bac à sable/ }).check();
   await page.getByRole('button', { name: 'Nouvelle partie' }).click();
   await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
   await expect(canvas(page)).toBeVisible();
@@ -472,6 +472,7 @@ test('change de langue depuis le menu, traduit l’atelier et garde ce choix', a
   await expect(page.getByRole('button', { name: 'New game' })).toBeVisible();
 
   await page.getByLabel('Workshop name').fill('Tokyo');
+  await page.getByRole('radio', { name: /^Classic/ }).check();
   await page.getByRole('button', { name: 'New game' }).click();
   await expect(page.getByRole('region', { name: 'Interactive workshop grid' })).toBeVisible();
   await expect(page.getByLabel('Available capital', { exact: true })).toHaveText('$28,000');
@@ -964,4 +965,59 @@ test('trace des murs au glisser, ferme une salle de repos et pose un parquet', a
   await expect(inspector(page)).toContainText('4 places assises');
   await page.getByRole('button', { name: 'Personnel', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Personnel' })).toContainText('Salles de repos : 4 places pour 0 employé');
+});
+
+test('démarre une carrière : spécialité, prêt, première chaîne guidée par le tutoriel et vente au grossiste', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('radio', { name: /^Carrière/ })).toBeChecked();
+  await startWorkshop(page, 'Atelier Ardoise', { career: true });
+  await expect(capital(page)).toHaveText(euros(0));
+  const tutorial = page.getByRole('complementary', { name: 'Tutoriel' });
+  await expect(tutorial).toContainText('Étape 1 sur 9');
+
+  const starter = page.getByRole('dialog', { name: 'Choisissez votre spécialité' });
+  await starter.getByRole('listitem', { name: 'Composants passifs' }).getByRole('button', { name: 'Démarrer avec cette spécialité' }).click();
+  await expect(starter).toHaveCount(0);
+  await expect(tutorial).toContainText('Étape 2 sur 9');
+  await expect(page.getByRole('button', { name: 'Banque', exact: true })).toHaveClass(/tutorial-target/);
+
+  await page.getByRole('button', { name: 'Banque', exact: true }).click();
+  const bank = page.getByRole('dialog', { name: 'Banque' });
+  await bank.getByRole('listitem', { name: 'Prêt de démarrage' }).getByRole('button', { name: `Emprunter ${euros(20_000)}` }).click();
+  await expect(capital(page)).toHaveText(euros(20_000));
+  await expect(bank.getByRole('list', { name: 'Prêts en cours' })).toContainText('24 mensualités restantes');
+  await bank.getByRole('button', { name: 'Fermer' }).click();
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: 'Pause' }).click();
+
+  await expect(page.getByRole('button', { name: /^Réception/ })).toHaveClass(/tutorial-target/);
+  await page.getByRole('button', { name: /^Réception/ }).click();
+  await clickTile(page, 30, 36);
+  await expect(page.getByRole('button', { name: /^Presse/ })).toHaveClass(/tutorial-target/);
+  await page.getByRole('button', { name: /^Presse/ }).click();
+  await clickTile(page, 31, 33);
+  await page.getByRole('button', { name: /^Convoyeur/ }).click();
+  await clickTile(page, 31, 35);
+  await expect(tutorial).toContainText('Étape 6 sur 9');
+  await clickTile(page, 32, 32);
+  await page.getByRole('button', { name: /^Expédition/ }).click();
+  await clickTile(page, 32, 30);
+  await expect(tutorial).toContainText('Étape 7 sur 9');
+
+  await page.getByRole('button', { name: 'Boutique', exact: true }).click();
+  const shop = page.getByRole('dialog', { name: 'Boutique de composants' });
+  const ceramic = shop.getByRole('listitem', { name: 'Poudre céramique' }).first();
+  await ceramic.getByRole('button', { name: 'Ajouter un lot' }).click();
+  await ceramic.getByRole('button', { name: 'Ajouter un lot' }).click();
+  await shop.getByRole('listitem', { name: 'Feuille de cuivre' }).first().getByRole('button', { name: 'Ajouter un lot' }).click();
+  await shop.getByRole('region', { name: 'Panier' }).getByRole('button', { name: /^Commander/ }).click();
+  await shop.getByRole('button', { name: 'Fermer' }).click();
+  await expect(tutorial).toContainText('Étape 8 sur 9');
+
+  const before = 20_000 - 4_200 - 6_000 - 80 - 1_600 - 700;
+  await expect(capital(page)).toHaveText(euros(before));
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: '×5' }).click();
+  await expect(capital(page)).toHaveText(euros(before + 140), { timeout: 20_000 });
+  await expect(tutorial).toContainText('Étape 9 sur 9');
+  await page.getByRole('button', { name: 'Ventes', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Grossiste' })).toContainText('Ventes au grossiste');
 });

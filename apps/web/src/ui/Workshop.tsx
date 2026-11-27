@@ -1,10 +1,11 @@
 import { contentsOf, demolitionRefund, inventoryTotal, machineUnlocked, modelUnlocked, sameContents, Simulation } from '@silicon-empire/simulation';
-import { MILESTONES, TIME } from '@silicon-empire/game-data';
+import { CAREER, MILESTONES, TIME } from '@silicon-empire/game-data';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import { createWorkshopControls } from '../game/controls';
 import { writeSave } from '../persistence/indexed-saves';
 import { SAVE_VERSION } from '../persistence/save-data';
+import { BankPanel, BankruptPanel, StarterPanel, TechPanel } from './CareerPanels';
 import { ConstructionBar, getShortcut } from './ConstructionBar';
 import { DesignerPanel } from './DesignerPanel';
 import { GuidePanel } from './GuidePanel';
@@ -14,6 +15,8 @@ import { ProgressionPanel } from './ProgressionPanel';
 import { ResearchPanel } from './ResearchPanel';
 import { ShopPanel } from './ShopPanel';
 import { StaffPanel } from './StaffPanel';
+import { TutorialCard, tutorialTarget, useTutorialHidden } from './Tutorial';
+import type { TutorialTarget } from './Tutorial';
 import { SalesPanel } from './SalesPanel';
 import { Dialog, Icon, gameTime } from './shared';
 import { useWorld } from './use-world';
@@ -40,6 +43,13 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
   const salesOpen = useStore(controls.store, state => state.salesOpen);
   const shopOpen = useStore(controls.store, state => state.shopOpen);
   const staffOpen = useStore(controls.store, state => state.staffOpen);
+  const bankOpen = useStore(controls.store, state => state.bankOpen);
+  const techOpen = useStore(controls.store, state => state.techOpen);
+  const [tutorialHidden, setTutorialHidden] = useTutorialHidden(session.id);
+  const career = world.progress.career;
+  const target = tutorialTarget(world, tutorialHidden);
+  const highlight = (name: TutorialTarget) => target === name ? ' tutorial-target' : '';
+  const previousCareer = useRef(career);
   const [designerOpen, setDesignerOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const completedCount = useRef(world.progress.completed.length);
@@ -85,6 +95,21 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
     }
     researchCount.current = completed.length;
   }, [world.research, controls]);
+
+  // Announce loan instalments in a career.
+  useEffect(() => {
+    const before = previousCareer.current;
+    previousCareer.current = career;
+    if (!career || !before || career.nextInstalment === before.nextInstalment) return;
+    const paid = career.repaidCents - before.repaidCents;
+    if (paid > 0) {
+      controls.store.setState({ feedback: { kind: 'success', message: ({ t: text, money: format }) => text.feedback.instalmentPaid(format(paid)) } });
+    } else if (career.missed > before.missed) {
+      controls.store.setState({
+        feedback: { kind: 'error', message: ({ t: text }) => text.feedback.instalmentMissed(career.missed, CAREER.maxMissed) },
+      });
+    }
+  }, [career, controls]);
 
   // Announce paydays and the base operators the Direction assigns when staffing becomes required.
   useEffect(() => {
@@ -216,7 +241,17 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
           ))}
         </div>
         <nav className="workshop-panels" aria-label={t.workshop.panels}>
-        {!world.progress.sandbox && (
+        {career && (
+          <>
+            <button type="button" className={`button${highlight('bank')}`} onClick={() => controls.store.setState({ bankOpen: true })}>
+              {t.workshop.bank}
+            </button>
+            <button type="button" className={`button${highlight('technologies')}`} onClick={() => controls.store.setState({ techOpen: true })}>
+              {t.workshop.technologies}
+            </button>
+          </>
+        )}
+        {!world.progress.sandbox && !career && (
           <button type="button" className="button progression-button" onClick={() => controls.store.setState({ progressionOpen: true })}>
             <Icon name="chip" /> {t.workshop.progression}
             <small>{world.progress.active ? t.progression.milestones[world.progress.active] : t.progression.none}</small>
@@ -228,11 +263,14 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
             {world.research.analysing && <small className="button-detail"> · {t.research.analysing}</small>}
           </button>
         )}
-        <button type="button" className="button" onClick={() => controls.store.setState({ shopOpen: true })}>{t.workshop.shop}</button>
+        <button type="button" className={`button${highlight('shop')}`} onClick={() => controls.store.setState({ shopOpen: true })}>{t.workshop.shop}</button>
         <button type="button" className="button" onClick={() => controls.store.setState({ staffOpen: true })}>{t.workshop.staff}</button>
         <button type="button" className="button" onClick={() => controls.store.setState({ salesOpen: true })}>{t.trade.title}</button>
         {modelUnlocked(world.progress, 'custom') && (
           <button type="button" className="button" onClick={() => setDesignerOpen(true)}>{t.design.title}</button>
+        )}
+        {career && tutorialHidden && (
+          <button type="button" className="button" onClick={() => setTutorialHidden(false)}>{t.tutorial.restart}</button>
         )}
         </nav>
         <div className="workshop-actions">
@@ -253,15 +291,24 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
           <WorkshopViewport simulation={simulation} controls={controls} name={session.name} />
         </Suspense>
         <Inspector controls={controls} world={world} />
+        {career && !tutorialHidden && !career.bankrupt && <TutorialCard world={world} onHide={() => setTutorialHidden(true)} />}
       </main>
 
-      <ConstructionBar controls={controls} world={world} onGuide={() => setGuideOpen(true)} />
+      <ConstructionBar controls={controls} world={world} onGuide={() => setGuideOpen(true)} highlight={target} />
 
       {guideOpen && <GuidePanel world={world} onClose={() => setGuideOpen(false)} />}
       {progressionOpen && (
         <ProgressionPanel world={world} controls={controls} onClose={() => controls.store.setState({ progressionOpen: false })} />
       )}
       {salesOpen && <SalesPanel world={world} controls={controls} />}
+      {career && !career.specialty && !career.bankrupt && <StarterPanel controls={controls} onMenu={openMenu} />}
+      {career && bankOpen && (
+        <BankPanel world={world} career={career} controls={controls} onClose={() => controls.store.setState({ bankOpen: false })} />
+      )}
+      {career && techOpen && (
+        <TechPanel world={world} career={career} controls={controls} onClose={() => controls.store.setState({ techOpen: false })} />
+      )}
+      {career?.bankrupt && <BankruptPanel name={session.name} career={career} onMenu={onMenu} />}
       {staffOpen && <StaffPanel world={world} controls={controls} onClose={() => controls.store.setState({ staffOpen: false })} />}
       {shopOpen && <ShopPanel world={world} controls={controls} onClose={() => controls.store.setState({ shopOpen: false })} />}
       {researchOpen && (

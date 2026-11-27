@@ -1,6 +1,7 @@
 import {
   CONVEYOR, ITEMS, ITEM_TYPES, LAND, MACHINES, MK2, PRODUCTION, PRODUCT_MODELS, PURCHASE, ROOMS, SUPPLIER_IDS, isConveyor, isFurniture,
   isLineType, recipeOf,
+  isComponentMachine,
 } from '@silicon-empire/game-data';
 import {
   ROUTER_SIDES, batchTicks, beltStatus, beltTarget, checkBuild, checkFloor, checkLine, checkParcel, checkOrder, checkProductModel, footprintOf,
@@ -179,7 +180,7 @@ function ProductionDetails({ world, machine, controls }: { world: World; machine
   const status = productionStatus(world, machine.id);
   return (
     <>
-      {options.length > 1 && (
+      {options.length > 1 && !isComponentMachine(machine.type) && (
         <div className="order-form">
           <label>
             <span>{t.production.model}</span>

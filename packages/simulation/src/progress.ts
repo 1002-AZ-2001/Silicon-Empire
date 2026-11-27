@@ -1,5 +1,9 @@
-import { ITEMS, MACHINE_TYPES, MILESTONES, MILESTONE_IDS, STARTING_ITEMS, STARTING_MACHINES, TIERS } from '@silicon-empire/game-data';
+import {
+  CAREER_START_MACHINES, ITEMS, MACHINE_TYPES, MILESTONES, MILESTONE_IDS, STARTING_ITEMS, STARTING_MACHINES, TECHNOLOGIES, TIERS,
+} from '@silicon-empire/game-data';
 import type { ItemType, MachineType, MilestoneId, ProductModel } from '@silicon-empire/game-data';
+import { createCareer } from './career';
+import type { CareerState } from './career';
 import type { Inventory } from './inventory';
 
 /** Progression state. In sandbox mode everything is unlocked and milestones are not used. */
@@ -11,10 +15,16 @@ export interface Progress {
   readonly active: MilestoneId | null;
   /** Parts already delivered to each unfinished milestone. Kept when the active milestone changes. */
   readonly delivered: Readonly<Partial<Record<MilestoneId, Inventory>>>;
+  /** Career workshops: specialty, licences, loans and wholesale sales. Milestones are not used. */
+  readonly career?: CareerState;
 }
 
 export function createProgress(sandbox: boolean): Progress {
   return { sandbox, completed: [], active: null, delivered: {} };
+}
+
+export function createCareerProgress(tick = 0): Progress {
+  return { sandbox: false, completed: [], active: null, delivered: {}, career: createCareer(tick) };
 }
 
 function milestonesOf(tier: number): MilestoneId[] {
@@ -34,7 +44,7 @@ export function tierOpen(progress: Progress, tier: number): boolean {
 
 /** A milestone can be chosen when its tier is open and, in a sequential tier, the previous ones are done. */
 export function milestoneAvailable(progress: Progress, id: MilestoneId): boolean {
-  if (progress.sandbox || progress.completed.includes(id)) return false;
+  if (progress.sandbox || progress.career || progress.completed.includes(id)) return false;
   const { tier, requires } = MILESTONES[id];
   if (!tierOpen(progress, tier)) return false;
   if (requires?.some(requirement => !progress.completed.includes(requirement))) return false;
@@ -45,12 +55,16 @@ export function milestoneAvailable(progress: Progress, id: MilestoneId): boolean
 }
 
 export function modelUnlocked(progress: Progress, model: ProductModel): boolean {
+  if (progress.career) return model === 'office' && progress.career.technologies.includes('computers');
   return model === 'office' || progress.sandbox ||
     progress.completed.some(id => MILESTONES[id].unlocks.models?.includes(model));
 }
 
 export function unlockedMachines(progress: Progress): ReadonlySet<MachineType> {
   if (progress.sandbox) return new Set(MACHINE_TYPES);
+  if (progress.career) {
+    return new Set([...CAREER_START_MACHINES, ...progress.career.technologies.flatMap(tech => TECHNOLOGIES[tech].unlocks.machines)]);
+  }
   return new Set([...STARTING_MACHINES, ...progress.completed.flatMap(id => MILESTONES[id].unlocks.machines)]);
 }
 
@@ -58,7 +72,9 @@ export function unlockedMachines(progress: Progress): ReadonlySet<MachineType> {
 export function orderableItems(progress: Progress): ReadonlySet<ItemType> {
   const unlocked = progress.sandbox
     ? Object.keys(ITEMS) as ItemType[]
-    : [...STARTING_ITEMS, ...progress.completed.flatMap(id => MILESTONES[id].unlocks.items)];
+    : progress.career
+      ? progress.career.technologies.flatMap(tech => TECHNOLOGIES[tech].unlocks.items)
+      : [...STARTING_ITEMS, ...progress.completed.flatMap(id => MILESTONES[id].unlocks.items)];
   return new Set(unlocked.filter(item => ITEMS[item].unitCostCents !== null));
 }
 

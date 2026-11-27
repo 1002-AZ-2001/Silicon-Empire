@@ -1,13 +1,15 @@
-import { FLOOR_TYPES, MACHINE_TYPES, PURCHASE, isLineType } from '@silicon-empire/game-data';
-import type { FloorType, LineType, MilestoneId, ResearchId, PcDesign, ProductModel, SupplierId } from '@silicon-empire/game-data';
+import { FLOOR_TYPES, LOANS, MACHINE_TYPES, PURCHASE, isLineType } from '@silicon-empire/game-data';
+import type {
+  FloorType, LineType, LoanId, MilestoneId, ResearchId, PcDesign, ProductModel, Specialty, SupplierId, TechId,
+} from '@silicon-empire/game-data';
 import {
-  FixedStepClock, floorCost, lineCost, machineAt, ownsTile, parcelOf, parcelPrice, purchaseCost, turnClockwise,
+  FixedStepClock, floorCost, lineCost, machineAt, ownsTile, parcelOf, parcelPrice, payoff, purchaseCost, turnClockwise,
 } from '@silicon-empire/simulation';
 import { createStore } from 'zustand/vanilla';
 import type { Messages, Translator } from '../i18n';
 import type { ItemType, MachineType } from '@silicon-empire/game-data';
 import type {
-  LineTile, PurchaseLine, Rotation, RouterFilter, Simulation, Speed, Tile,
+  Command, LineTile, PurchaseLine, Rotation, RouterFilter, Simulation, Speed, Tile,
 } from '@silicon-empire/simulation';
 
 /** Shop cart: lots per component, all from one supplier. Kept while the shop is closed. */
@@ -63,6 +65,8 @@ interface WorkshopUi {
   salesOpen: boolean;
   shopOpen: boolean;
   staffOpen: boolean;
+  bankOpen: boolean;
+  techOpen: boolean;
   cart: Cart;
 }
 
@@ -109,6 +113,8 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     salesOpen: false,
     shopOpen: false,
     staffOpen: false,
+    bankOpen: false,
+    techOpen: false,
     cart: EMPTY_CART,
   }));
   const clock = new FixedStepClock();
@@ -247,6 +253,25 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     return result.ok;
   }
 
+  /** Runs a career command and reports its result with the given message. */
+  function career(command: Command, message: Feedback['message']) {
+    const result = simulation.dispatch(command);
+    store.setState({ feedback: result.ok ? { kind: 'success', message } : { kind: 'error', message: errorMessage(result.reason) } });
+    return result.ok;
+  }
+
+  const chooseSpecialty = (specialty: Specialty) =>
+    career({ kind: 'choose-specialty', specialty }, ({ t }) => t.feedback.specialtyChosen(t.career.tech.names[specialty]));
+  const takeLoan = (offer: LoanId) =>
+    career({ kind: 'take-loan', offer }, ({ t, money }) => t.feedback.loanTaken(money(LOANS[offer].principalCents)));
+  const buyTech = (tech: TechId) =>
+    career({ kind: 'buy-tech', tech }, ({ t }) => t.feedback.techBought(t.career.tech.names[tech]));
+  function repayLoan(offer: LoanId) {
+    const loan = simulation.getSnapshot().progress.career?.loans.find(candidate => candidate.offer === offer);
+    const cost = loan ? payoff(loan) : 0;
+    return career({ kind: 'repay-loan', offer }, ({ t, money }) => t.feedback.loanRepaid(money(cost)));
+  }
+
   function buyParcel(parcel: number) {
     const cost = parcelPrice(simulation.getSnapshot());
     const result = simulation.dispatch({ kind: 'buy-parcel', parcel });
@@ -375,7 +400,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
   }
 
   return {
-    store, clock, setSpeed, togglePause, order, checkout, setCartLots, buyParcel, hire, fire, assign, configure, selectMilestone, selectResearch, upgrade, setProductModel,
+    store, clock, setSpeed, togglePause, order, checkout, setCartLots, buyParcel, hire, fire, assign, chooseSpecialty, takeLoan, repayLoan, buyTech, configure, selectMilestone, selectResearch, upgrade, setProductModel,
     startSale: (model: ProductModel) => changeSale(model), cancelSale: () => changeSale(),
     publishDesign,
     startLine, extendLine, cancelLine, finishLine,

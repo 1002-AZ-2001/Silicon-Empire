@@ -1,12 +1,12 @@
 import {
-  CONVEYOR, ITEM_TYPES, LAND, MACHINE_TYPES, MILESTONE_IDS, PRODUCT_MODELS, RESEARCH_IDS, STAFF, STANDARD_MODELS, SUPPLIER_IDS, WORKSHOP,
+  CONVEYOR, ITEM_TYPES, LAND, LOAN_IDS, MACHINE_TYPES, SPECIALTIES, TECH_IDS, MILESTONE_IDS, PRODUCT_MODELS, RESEARCH_IDS, STAFF, STANDARD_MODELS, SUPPLIER_IDS, WORKSHOP,
   publishedDesignSchema,
 } from '@silicon-empire/game-data';
 import { ROTATIONS, ROUTER_SIDES, checkIntegrity, createStaff, withRequiredStaff } from '@silicon-empire/simulation';
 import { z } from 'zod';
 import type { World } from '@silicon-empire/simulation';
 
-export const SAVE_VERSION = 12;
+export const SAVE_VERSION = 13;
 const OLD_MAP = 64;
 export const MAX_WORKSHOP_NAME = 40;
 
@@ -368,7 +368,7 @@ function migrateV10(value: unknown): z.input<typeof saveV11> | null {
 
 /** Version 12 (v0.9.1): the 128 × 128 land and the parcels owned. */
 const saveV12 = z.strictObject({
-  version: z.literal(SAVE_VERSION),
+  version: z.literal(12),
   ...header,
   world: z.strictObject({
     ...saveV11.shape.world.shape,
@@ -391,14 +391,46 @@ function migrateV11(value: unknown): z.input<typeof saveV12> | null {
   }));
   return {
     ...v11.data,
-    version: SAVE_VERSION,
+    version: 12,
     world: {
       ...v11.data.world, columns: WORKSHOP.columns, rows: WORKSHOP.rows, floors, parcels: [...LAND.initialParcels],
     },
   };
 }
 
-const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9, migrateV10, migrateV11];
+const count0 = z.int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+
+/** Version 13 (v0.10.0): career workshops keep their specialty, licences, loans and wholesale sales. */
+const saveV13 = z.strictObject({
+  version: z.literal(SAVE_VERSION),
+  ...header,
+  world: z.strictObject({
+    ...saveV12.shape.world.shape,
+    progress: z.strictObject({
+      ...saveV12.shape.world.shape.progress.shape,
+      career: z.strictObject({
+        specialty: z.enum(SPECIALTIES).nullable(),
+        technologies: z.array(z.enum(TECH_IDS)).max(TECH_IDS.length),
+        loans: z.array(z.strictObject({ offer: z.enum(LOAN_IDS), remaining: z.int().positive().max(1_000) })).max(LOAN_IDS.length),
+        borrowedCents: count0,
+        repaidCents: count0,
+        missed: z.int().nonnegative().max(100),
+        bankrupt: z.boolean(),
+        nextInstalment: z.int().positive().max(Number.MAX_SAFE_INTEGER),
+        marketRevenueCents: count0,
+        marketShipped: inventory,
+      }).optional(),
+    }),
+  }),
+});
+
+/** Earlier workshops are classic or sandbox: nothing to add. */
+function migrateV12(value: unknown): z.input<typeof saveV13> | null {
+  const v12 = saveV12.safeParse(value);
+  return v12.success ? { ...v12.data, version: SAVE_VERSION } : null;
+}
+
+const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9, migrateV10, migrateV11, migrateV12];
 
 function versionOf(value: unknown): unknown {
   return typeof value === 'object' && value !== null && 'version' in value ? value.version : undefined;
@@ -411,7 +443,7 @@ export function decodeSave(value: unknown): SaveRecord | null {
   if (typeof version === 'number' && Number.isInteger(version) && version >= 1) {
     for (const migrate of migrations.slice(version - 1)) current = migrate(current);
   }
-  const decoded = saveV12.safeParse(current);
+  const decoded = saveV13.safeParse(current);
   if (!decoded.success) return null;
 
   const { data } = decoded;

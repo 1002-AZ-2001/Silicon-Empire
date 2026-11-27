@@ -28,6 +28,7 @@ test('lance le jeu installé, affiche la version et conserve une sauvegarde entr
   expect(await page.evaluate(() => 'require' in window || 'process' in window)).toBe(false);
 
   await page.getByLabel('Nom de l’atelier').fill('Atelier de bureau');
+  await page.getByRole('radio', { name: /^Classique/ }).check();
   await page.getByRole('button', { name: 'Nouvelle partie' }).click();
   await expect(page.getByRole('region', { name: 'Grille interactive de l’atelier' })).toBeVisible();
   await page.getByRole('button', { name: 'Menu', exact: true }).click();

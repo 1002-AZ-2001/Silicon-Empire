@@ -10,6 +10,23 @@
 | Assemblage initial | 30 s simulées par PC |
 | Prix exemple Gaming X1 | 899 € |
 
+## Carrière v0.10.0
+
+| Prêt | Montant | Intérêts totaux | Mensualités | Mensualité |
+|---|---:|---:|---:|---:|
+| Démarrage | 20 000 € | 4 % | 24 | 866,67 € |
+| Croissance | 50 000 € | 6 % | 24 | 2 208,34 € |
+| Expansion | 100 000 € | 9 % | 36 | 3 027,78 € |
+
+| Machine | Prix | Recette | Durée | Coût matières | Prix grossiste | Marge par mois |
+|---|---:|---|---:|---:|---:|---:|
+| Presse à condensateurs | 6 000 € | 2 céramique (25 €) + 1 cuivre (20 €) | 12 s | 70 € | 140 € | 1 750 € |
+| Graveuse de circuits | 8 000 € | 1 stratifié (40 €) + 2 cuivre | 15 s | 80 € | 180 € | 2 000 € |
+| Bobineuse | 9 000 € | 2 cuivre + 2 ferrite (30 €) | 20 s | 100 € | 240 € | 2 100 € |
+| Ligne CMS | 25 000 € | 1 circuit nu + 2 condensateurs + 1 transformateur | 30 s | 320 € en matières | 900 € | 5 800 € |
+
+Un mois de jeu dure 5 minutes simulées. Une première chaîne (quai de réception, machine, quai d’expédition, deux convoyeurs) coûte de 11 880 € à 14 880 € : le prêt de démarrage la finance. Une seule presse couvre deux fois sa mensualité. Les composants achetés à la boutique coûtent 30 % de plus que leur prix de vente : c’est une solution d’appoint, pas une source de profit. Les licences valent 20 000 € (spécialité), 40 000 € (CMS) et 80 000 € (ordinateurs). Ces valeurs sont des hypothèses de départ, à ajuster en jouant.
+
 ## Parcelles v0.9.1
 
 | Achat | Prix | Total dépensé |

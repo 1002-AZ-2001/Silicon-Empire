@@ -65,6 +65,14 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - Les livraisons différées réservent la capacité du quai et débitent le capital à la commande. Elles entrent dans le stock et le registre des unités achetées au tick d’arrivée. Un quai qui attend des lots reste en place jusqu’à leur arrivée.
 - Le format v8 conserve les révisions, les délais et la réservation des stocks. Les commandes standard du format v7 gardent leurs conditions.
 
+## Carrière (v0.10.0)
+
+- `progress.career` (`packages/simulation/src/career.ts`) garde la spécialité, les licences dans l’ordre d’achat, les prêts, les montants empruntés et remboursés, les mensualités manquées, la faillite, la prochaine échéance et les ventes au grossiste. Les règles d’accès (`unlockedMachines`, `orderableItems`, `modelUnlocked`) lisent ces licences ; les jalons ne servent pas en carrière.
+- Commandes `choose-specialty`, `take-loan`, `repay-loan`, `buy-tech`. Une entreprise en faillite est figée : `step` renvoie le même monde et toute commande est refusée.
+- Le quai d’expédition accepte en carrière les articles qui ont un prix de gros (`MARKET_PRICES`). Les unités vendues entrent dans la conservation (`marketShipped`) et le capital plafond inclut les emprunts et les ventes ; le capital engagé inclut les remboursements et les licences.
+- Alimentation à la demande : quand le convoyeur de sortie d’un stock mène, d’un convoyeur à l’autre, à une machine de production, le stock envoie l’ingrédient au plus fort manque (place dans la machine moins les unités en route), ou rien. La chaîne de convoyeurs est mise en cache par disposition.
+- Format v13 : `progress.career` optionnel. Le tutoriel est dérivé de l’état du monde (`apps/web/src/ui/Tutorial.tsx`) ; seul son masquage est gardé dans `localStorage`, par atelier.
+
 ## Parcelles (v0.9.1)
 
 - `WORKSHOP.columns` et `rows` valent 128. `world.parcels` liste les parcelles possédées (numérotées ligne par ligne sur une grille de 4 × 4). `packages/simulation/src/land.ts` fournit `parcelOf`, `parcelBounds`, `ownsTile`, `ownsFootprint`, `parcelForSale` (voisine du terrain), `parcelPrice` et `landSpent`.

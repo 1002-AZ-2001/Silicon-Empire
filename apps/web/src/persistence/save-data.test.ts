@@ -389,3 +389,18 @@ describe('parcelles dans la sauvegarde', () => {
     expect(migrated?.world).toMatchObject({ columns: 128, rows: 128, parcels: [0, 1, 4, 5] });
   });
 });
+
+describe('carrière dans la sauvegarde', () => {
+  it('restaure la spécialité, les prêts et les ventes au grossiste, et relit un atelier v12 sans carrière', () => {
+    let world = run(run(createWorld('career'), { kind: 'choose-specialty', specialty: 'passives' }), { kind: 'take-loan', offer: 'starter' });
+    world = { ...world, progress: { ...world.progress, career: world.progress.career && { ...world.progress.career, missed: 1 } } };
+    const saved: SaveRecord = { ...record, world };
+    expect(decodeSave(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+    const career = world.progress.career;
+    if (!career) throw new Error('carrière absente');
+    expect(decodeSave({ ...saved, world: { ...world, progress: { ...world.progress, career: { ...career, missed: 3 } } } })).toBeNull();
+    expect(decodeSave({ ...saved, world: { ...world, progress: { ...world.progress, career: { ...career, technologies: ['pcb'] } } } })).toBeNull();
+    const v12 = JSON.parse(JSON.stringify({ ...record, version: 12 }));
+    expect(decodeSave(v12)).toEqual(record);
+  });
+});

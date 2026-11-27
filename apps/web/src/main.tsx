@@ -8,14 +8,15 @@ import './styles.css';
 import { createSaveId } from './persistence/save-data';
 import { MainMenu } from './ui/MainMenu';
 import { Workshop } from './ui/Workshop';
+import type { GameMode } from '@silicon-empire/simulation';
 import type { WorkshopSession } from './ui/Workshop';
 
 function App() {
   const [session, setSession] = useState<WorkshopSession | null>(null);
 
-  function startWorkshop(name: string, sandbox: boolean) {
+  function startWorkshop(name: string, mode: GameMode) {
     const id = createSaveId();
-    setSession({ id, name, createdAt: Date.now(), savedAt: null, world: createWorld(sandbox ? 'sandbox' : 'progression') });
+    setSession({ id, name, createdAt: Date.now(), savedAt: null, world: createWorld(mode) });
   }
 
   return session
