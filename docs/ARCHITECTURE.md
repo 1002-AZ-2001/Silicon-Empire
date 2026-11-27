@@ -65,6 +65,13 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - Les livraisons différées réservent la capacité du quai et débitent le capital à la commande. Elles entrent dans le stock et le registre des unités achetées au tick d’arrivée. Un quai qui attend des lots reste en place jusqu’à leur arrivée.
 - Le format v8 conserve les révisions, les délais et la réservation des stocks. Les commandes standard du format v7 gardent leurs conditions.
 
+## Pièces (v0.9.0)
+
+- Murs, portes et meubles sont des machines sans ports ni stock. Le tracé `build-line` accepte les murs (`LineType`). Les sols forment une couche à part, `world.floors` (index de tuile → revêtement), modifiée par la commande `paint-floor` ; le béton nu n’est pas enregistré.
+- `roomsOf(world)` (`packages/simulation/src/rooms.ts`) remplit les zones libres délimitées par les murs et les portes et écarte celles qui touchent le bord de la carte. Le résultat est mis en cache par disposition et par sols. Un meuble compte s’il est entièrement dans la pièce.
+- Effets : `rejectionFor` ajoute la salle blanche au rythme des rebuts. `advanceStaff` reçoit les effets à la demande : `staffRested` (places assises ≥ effectif) choisit les variations de moral, `poolSizeOf` la taille du prochain vivier. `candidatesFor(pool, size)` tire toujours les mêmes premiers candidats : les identifiants restent ceux de la v0.8.0.
+- Format v11 : `floors`. L’intégrité vérifie les index et les revêtements.
+
 ## Personnel (v0.8.0)
 
 - `StaffState` (`packages/simulation/src/staff.ts`) garde les employés, les candidats restants du vivier courant, le numéro du vivier, le total versé et les ticks de la prochaine paie et du prochain vivier. `candidatesFor(pool)` tire les candidats avec un générateur déterministe (mulberry32) ; l’intégrité vérifie que les candidats restants viennent bien de ce tirage.

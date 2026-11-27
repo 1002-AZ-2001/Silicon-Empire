@@ -1,6 +1,6 @@
-import { PURCHASE, isConveyor } from '@silicon-empire/game-data';
-import type { ConveyorType, MilestoneId, ResearchId, PcDesign, ProductModel, SupplierId } from '@silicon-empire/game-data';
-import { FixedStepClock, lineCost, machineAt, purchaseCost, turnClockwise } from '@silicon-empire/simulation';
+import { FLOOR_TYPES, MACHINE_TYPES, PURCHASE, isLineType } from '@silicon-empire/game-data';
+import type { FloorType, LineType, MilestoneId, ResearchId, PcDesign, ProductModel, SupplierId } from '@silicon-empire/game-data';
+import { FixedStepClock, floorCost, lineCost, machineAt, purchaseCost, turnClockwise } from '@silicon-empire/simulation';
 import { createStore } from 'zustand/vanilla';
 import type { Messages, Translator } from '../i18n';
 import type { ItemType, MachineType } from '@silicon-empire/game-data';
@@ -22,7 +22,20 @@ export function cartLines(cart: Cart): PurchaseLine[] {
     .map(([item, lots]) => ({ item, supplier: cart.supplier, lots }));
 }
 
-export type Tool = 'inspect' | MachineType | 'demolish';
+/** Floor painting tools; concrete removes a covering. */
+export type FloorTool = `floor:${FloorType}`;
+export const FLOOR_TOOLS: readonly FloorTool[] = FLOOR_TYPES.map(floor => `floor:${floor}` as const);
+
+export type Tool = 'inspect' | MachineType | 'demolish' | FloorTool;
+
+export function floorOf(tool: Tool): FloorType | null {
+  return tool.startsWith('floor:') ? tool.slice('floor:'.length) as FloorType : null;
+}
+
+/** Tools drawn by dragging: conveyors, walls and floors. */
+export function isDrawTool(tool: Tool): boolean {
+  return floorOf(tool) !== null || (isBuildTool(tool) && isLineType(tool));
+}
 
 interface Feedback {
   /** Built when displayed, so the message follows the current language. */
@@ -72,7 +85,7 @@ function orient(path: readonly Tile[], fallback: Rotation): LineTile[] {
 }
 
 export function isBuildTool(tool: Tool): tool is MachineType {
-  return tool !== 'inspect' && tool !== 'demolish';
+  return (MACHINE_TYPES as readonly string[]).includes(tool);
 }
 
 export function createWorkshopControls(simulation: Simulation, initialSpeed: Speed = 1) {
@@ -138,14 +151,33 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     const { line, tool } = store.getState();
     store.setState({ line: null });
     if (!line || line.length < 2) return false;
-    const type: ConveyorType = isBuildTool(tool) && isConveyor(tool) ? tool : 'conveyor';
+    const floor = floorOf(tool);
+    if (floor) {
+      paint(line, floor);
+      return true;
+    }
+    const type: LineType = isBuildTool(tool) && isLineType(tool) ? tool : 'conveyor';
     const result = simulation.dispatch({ kind: 'build-line', tiles: line, type });
     store.setState({
       feedback: result.ok
-        ? { kind: 'success', message: ({ t, money }) => t.feedback.lineBuilt(line.length, money(lineCost(line.length, type))) }
+        ? {
+          kind: 'success',
+          message: ({ t, money }) => (type === 'wall' ? t.feedback.wallsBuilt : t.feedback.lineBuilt)(line.length, money(lineCost(line.length, type))),
+        }
         : { kind: 'error', message: errorMessage(result.reason) },
     });
     return true;
+  }
+
+  function paint(tiles: readonly Tile[], floor: FloorType) {
+    const world = simulation.getSnapshot();
+    const cost = floorCost(world, tiles, floor);
+    const result = simulation.dispatch({ kind: 'paint-floor', tiles, floor });
+    store.setState({
+      feedback: result.ok
+        ? { kind: 'success', message: ({ t, money }) => t.feedback.floorPainted(t.floors[floor], money(cost)) }
+        : { kind: 'error', message: errorMessage(result.reason) },
+    });
   }
 
   function selectResearch(research: ResearchId | null) {
@@ -272,6 +304,11 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
 
   function activateTile(tile: Tile) {
     const { tool, rotation } = store.getState();
+    const floor = floorOf(tool);
+    if (floor) {
+      paint([tile], floor);
+      return;
+    }
     if (isBuildTool(tool)) {
       const result = simulation.dispatch({ kind: 'build', type: tool, ...tile, rotation });
       store.setState({

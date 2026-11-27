@@ -1,9 +1,9 @@
 import {
-  CUSTOM_ITEMS, ITEMS, ITEM_TYPES, MACHINES, MAX_LINE_LENGTH, MK2, PURCHASE, STAFF, SUPPLIERS, WORKSHOP,
-  designParts, designPower, isConveyor, pcDesignSchema, recipeOf, saleOffer,
+  CUSTOM_ITEMS, FLOOR_COST_CENTS, FLOOR_TYPES, ITEMS, ITEM_TYPES, MACHINES, MAX_LINE_LENGTH, MK2, PURCHASE, STAFF, SUPPLIERS,
+  WORKSHOP, designParts, designPower, isLineType, pcDesignSchema, recipeOf, saleOffer,
 } from '@silicon-empire/game-data';
 import type {
-  ConveyorType, Direction, ItemType, MachineType, MilestoneId, PcDesign, ProductModel, PublishedDesign, ResearchId,
+  Direction, FloorType, ItemType, LineType, MachineType, MilestoneId, PcDesign, ProductModel, PublishedDesign, ResearchId,
   SupplierId,
 } from '@silicon-empire/game-data';
 import { addItems, fitsInputStock, inventoryTotal, mergeInventories } from './inventory';
@@ -15,6 +15,7 @@ import type { ResearchState } from './research';
 import type { Sales } from './sales';
 import { assignBaseOperators, createStaff, isStaffed, severance, staffRequired } from './staff';
 import type { Employee, StaffState } from './staff';
+import type { Floors } from './rooms';
 
 export const ROTATIONS = [0, 1, 2, 3] as const satisfies readonly Direction[];
 export type Rotation = (typeof ROTATIONS)[number];
@@ -123,6 +124,8 @@ export interface World {
   readonly deliveries: readonly PendingDelivery[];
   readonly research: ResearchState;
   readonly staff: StaffState;
+  /** Painted floors by tile index; concrete tiles are absent. */
+  readonly floors: Floors;
   readonly ledger: Ledger;
 }
 
@@ -133,7 +136,8 @@ export interface LineTile extends Tile {
 
 export type Command =
   | ({ readonly kind: 'build' } & Placement)
-  | { readonly kind: 'build-line'; readonly tiles: readonly LineTile[]; readonly type?: ConveyorType }
+  | { readonly kind: 'build-line'; readonly tiles: readonly LineTile[]; readonly type?: LineType }
+  | { readonly kind: 'paint-floor'; readonly tiles: readonly Tile[]; readonly floor: FloorType }
   | { readonly kind: 'select-milestone'; readonly milestone: MilestoneId | null }
   | { readonly kind: 'select-research'; readonly research: ResearchId | null }
   | { readonly kind: 'upgrade'; readonly id: number }
@@ -195,6 +199,7 @@ export function createWorld(mode: 'sandbox' | 'progression' = 'sandbox'): World 
     deliveries: [],
     research: NO_RESEARCH,
     staff: createStaff(),
+    floors: {},
     ledger: EMPTY_LEDGER,
   };
 }
@@ -274,7 +279,7 @@ export function contentsOf(world: World, id: number): Inventory {
 }
 
 /** Checks a conveyor line: contiguous tiles on the map, all free, affordable as a whole. */
-export function checkLine(world: World, tiles: readonly LineTile[], type: ConveyorType = 'conveyor'): BuildError | null {
+export function checkLine(world: World, tiles: readonly LineTile[], type: LineType = 'conveyor'): BuildError | null {
   if (!machineUnlocked(world, type)) return 'locked';
   if (tiles.length === 0 || tiles.length > MAX_LINE_LENGTH) return 'invalid-line';
   const seen = new Set<string>();
@@ -292,8 +297,34 @@ export function checkLine(world: World, tiles: readonly LineTile[], type: Convey
   return null;
 }
 
-export function lineCost(length: number, type: ConveyorType = 'conveyor'): number {
+export function lineCost(length: number, type: LineType = 'conveyor'): number {
   return MACHINES[type].costCents * length;
+}
+
+/** Tiles of a paint stroke whose floor changes, in stroke order, without repeats. */
+export function floorChanges(world: World, tiles: readonly Tile[], floor: FloorType): Tile[] {
+  const seen = new Set<number>();
+  return tiles.filter(tile => {
+    const index = tile.y * world.columns + tile.x;
+    if (seen.has(index)) return false;
+    seen.add(index);
+    return (world.floors[index] ?? 'concrete') !== floor;
+  });
+}
+
+export function floorCost(world: World, tiles: readonly Tile[], floor: FloorType): number {
+  return floorChanges(world, tiles, floor).length * FLOOR_COST_CENTS[floor];
+}
+
+export function checkFloor(world: World, tiles: readonly Tile[], floor: FloorType): BuildError | null {
+  if (!FLOOR_TYPES.includes(floor)) return 'invalid-line';
+  if (!machineUnlocked(world, 'wall')) return 'locked';
+  if (tiles.length === 0 || tiles.length > MAX_LINE_LENGTH) return 'invalid-line';
+  if (tiles.some(tile => !Number.isInteger(tile.x) || !Number.isInteger(tile.y) || !fitsMap(world, { ...tile, width: 1, height: 1 }))) {
+    return 'out-of-bounds';
+  }
+  if (world.capitalCents < floorCost(world, tiles, floor)) return 'insufficient-funds';
+  return null;
 }
 
 /** Price of a lot; 0 for items that cannot be bought. */
@@ -497,9 +528,26 @@ export function applyCommand(world: World, command: Command): CommandResult {
     return { ok: true, world: { ...world, progress: { ...world.progress, active: command.milestone } }, machine: null };
   }
 
+  if (command.kind === 'paint-floor') {
+    const reason = checkFloor(world, command.tiles, command.floor);
+    if (reason) return { ok: false, reason };
+    const changed = floorChanges(world, command.tiles, command.floor);
+    if (changed.length === 0) return { ok: true, world, machine: null };
+    const floors: Record<string, Exclude<FloorType, 'concrete'>> = { ...world.floors };
+    for (const tile of changed) {
+      const index = tile.y * world.columns + tile.x;
+      if (command.floor === 'concrete') delete floors[index];
+      else floors[index] = command.floor;
+    }
+    return {
+      ok: true, machine: null,
+      world: { ...world, floors, capitalCents: world.capitalCents - changed.length * FLOOR_COST_CENTS[command.floor] },
+    };
+  }
+
   if (command.kind === 'build-line') {
     const type = command.type ?? 'conveyor';
-    if (!isConveyor(type)) return { ok: false, reason: 'invalid-line' };
+    if (!isLineType(type)) return { ok: false, reason: 'invalid-line' };
     const reason = checkLine(world, command.tiles, type);
     if (reason) return { ok: false, reason };
     const built: Machine[] = command.tiles.map((tile, index) => ({
@@ -653,6 +701,6 @@ export function sameContents(a: World, b: World): boolean {
   return a.machines === b.machines && a.stocks === b.stocks && a.belts === b.belts && a.routers === b.routers &&
     a.production === b.production && a.progress === b.progress && a.research === b.research &&
     a.ledger === b.ledger && a.sales === b.sales && a.design === b.design && a.deliveries === b.deliveries &&
-    a.staff.employees === b.staff.employees && a.staff.paidCents === b.staff.paidCents &&
+    a.staff.employees === b.staff.employees && a.staff.paidCents === b.staff.paidCents && a.floors === b.floors &&
     (a.deliveries.length === 0 || a.tick === b.tick) && a.capitalCents === b.capitalCents;
 }

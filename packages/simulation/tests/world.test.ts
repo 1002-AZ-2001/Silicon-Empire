@@ -25,6 +25,7 @@ describe('construction', () => {
         employees: [], candidates: candidatesFor(0), pool: 0, nextEmployeeId: 1, paidCents: 0,
         nextPayday: STAFF.payPeriodTicks, nextPool: STAFF.poolRefreshTicks,
       },
+      floors: {},
       ledger: {
         purchased: {}, discarded: {}, purchaseSpentCents: 0, produced: {}, consumed: {}, delivered: {},
       },

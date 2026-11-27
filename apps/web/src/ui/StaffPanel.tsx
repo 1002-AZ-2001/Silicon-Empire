@@ -1,5 +1,5 @@
 import { STAFF } from '@silicon-empire/game-data';
-import { isStaffed, payroll, severance, staffRequired } from '@silicon-empire/simulation';
+import { breakRoomSeats, isStaffed, payroll, poolSizeOf, severance, staffRequired } from '@silicon-empire/simulation';
 import { useI18n } from '../i18n';
 import { Dialog, gameTime } from './shared';
 import type { SkillLevel } from '@silicon-empire/game-data';
@@ -36,6 +36,8 @@ export function StaffPanel({ world, controls, onClose }: { world: World; control
         <div><dt>{t.staff.paidTotal}</dt><dd>{money(staff.paidCents)}</dd></div>
       </dl>
       <p className="placement-status">{t.staff.nextPayday(gameTime(staff.nextPayday - world.tick))}</p>
+      <p className="placement-status">{t.rooms.rested(breakRoomSeats(world), staff.employees.length)}</p>
+      {poolSizeOf(world) > STAFF.poolSize && <p className="placement-status">{t.rooms.extra(poolSizeOf(world) - STAFF.poolSize)}</p>}
 
       <section aria-label={t.staff.employees}>
         <h3>{t.staff.employees}</h3>

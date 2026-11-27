@@ -15,6 +15,8 @@ export const STAFF = {
   /** The candidate pool is replaced every three simulated minutes. */
   poolRefreshTicks: TIME.ticksPerSecond * 180,
   poolSize: 5,
+  /** Offices can add candidates up to this pool size. */
+  maxPoolSize: 8,
   maxEmployees: 40,
   /** Monthly salary asked at each skill level, before the candidate's own variation. */
   baseSalaryCents: { 1: 60_000, 2: 80_000, 3: 100_000, 4: 130_000, 5: 170_000 },

@@ -82,7 +82,7 @@ describe('schéma de sauvegarde', () => {
 
   it('migre une sauvegarde v0.2.0 avec ses unités en transit', () => {
     const v2 = JSON.parse(JSON.stringify({ ...inTransit, version: 2 }));
-    for (const key of ['routers', 'production', 'progress', 'sales', 'design', 'deliveries', 'research', 'staff']) delete v2.world[key];
+    for (const key of ['routers', 'production', 'progress', 'sales', 'design', 'deliveries', 'research', 'staff', 'floors']) delete v2.world[key];
     for (const key of ['produced', 'consumed', 'delivered']) delete v2.world.ledger[key];
     expect(decodeSave(v2)).toEqual({ ...inTransit, world: asMigrated(inTransit.world) });
     expect(decodeSave({ ...v2, world: { ...v2.world, routers: {} } })).toBeNull();
@@ -90,7 +90,7 @@ describe('schéma de sauvegarde', () => {
 
   it('migre une sauvegarde v0.2.x en bac à sable et refuse ses champs v4', () => {
     const v3 = JSON.parse(JSON.stringify({ ...inTransit, version: 3 }));
-    for (const key of ['production', 'progress', 'sales', 'design', 'deliveries', 'research', 'staff']) delete v3.world[key];
+    for (const key of ['production', 'progress', 'sales', 'design', 'deliveries', 'research', 'staff', 'floors']) delete v3.world[key];
     for (const key of ['produced', 'consumed', 'delivered']) delete v3.world.ledger[key];
     const migrated = decodeSave(v3);
     expect(migrated?.world.progress).toEqual({ sandbox: true, completed: [], active: null, delivered: {} });
@@ -102,7 +102,7 @@ describe('schéma de sauvegarde', () => {
     const world = runningAssembler('office');
     const { sales, design, deliveries } = world;
     const oldWorld: Record<string, unknown> = { ...world };
-    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff']) delete oldWorld[key];
+    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff', 'floors']) delete oldWorld[key];
     const legacy = { ...record, version: 4, world: oldWorld };
     const restored = decodeSave(legacy);
     expect(restored).toEqual({ ...record, world: asMigrated(world) });
@@ -126,7 +126,7 @@ describe('schéma de sauvegarde', () => {
     const world = runningAssembler('gaming');
     const { sales, design, deliveries } = world;
     const oldWorld: Record<string, unknown> = { ...world };
-    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff']) delete oldWorld[key];
+    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff', 'floors']) delete oldWorld[key];
     const restored = decodeSave({ ...record, version: 5, world: oldWorld });
     expect(restored).toEqual({ ...record, world: asMigrated(world) });
     expect(restored?.world).toMatchObject({ sales, design, deliveries });
@@ -242,6 +242,7 @@ describe('schéma de sauvegarde', () => {
     const v8 = JSON.parse(JSON.stringify({ ...record, version: 8 }));
     delete v8.world.research;
     delete v8.world.staff;
+    delete v8.world.floors;
     expect(decodeSave(v8)?.world.research).toEqual({ active: null, delivered: {}, analysing: null, completed: [] });
     expect(decodeSave({ ...v8, world: { ...v8.world, research: world.research } })).toBeNull();
   });
@@ -337,8 +338,24 @@ describe('personnel dans la sauvegarde', () => {
       },
     };
     delete legacyWorld.staff;
+    delete legacyWorld.floors;
     const migrated = decodeSave({ ...record, version: 9, world: legacyWorld });
     expect(migrated?.world.staff.employees).toMatchObject([{ id: 1, skill: 2, machineId: 1, morale: 70 }]);
     expect(migrated?.world.staff.candidates).toHaveLength(5);
+  });
+});
+
+describe('sols dans la sauvegarde', () => {
+  it('restaure les sols peints, rejette un sol invalide et migre la v10 sur béton nu', () => {
+    const world = run(createWorld(), { kind: 'paint-floor', tiles: [{ x: 3, y: 4 }, { x: 4, y: 4 }], floor: 'clean' });
+    expect(world.floors).toEqual({ 259: 'clean', 260: 'clean' });
+    const saved: SaveRecord = { ...record, world };
+    expect(decodeSave(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+    expect(decodeSave({ ...saved, world: { ...world, floors: { 259: 'concrete' } } })).toBeNull();
+    expect(decodeSave({ ...saved, world: { ...world, floors: { 9999: 'wood' } } })).toBeNull();
+    const v10 = JSON.parse(JSON.stringify({ ...saved, version: 10 }));
+    delete v10.world.floors;
+    expect(decodeSave(v10)?.world.floors).toEqual({});
+    expect(decodeSave({ ...v10, world: { ...v10.world, floors: {} } })).toBeNull();
   });
 });

@@ -7,10 +7,11 @@ import type { Inventory } from './inventory';
 import { milestoneDone, stillNeeded } from './progress';
 import type { Progress } from './progress';
 import { RESEARCH } from '@silicon-empire/game-data';
-import { capacityOf, rejectionEvery, researchPartsDone, researchStillNeeded } from './research';
+import { capacityOf, researchPartsDone, researchStillNeeded } from './research';
 import type { ResearchState } from './research';
 import { acceptsSale } from './sales';
-import { advanceStaff, assignBaseOperators, batchTicks, operatorOf, operatorRejection, staffRequired } from './staff';
+import { advanceStaff, assignBaseOperators, batchTicks, operatorOf, staffRequired } from './staff';
+import { poolSizeOf, rejectionFor, staffRested } from './rooms';
 import { ROUTER_SIDES, footprintOf } from './world';
 import type { BeltItem, Ledger, Machine, Placement, ProductionState, RouterState, Tile, World } from './world';
 
@@ -419,7 +420,8 @@ export function step(world: World): World {
     const ready = Object.entries(recipe.inputs).every(([item, count]) => (stock[item as ItemType] ?? 0) >= (count ?? 0));
     // Without an operator where staffing is required, the running batch ends but no new one starts.
     if (!batch && ready && (operator || !required)) {
-      const item = batchOutput(recipe, ledger.produced, operatorRejection(rejectionEvery(progress, research, recipe), operator?.skill));
+      const machine = machines.get(id);
+      const item = batchOutput(recipe, ledger.produced, machine ? rejectionFor(world, machine, recipe) : null);
       setStock(id, current => ITEM_TYPES.reduce(
         (remaining, item) => (recipe.inputs[item] ? addItems(remaining, item, -(recipe.inputs[item] ?? 0)) : remaining),
         current,
@@ -428,7 +430,7 @@ export function step(world: World): World {
         consumed: mergeInventories(ledger.consumed, recipe.inputs),
         produced: addItems(ledger.produced, item, 1),
       });
-      batch = { item, remaining: batchTicks(recipe, machines.get(id), operator?.skill) };
+      batch = { item, remaining: batchTicks(recipe, machine, operator?.skill) };
     }
     if (batch !== previous.batch || output !== previous.output) setProduction(id, { batch, output });
   }
@@ -470,7 +472,9 @@ export function step(world: World): World {
     if (!required && staffRequired(progress)) staff = assignBaseOperators(staff, world.machines);
   }
 
-  ({ staff, capitalCents } = advanceStaff(staff, tick, capitalCents));
+  ({ staff, capitalCents } = advanceStaff(staff, tick, capitalCents, () => ({
+    rested: staffRested({ ...world, staff }), poolSize: poolSizeOf(world),
+  })));
 
   return {
     ...world, tick, capitalCents, belts, stocks, routers, production, progress, sales, deliveries, research, staff, ledger, nextItemId,

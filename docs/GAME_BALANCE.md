@@ -10,6 +10,20 @@
 | Assemblage initial | 30 s simulées par PC |
 | Prix exemple Gaming X1 | 899 € |
 
+## Pièces v0.9.0
+
+| Élément | Prix | Taille | Rôle |
+|---|---:|---|---|
+| Mur | 20 € | 1 × 1 | Ferme une pièce ; se trace au glisser |
+| Porte | 150 € | 1 × 1 | Ferme une pièce comme un mur |
+| Canapé | 400 € | 2 × 1 | 4 places en salle de repos |
+| Machine à café | 600 € | 1 × 1 | Nécessaire à une salle de repos |
+| Bureau de travail | 800 € | 2 × 1 | +1 candidat par vivier (3 au plus) |
+| Filtre à air | 2 500 € | 1 × 1 | Avec un sol propre partout : salle blanche |
+| Carrelage, parquet, sol propre | 10 €, 15 €, 40 € la tuile | — | Le sol propre est exigé en salle blanche |
+
+Une pièce fait de 4 à 400 tuiles et ne touche pas le bord de la carte. Priorité des types : salle blanche, puis bureau, puis salle de repos. Une salle de repos de 12 tuiles avec un canapé et une machine à café coûte environ 1 500 € de murs, de porte et de mobilier (17 murs, une porte, un canapé, une machine à café). Elle couvre 4 employés. Une salle blanche autour d’un banc de test professionnel ramène les rebuts de 1 sur 8 à 1 sur 16, et jusqu’à 1 sur 64 avec la recherche et un opérateur de niveau 5. Les sols ne sont pas remboursés quand on les remplace.
+
 ## Personnel v0.8.0
 
 | Niveau | Salaire de base / mois | Fourchette demandée | Durée d’un lot | Rebuts professionnels |
