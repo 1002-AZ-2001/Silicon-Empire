@@ -1,11 +1,11 @@
 import {
-  CONVEYOR, ITEMS, ITEM_TYPES, MACHINES, MK2, PRODUCTION, PRODUCT_MODELS, PURCHASE, ROOMS, SUPPLIER_IDS, isConveyor, isFurniture,
+  CONVEYOR, ITEMS, ITEM_TYPES, LAND, MACHINES, MK2, PRODUCTION, PRODUCT_MODELS, PURCHASE, ROOMS, SUPPLIER_IDS, isConveyor, isFurniture,
   isLineType, recipeOf,
 } from '@silicon-empire/game-data';
 import {
-  ROUTER_SIDES, batchTicks, beltStatus, beltTarget, checkBuild, checkFloor, checkLine, checkOrder, checkProductModel, footprintOf,
+  ROUTER_SIDES, batchTicks, beltStatus, beltTarget, checkBuild, checkFloor, checkLine, checkParcel, checkOrder, checkProductModel, footprintOf,
   floorCost, inventoryTotal, lineCost, modelUnlocked, operatorOf, orderCost, orderableItems, portConnections, portsOf,
-  productionStatus, rejectionFor, roomOfMachine, routerLinks,
+  parcelPrice, productionStatus, rejectionFor, roomOfMachine, routerLinks,
   upgradeUnlocked,
 } from '@silicon-empire/simulation';
 import { useState } from 'react';
@@ -78,6 +78,28 @@ function RouterDetails({ world, machine }: { world: World; machine: Machine }) {
         <div key={label}><dt>{label}</dt><dd>{link === null || link === undefined ? t.inspector.free : t.inspector.connected}</dd></div>
       ))}
     </dl>
+  );
+}
+
+function ParcelDetails({ world, parcel, controls }: { world: World; parcel: number; controls: WorkshopControls }) {
+  const { t, money } = useI18n();
+  const price = parcelPrice(world);
+  const error = checkParcel(world, parcel);
+  const reason = error === 'locked' ? t.land.locked(t.progression.milestones[LAND.requiredFrom])
+    : error === 'parcel-unavailable' ? t.land.notAdjacent
+      : error ? t.errors[error] : null;
+  return (
+    <div className="inspector-detail">
+      <h3>{t.land.title} {parcel + 1}</h3>
+      <dl className="machine-stats">
+        <div><dt>{t.inspector.footprint}</dt><dd>{t.land.size(LAND.parcelSize)}</dd></div>
+        <div><dt>{t.land.price}</dt><dd>{money(price)}</dd></div>
+      </dl>
+      <button type="button" className="button button-primary" disabled={error !== null} onClick={() => controls.buyParcel(parcel)}>
+        {t.land.buy(money(price))}
+      </button>
+      {reason ? <p className="order-hint text-error">{reason}</p> : <p className="order-hint">{t.land.hint}</p>}
+    </div>
   );
 }
 
@@ -386,7 +408,7 @@ function Logistics({ world, machine, controls }: { world: World; machine: Machin
 }
 
 export function Inspector({ controls, world }: { controls: WorkshopControls; world: World }) {
-  const { tool, hover, rotation, selectedId, feedback, line } = useStore(controls.store);
+  const { tool, hover, rotation, selectedId, selectedParcel, feedback, line } = useStore(controls.store);
   const translator = useI18n();
   const { t, money } = translator;
   const selected = world.machines.find(machine => machine.id === selectedId);
@@ -437,6 +459,8 @@ export function Inspector({ controls, world }: { controls: WorkshopControls; wor
           {selected && isFurniture(selected.type) && <RoomDetails world={world} machine={selected} />}
           {selected?.type === 'shipping' && <ShippingDetails world={world} controls={controls} />}
         </div>
+      ) : selectedParcel !== null && tool === 'inspect' ? (
+        <ParcelDetails world={world} parcel={selectedParcel} controls={controls} />
       ) : (
         <div className="inspector-empty">
           <span className={tool === 'demolish' ? 'empty-symbol text-error' : 'empty-symbol'}><Icon name={tool === 'demolish' ? 'trash' : 'target'} /></span>

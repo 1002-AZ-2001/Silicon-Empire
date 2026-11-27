@@ -1,5 +1,5 @@
 import {
-  CUSTOM_ITEMS, FLOOR_COST_CENTS, FLOOR_TYPES, ITEMS, ITEM_TYPES, MACHINES, MAX_LINE_LENGTH, MK2, PURCHASE, STAFF, SUPPLIERS,
+  CUSTOM_ITEMS, FLOOR_COST_CENTS, FLOOR_TYPES, ITEMS, ITEM_TYPES, LAND, MACHINES, MAX_LINE_LENGTH, MK2, PURCHASE, STAFF, SUPPLIERS,
   WORKSHOP, designParts, designPower, isLineType, pcDesignSchema, recipeOf, saleOffer,
 } from '@silicon-empire/game-data';
 import type {
@@ -16,6 +16,7 @@ import type { Sales } from './sales';
 import { assignBaseOperators, createStaff, isStaffed, severance, staffRequired } from './staff';
 import type { Employee, StaffState } from './staff';
 import type { Floors } from './rooms';
+import { ownsFootprint, ownsTile, parcelForSale, parcelPrice } from './land';
 
 export const ROTATIONS = [0, 1, 2, 3] as const satisfies readonly Direction[];
 export type Rotation = (typeof ROTATIONS)[number];
@@ -126,6 +127,8 @@ export interface World {
   readonly staff: StaffState;
   /** Painted floors by tile index; concrete tiles are absent. */
   readonly floors: Floors;
+  /** Owned parcels in ascending order. Buildings and floors stay on owned land. */
+  readonly parcels: readonly number[];
   readonly ledger: Ledger;
 }
 
@@ -138,6 +141,7 @@ export type Command =
   | ({ readonly kind: 'build' } & Placement)
   | { readonly kind: 'build-line'; readonly tiles: readonly LineTile[]; readonly type?: LineType }
   | { readonly kind: 'paint-floor'; readonly tiles: readonly Tile[]; readonly floor: FloorType }
+  | { readonly kind: 'buy-parcel'; readonly parcel: number }
   | { readonly kind: 'select-milestone'; readonly milestone: MilestoneId | null }
   | { readonly kind: 'select-research'; readonly research: ResearchId | null }
   | { readonly kind: 'upgrade'; readonly id: number }
@@ -161,7 +165,7 @@ export interface PurchaseLine {
   readonly lots: number;
 }
 
-type FootprintError = 'out-of-bounds' | 'occupied';
+type FootprintError = 'out-of-bounds' | 'occupied' | 'not-owned';
 type BuildError = FootprintError | 'insufficient-funds' | 'id-limit' | 'invalid-line' | 'locked' | 'unique';
 type OrderError = 'not-a-dock' | 'insufficient-funds' | 'dock-full' | 'id-limit' | 'locked' | 'empty-order' | 'invalid-order';
 type ModelError = 'not-a-producer' | 'locked' | 'production-busy' | 'incompatible-inputs' | 'design-required';
@@ -169,7 +173,8 @@ type SaleError = 'no-shipping-dock' | 'sale-in-progress' | 'sale-already-shipped
 type DesignError = 'design-invalid' | 'design-power' | 'design-in-use';
 export type CommandError = BuildError | OrderError | ModelError | SaleError | DesignError |
   'missing-machine' | 'not-a-splitter' | 'milestone-unavailable' | 'deliveries-pending' |
-  'research-unavailable' | 'not-upgradable' | 'missing-candidate' | 'missing-employee' | 'staff-full' | 'not-staffed';
+  'research-unavailable' | 'not-upgradable' | 'missing-candidate' | 'missing-employee' | 'staff-full' | 'not-staffed' |
+  'parcel-unavailable';
 
 export type CommandResult =
   | { readonly ok: true; readonly world: World; readonly machine: Machine | null }
@@ -200,6 +205,7 @@ export function createWorld(mode: 'sandbox' | 'progression' = 'sandbox'): World 
     research: NO_RESEARCH,
     staff: createStaff(),
     floors: {},
+    parcels: [...LAND.initialParcels],
     ledger: EMPTY_LEDGER,
   };
 }
@@ -244,6 +250,7 @@ export function machineAt(world: Pick<World, 'machines'>, tile: Tile): Machine |
 function checkFootprint(world: World, placement: Placement, ignoreId?: number): FootprintError | null {
   const footprint = footprintOf(placement);
   if (!fitsMap(world, footprint)) return 'out-of-bounds';
+  if (!ownsFootprint(world, footprint)) return 'not-owned';
   if (world.machines.some(machine =>
     machine.id !== ignoreId && footprintsIntersect(footprintOf(machine), footprint)
   )) return 'occupied';
@@ -316,6 +323,18 @@ export function floorCost(world: World, tiles: readonly Tile[], floor: FloorType
   return floorChanges(world, tiles, floor).length * FLOOR_COST_CENTS[floor];
 }
 
+/** Buying land opens at a milestone in progression; the parcel must be next to the owned land. */
+export function landUnlocked(progress: Progress): boolean {
+  return progress.sandbox || progress.completed.includes(LAND.requiredFrom);
+}
+
+export function checkParcel(world: World, parcel: number): CommandError | null {
+  if (!landUnlocked(world.progress)) return 'locked';
+  if (!parcelForSale(world, parcel)) return 'parcel-unavailable';
+  if (world.capitalCents < parcelPrice(world)) return 'insufficient-funds';
+  return null;
+}
+
 export function checkFloor(world: World, tiles: readonly Tile[], floor: FloorType): BuildError | null {
   if (!FLOOR_TYPES.includes(floor)) return 'invalid-line';
   if (!machineUnlocked(world, 'wall')) return 'locked';
@@ -323,6 +342,7 @@ export function checkFloor(world: World, tiles: readonly Tile[], floor: FloorTyp
   if (tiles.some(tile => !Number.isInteger(tile.x) || !Number.isInteger(tile.y) || !fitsMap(world, { ...tile, width: 1, height: 1 }))) {
     return 'out-of-bounds';
   }
+  if (tiles.some(tile => !ownsTile(world, tile))) return 'not-owned';
   if (world.capitalCents < floorCost(world, tiles, floor)) return 'insufficient-funds';
   return null;
 }
@@ -528,6 +548,19 @@ export function applyCommand(world: World, command: Command): CommandResult {
     return { ok: true, world: { ...world, progress: { ...world.progress, active: command.milestone } }, machine: null };
   }
 
+  if (command.kind === 'buy-parcel') {
+    const reason = checkParcel(world, command.parcel);
+    if (reason) return { ok: false, reason };
+    return {
+      ok: true, machine: null,
+      world: {
+        ...world,
+        capitalCents: world.capitalCents - parcelPrice(world),
+        parcels: [...world.parcels, command.parcel].sort((a, b) => a - b),
+      },
+    };
+  }
+
   if (command.kind === 'paint-floor') {
     const reason = checkFloor(world, command.tiles, command.floor);
     if (reason) return { ok: false, reason };
@@ -702,5 +735,6 @@ export function sameContents(a: World, b: World): boolean {
     a.production === b.production && a.progress === b.progress && a.research === b.research &&
     a.ledger === b.ledger && a.sales === b.sales && a.design === b.design && a.deliveries === b.deliveries &&
     a.staff.employees === b.staff.employees && a.staff.paidCents === b.staff.paidCents && a.floors === b.floors &&
+    a.parcels === b.parcels &&
     (a.deliveries.length === 0 || a.tick === b.tick) && a.capitalCents === b.capitalCents;
 }

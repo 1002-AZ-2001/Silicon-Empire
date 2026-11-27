@@ -42,7 +42,7 @@ describe('pièces', () => {
     const world = walledRoom();
     const { rooms } = roomsOf(world);
     expect(rooms).toHaveLength(1);
-    expect(rooms[0]).toMatchObject({ id: 11 * 64 + 11, type: 'empty', sofas: 0 });
+    expect(rooms[0]).toMatchObject({ id: 11 * 128 + 11, type: 'empty', sofas: 0 });
     expect(rooms[0]?.tiles).toHaveLength(12);
     expect(world.capitalCents).toBe(createWorld().capitalCents - 18 * MACHINES.wall.costCents + MACHINES.wall.costCents / 2 - MACHINES.door.costCents);
     expect(checkIntegrity(world)).toBe(true);
@@ -102,12 +102,14 @@ describe('pièces', () => {
 
   it('refuse un sol hors carte, verrouillé ou trop cher, et un sol enregistré invalide', () => {
     const world = createWorld();
-    expect(applyCommand(world, { kind: 'paint-floor', tiles: [{ x: 64, y: 0 }], floor: 'wood' })).toEqual({ ok: false, reason: 'out-of-bounds' });
+    expect(applyCommand(world, { kind: 'paint-floor', tiles: [{ x: 128, y: 0 }], floor: 'wood' })).toEqual({ ok: false, reason: 'out-of-bounds' });
+    expect(applyCommand(world, { kind: 'paint-floor', tiles: [{ x: 64, y: 0 }], floor: 'wood' })).toEqual({ ok: false, reason: 'not-owned' });
     expect(applyCommand(createWorld('progression'), { kind: 'paint-floor', tiles: [{ x: 1, y: 1 }], floor: 'wood' }))
       .toEqual({ ok: false, reason: 'locked' });
     expect(applyCommand({ ...world, capitalCents: 0 }, { kind: 'paint-floor', tiles: [{ x: 1, y: 1 }], floor: 'wood' }))
       .toEqual({ ok: false, reason: 'insufficient-funds' });
-    expect(checkIntegrity({ ...world, floors: { 4096: 'wood' } })).toBe(false);
+    expect(checkIntegrity({ ...world, floors: { 16384: 'wood' } })).toBe(false);
+    expect(checkIntegrity({ ...world, floors: { 100: 'wood' } })).toBe(false);
     expect(checkIntegrity({ ...world, floors: { 12: 'wood' } })).toBe(true);
   });
 });

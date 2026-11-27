@@ -65,6 +65,13 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - Les livraisons différées réservent la capacité du quai et débitent le capital à la commande. Elles entrent dans le stock et le registre des unités achetées au tick d’arrivée. Un quai qui attend des lots reste en place jusqu’à leur arrivée.
 - Le format v8 conserve les révisions, les délais et la réservation des stocks. Les commandes standard du format v7 gardent leurs conditions.
 
+## Parcelles (v0.9.1)
+
+- `WORKSHOP.columns` et `rows` valent 128. `world.parcels` liste les parcelles possédées (numérotées ligne par ligne sur une grille de 4 × 4). `packages/simulation/src/land.ts` fournit `parcelOf`, `parcelBounds`, `ownsTile`, `ownsFootprint`, `parcelForSale` (voisine du terrain), `parcelPrice` et `landSpent`.
+- `checkFootprint` et `checkFloor` refusent hors terrain (`not-owned`). La commande `buy-parcel` vérifie `landUnlocked` (bac à sable ou jalon Entrepôt), la contiguïté et le capital. L’intégrité exige des parcelles triées, contiguës et contenant le départ, des bâtiments et des sols sur le terrain possédé, et compte `landSpent` dans le capital engagé.
+- Format v12 : `columns`/`rows` à 128 et `parcels`. La migration v11 → v12 garde les coordonnées des bâtiments et réindexe les sols (`y × 64 + x` → `y × 128 + x`).
+- Rendu : le béton est un `TileSprite` d’un motif de 8 × 8 tuiles ; un voile couvre les parcelles non possédées et les parcelles à vendre portent leur prix. Un clic hors terrain sélectionne la parcelle (`selectedParcel`).
+
 ## Pièces (v0.9.0)
 
 - Murs, portes et meubles sont des machines sans ports ni stock. Le tracé `build-line` accepte les murs (`LineType`). Les sols forment une couche à part, `world.floors` (index de tuile → revêtement), modifiée par la commande `paint-floor` ; le béton nu n’est pas enregistré.

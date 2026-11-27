@@ -1,6 +1,6 @@
 import {
   CONVEYOR, ITEM_TYPES, MILESTONES, MILESTONE_IDS, PRODUCTION, PURCHASE, RESEARCH, RESEARCH_IDS, SKILL_LEVELS, STAFF, SUPPLIERS,
-  WORKSHOP, FLOOR_TYPES,
+  WORKSHOP, FLOOR_TYPES, LAND,
   designParts, designPower, isConveyor, recipeOf, sameDesign,
 } from '@silicon-empire/game-data';
 import type { ItemType, MilestoneId, ResearchId } from '@silicon-empire/game-data';
@@ -12,7 +12,8 @@ import { NO_RESEARCH, capacityOf, researchAvailable, researchPartsDone, upgradeU
 import type { ResearchState } from './research';
 import { salesAccounts, validSaleTerms } from './sales';
 import { candidatesFor, isStaffed } from './staff';
-import { fitsMap, footprintOf, machineUnlocked } from './world';
+import { landConnected, landSpent, ownsFootprint, ownsTile } from './land';
+import { fitsMap, footprintOf, landUnlocked, machineUnlocked } from './world';
 import type { Machine, World } from './world';
 
 /** Milestones were completed in an order the rules allow, and deliveries match the remaining costs. */
@@ -102,11 +103,14 @@ function checkStaff(world: World): boolean {
  */
 export function checkIntegrity(world: World): boolean {
   if (!checkProgress(world.progress) || !checkResearch(world.progress, world.research) || !checkStaff(world)) return false;
+  if (world.parcels.some((parcel, index) => !Number.isInteger(parcel) || parcel < 0 ||
+    parcel >= LAND.gridColumns * LAND.gridRows || (index > 0 && parcel <= (world.parcels[index - 1] as number))) ||
+    !landConnected(world) || (world.parcels.length > LAND.initialParcels.length && !landUnlocked(world.progress))) return false;
   const tiles = world.columns * world.rows;
   for (const [key, floor] of Object.entries(world.floors)) {
     const index = Number(key);
     if (!Number.isInteger(index) || index < 0 || index >= tiles || String(index) !== key ||
-      !PAINTED_FLOORS.includes(floor)) return false;
+      !PAINTED_FLOORS.includes(floor) || !ownsTile(world, { x: index % world.columns, y: Math.floor(index / world.columns) })) return false;
   }
   const { active, completed } = world.sales;
   if (active && (!validSaleTerms(active.terms) || !modelUnlocked(world.progress, active.terms.model) ||
@@ -126,13 +130,14 @@ export function checkIntegrity(world: World): boolean {
   const machines = new Map<string, Machine>();
   let previousId = 0;
   const capitalCeiling = WORKSHOP.initialCapitalCents + rewardsEarned(world.progress) + revenueCents;
-  let bookedCapital = world.capitalCents + world.ledger.purchaseSpentCents + world.staff.paidCents;
+  let bookedCapital = world.capitalCents + world.ledger.purchaseSpentCents + world.staff.paidCents + landSpent(world);
   if (bookedCapital > capitalCeiling) return false;
   if (world.machines.filter(machine => machine.type === 'headquarters').length > 1) return false;
 
   for (const machine of world.machines) {
     const footprint = footprintOf(machine);
-    if (machine.id <= previousId || machine.id >= world.nextMachineId || !fitsMap(world, footprint)) return false;
+    if (machine.id <= previousId || machine.id >= world.nextMachineId || !fitsMap(world, footprint) ||
+      !ownsFootprint(world, footprint)) return false;
     if (!unlocked.has(machine.type) && !machineUnlocked(world, machine.type)) return false;
     if (machine.level !== undefined && (machine.level !== 2 || !upgradeUnlocked(world.progress, world.research, machine.type))) {
       return false;

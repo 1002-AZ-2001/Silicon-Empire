@@ -2,7 +2,7 @@
 
 *From components to an industrial empire.*
 
-Jeu de gestion industrielle informatique en 2D, solo et jouable dans un navigateur. On construit un atelier de 64 × 64 tuiles avec un capital initial de 25 000 €, on commande des composants, on assemble, teste et emballe des PC sur des chaînes de convoyeurs, et on livre des pièces à la Direction pour débloquer de nouveaux équipements, palier après palier. Le mode bac à sable débloque tout dès le départ.
+Jeu de gestion industrielle informatique en 2D, solo et jouable dans un navigateur. On construit un atelier de 64 × 64 tuiles, agrandissable par parcelles jusqu’à 128 × 128, avec un capital initial de 25 000 €, on commande des composants, on assemble, teste et emballe des PC sur des chaînes de convoyeurs, et on livre des pièces à la Direction pour débloquer de nouveaux équipements, palier après palier. Le mode bac à sable débloque tout dès le départ.
 
 ## Langues
 
@@ -39,6 +39,7 @@ Le **Guide d’atelier**, dans la barre de construction, suit les étapes jusqu�
 | Vendre | Construire un **Quai d’expédition** après Conditionnement, accepter une commande dans **Ventes**, puis acheminer dix PC emballés jusqu’au quai |
 | Concevoir un PC | Ouvrir **Conception de PC** après Conditionnement, choisir mémoire, stockage, graphismes et alimentation, puis sélectionner le modèle sur les trois machines de la ligne |
 | Répartir ou fusionner | **Répartiteur** ou **Fusionneur** ; le filtre du répartiteur se règle dans l’inspection |
+| Agrandir le terrain | Cliquer une parcelle encadrée « À vendre » à côté du terrain, puis **Acheter la parcelle** dans l’inspecteur (après le jalon Entrepôt en progression) |
 | Aménager des pièces | **Mur** au glisser pour fermer une zone, **Porte**, puis le mobilier : canapé et café (salle de repos), bureau de travail (bureau), filtre à air sur **Sol de salle blanche** (salle blanche). Les sols se peignent au glisser |
 | Embaucher | **Personnel** : embaucher un candidat, puis l’affecter à un établi, un banc de test ou une emballeuse (ou depuis l’inspecteur de la machine). En progression, ces machines exigent un opérateur après le Conditionnement |
 | Commander des composants | **Boutique** : remplir le panier (lots de 10, remise dès 5 lots), choisir le quai, puis **Commander** ; ou inspecter un quai de réception et **Commander 10 unités** |

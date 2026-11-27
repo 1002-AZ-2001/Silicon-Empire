@@ -138,7 +138,7 @@ test('zoome sous le pointeur, recentre et déplace la caméra sans construire pe
   await expect(coordinates(page)).toHaveText('X 37 / Y 35');
 });
 
-test('affiche l’emprise invalide et refuse de construire au-delà du bord', async ({ page }) => {
+test('refuse de construire hors du terrain puis achète la parcelle voisine pour s’y installer', async ({ page }) => {
   await page.goto('/');
   await startWorkshop(page, 'Limite de l’atelier');
   await page.getByRole('button', { name: /^Réception/ }).click();
@@ -151,14 +151,28 @@ test('affiche l’emprise invalide et refuse de construire au-delà du bord', as
   await page.mouse.down({ button: 'right' });
   await page.mouse.move(box.x + 28, y, { steps: 8 });
   await page.mouse.up({ button: 'right' });
-  const lastColumn = right - 64 - 16;
+  // The camera moved by the drag length: the last owned column is now that far to the left.
+  const lastColumn = box.x + box.width / 2 + (63.5 - 32) * 32 - (box.width - 56);
   await page.mouse.move(lastColumn, y);
   await expect(coordinates(page)).toHaveText('X 64 / Y 33');
-  await expect(inspector(page).getByText('L’emprise dépasse les limites de l’atelier.')).toBeVisible();
+  const notOwned = 'Ce terrain n’est pas encore à vous : achetez la parcelle.';
+  await expect(inspector(page).getByText(notOwned)).toBeVisible();
   await page.mouse.click(lastColumn, y);
-  await expect(inspector(page).getByRole('status')).toHaveText('L’emprise dépasse les limites de l’atelier.');
+  await expect(inspector(page).getByRole('status')).toHaveText(notOwned);
   await expect(equipment(page)).toHaveText('0');
   await expect(capital(page)).toHaveText(euros(25_000));
+
+  await page.keyboard.press('Escape');
+  await page.mouse.click(lastColumn + 64, y);
+  await expect(inspector(page).getByRole('heading', { name: 'Parcelle 7' })).toBeVisible();
+  await inspector(page).getByRole('button', { name: `Acheter la parcelle · ${euros(10_000)}` }).click();
+  await expect(page.getByText(`Parcelle achetée pour ${euros(10_000)}.`)).toBeVisible();
+  await expect(capital(page)).toHaveText(euros(15_000));
+  await expect(page.getByText('5 parcelles possédées')).toBeVisible();
+  await page.getByRole('button', { name: /^Réception/ }).click();
+  await page.mouse.click(lastColumn, y);
+  await expect(equipment(page)).toHaveText('1');
+  await expect(capital(page)).toHaveText(euros(15_000 - 4_200));
 });
 
 test('refuse une construction quand le capital est insuffisant', async ({ page }) => {
