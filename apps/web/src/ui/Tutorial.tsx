@@ -1,5 +1,5 @@
 import { isComponentMachine } from '@silicon-empire/game-data';
-import { portConnections } from '@silicon-empire/simulation';
+import { portConnections, powerRatio } from '@silicon-empire/simulation';
 import { useState } from 'react';
 import { useI18n } from '../i18n';
 import type { World } from '@silicon-empire/simulation';
@@ -8,10 +8,10 @@ import type { Messages } from '../i18n';
 export type TutorialStep = keyof Messages['tutorial']['steps'];
 
 /** Where the current step points: a header button or a construction tool. */
-export type TutorialTarget = 'bank' | 'shop' | 'technologies' | 'receiving' | 'machine' | 'shipping' | null;
+export type TutorialTarget = 'bank' | 'shop' | 'technologies' | 'receiving' | 'machine' | 'shipping' | 'grid-connection' | null;
 
 const TARGETS: Record<TutorialStep, TutorialTarget> = {
-  specialty: null, loan: 'bank', dock: 'receiving', machine: 'machine', feed: null, shipping: 'shipping', order: 'shop',
+  specialty: null, loan: 'bank', dock: 'receiving', machine: 'machine', power: 'grid-connection', feed: null, shipping: 'shipping', order: 'shop',
   sell: null, tech: 'technologies',
 };
 
@@ -25,6 +25,7 @@ export function tutorialSteps(world: World): { step: TutorialStep; done: boolean
     { step: 'loan', done: (career?.borrowedCents ?? 0) > 0 },
     { step: 'dock', done: world.machines.some(machine => machine.type === 'receiving') },
     { step: 'machine', done: producers.length > 0 },
+    { step: 'power', done: producers.length > 0 && producers.every(machine => powerRatio(world, machine) > 0) },
     { step: 'feed', done: ports.some(port => port.kind === 'input' && port.connected) },
     {
       step: 'shipping',

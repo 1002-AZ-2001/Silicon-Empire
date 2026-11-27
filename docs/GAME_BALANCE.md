@@ -10,6 +10,27 @@
 | Assemblage initial | 30 s simulées par PC |
 | Prix exemple Gaming X1 | 899 € |
 
+## Électricité, usure et niveaux v0.11.0
+
+| Machine | Consommation Mk1 | Mk2 (×1,5) | Mk3 (×2) | Amélioration Mk2 | Amélioration Mk3 |
+|---|---:|---:|---:|---:|---:|
+| Établi d’assemblage | 10 kW | 15 kW | 20 kW | 3 000 € | 6 000 € |
+| Banc de test | 8 kW | 12 kW | 16 kW | 3 500 € | 7 000 € |
+| Emballeuse | 6 kW | 9 kW | 12 kW | 4 000 € | 8 000 € |
+| Presse à condensateurs | 12 kW | 18 kW | 24 kW | 4 000 € | 8 000 € |
+| Graveuse de circuits | 15 kW | 23 kW | 30 kW | 5 000 € | 10 000 € |
+| Bobineuse | 15 kW | 23 kW | 30 kW | 5 500 € | 11 000 € |
+| Ligne CMS | 30 kW | 45 kW | 60 kW | 12 000 € | 24 000 € |
+| Laboratoire | 20 kW | — | — | — | — |
+
+| Source | Prix | Puissance | Coût mensuel |
+|---|---:|---:|---|
+| Raccordement au réseau | 5 000 € | 150 kW | 12 € par kW consommé |
+| Groupe électrogène | 8 000 € | 60 kW | 400 € |
+| Câble | 5 € / tuile | — | — |
+
+Quand un réseau mélange les deux sources, les groupes fournissent d’abord et le réseau facture le reste. Exemple : une presse et une graveuse en Mk1 (27 kW) sur le réseau coûtent 324 € par mois, contre 3 750 € de marge mensuelle ; un groupe électrogène devient rentable au-delà de 34 kW consommés en continu. L’usure arrête une machine Mk1 après 100 lots : 20 minutes simulées pour la presse, 50 minutes pour un établi d’assemblage.
+
 ## Carrière v0.10.0
 
 | Prêt | Montant | Intérêts totaux | Mensualités | Mensualité |

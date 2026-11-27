@@ -1,6 +1,6 @@
 import {
   CONVEYOR, ITEM_TYPES, MILESTONES, MILESTONE_IDS, PRODUCTION, PURCHASE, RESEARCH, RESEARCH_IDS, SKILL_LEVELS, STAFF, SUPPLIERS,
-  WORKSHOP, FLOOR_TYPES, LAND, CAREER, LOANS, LOAN_IDS, MARKET_PRICES,
+  WORKSHOP, FLOOR_TYPES, LAND, CAREER, POWER, POWER_USE_KW, WEAR, LOANS, LOAN_IDS, MARKET_PRICES,
   designParts, designPower, isConveyor, recipeOf, sameDesign,
 } from '@silicon-empire/game-data';
 import type { ItemType, MilestoneId, ResearchId } from '@silicon-empire/game-data';
@@ -86,6 +86,26 @@ function checkResearch(progress: Progress, research: ResearchState): boolean {
   });
 }
 
+/** Bills, cables and wear are consistent with the layout and the land owned. */
+function checkUtilities(world: World): boolean {
+  const { utilities } = world;
+  if (!Number.isSafeInteger(utilities.spentCents) || utilities.spentCents < 0) return false;
+  // The bill calendar only runs while utilities are on.
+  if (utilities.enabled && (utilities.nextBill <= world.tick || utilities.nextBill - world.tick > POWER.billPeriodTicks)) return false;
+  if (!utilities.enabled && (utilities.cut || Object.keys(world.wear).length > 0)) return false;
+  let previous = -1;
+  for (const tile of world.cables) {
+    if (!Number.isInteger(tile) || tile <= previous || tile >= world.columns * world.rows ||
+      !ownsTile(world, { x: tile % world.columns, y: Math.floor(tile / world.columns) })) return false;
+    previous = tile;
+  }
+  return Object.entries(world.wear).every(([id, wear]) => {
+    const machine = world.machines.find(candidate => String(candidate.id) === id);
+    return machine !== undefined && POWER_USE_KW[machine.type] !== undefined && recipeOf(machine.type, machine.model, world.design) !== undefined &&
+      Number.isInteger(wear) && wear > 0 && wear <= WEAR.breakdown;
+  });
+}
+
 const PAINTED_FLOORS: readonly string[] = FLOOR_TYPES.filter(floor => floor !== 'concrete');
 
 /** Staff ids, pool, calendar and assignments are consistent with the machines of the world. */
@@ -128,6 +148,7 @@ export function checkIntegrity(world: World): boolean {
   if (world.parcels.some((parcel, index) => !Number.isInteger(parcel) || parcel < 0 ||
     parcel >= LAND.gridColumns * LAND.gridRows || (index > 0 && parcel <= (world.parcels[index - 1] as number))) ||
     !landConnected(world) || (world.parcels.length > LAND.initialParcels.length && !landUnlocked(world.progress))) return false;
+  if (!checkUtilities(world)) return false;
   const tiles = world.columns * world.rows;
   for (const [key, floor] of Object.entries(world.floors)) {
     const index = Number(key);
@@ -155,7 +176,7 @@ export function checkIntegrity(world: World): boolean {
   const capitalCeiling = (career ? CAREER.initialCapitalCents + career.borrowedCents + career.marketRevenueCents : WORKSHOP.initialCapitalCents) +
     rewardsEarned(world.progress) + revenueCents;
   let bookedCapital = world.capitalCents + world.ledger.purchaseSpentCents + world.staff.paidCents + landSpent(world) +
-    (career ? career.repaidCents + techSpent(career) : 0);
+    (career ? career.repaidCents + techSpent(career) : 0) + world.utilities.spentCents;
   if (bookedCapital > capitalCeiling) return false;
   if (world.machines.filter(machine => machine.type === 'headquarters').length > 1) return false;
 
@@ -164,7 +185,9 @@ export function checkIntegrity(world: World): boolean {
     if (machine.id <= previousId || machine.id >= world.nextMachineId || !fitsMap(world, footprint) ||
       !ownsFootprint(world, footprint)) return false;
     if (!unlocked.has(machine.type) && !machineUnlocked(world, machine.type)) return false;
-    if (machine.level !== undefined && (machine.level !== 2 || !upgradeUnlocked(world.progress, world.research, machine.type))) {
+    if (machine.level !== undefined && ((machine.level !== 2 && machine.level !== 3) ||
+      !upgradeUnlocked(world.progress, world.research, machine.type, machine.level) ||
+      (machine.level === 3 && !upgradeUnlocked(world.progress, world.research, machine.type, 2)))) {
       return false;
     }
     if (machine.model && (!recipeOf(machine.type, machine.model, world.design) || !modelUnlocked(world.progress, machine.model))) {

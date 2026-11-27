@@ -1040,3 +1040,9 @@ kbd {
 .tutorial-target { outline: 2px solid var(--lime); outline-offset: 2px; animation: tutorial-pulse 1.4s ease-in-out infinite; }
 @keyframes tutorial-pulse { 50% { outline-color: transparent; } }
 @media (prefers-reduced-motion: reduce) { .tutorial-target { animation: none; } }
+
+/* Construction tabs and cables */
+.tool-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.tool-tab { min-height: 28px; padding: 0 12px; border: 1px solid var(--line); border-radius: 14px; background: transparent; color: var(--muted); font: 600 .78rem var(--body, inherit); cursor: pointer; }
+.tool-tab[aria-selected="true"] { border-color: var(--lime); background: #1d2a1f; color: var(--lime); }
+.tool-art img.cable-remove { filter: grayscale(1) brightness(.8); }

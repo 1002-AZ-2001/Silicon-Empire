@@ -3,7 +3,7 @@ import type {
   FloorType, LineType, LoanId, MilestoneId, ResearchId, PcDesign, ProductModel, Specialty, SupplierId, TechId,
 } from '@silicon-empire/game-data';
 import {
-  FixedStepClock, floorCost, lineCost, machineAt, ownsTile, parcelOf, parcelPrice, payoff, purchaseCost, turnClockwise,
+  FixedStepClock, cableChanges, cableCost, floorCost, lineCost, machineAt, repairCost, ownsTile, parcelOf, parcelPrice, payoff, purchaseCost, turnClockwise,
 } from '@silicon-empire/simulation';
 import { createStore } from 'zustand/vanilla';
 import type { Messages, Translator } from '../i18n';
@@ -30,15 +30,22 @@ export function cartLines(cart: Cart): PurchaseLine[] {
 export type FloorTool = `floor:${FloorType}`;
 export const FLOOR_TOOLS: readonly FloorTool[] = FLOOR_TYPES.map(floor => `floor:${floor}` as const);
 
-export type Tool = 'inspect' | MachineType | 'demolish' | FloorTool;
+/** Cables are drawn like floors: `cable` lays them, `uncable` removes them. */
+export type CableTool = 'cable' | 'uncable';
+
+export type Tool = 'inspect' | MachineType | 'demolish' | FloorTool | CableTool;
 
 export function floorOf(tool: Tool): FloorType | null {
   return tool.startsWith('floor:') ? tool.slice('floor:'.length) as FloorType : null;
 }
 
 /** Tools drawn by dragging: conveyors, walls and floors. */
+export function isCableTool(tool: Tool): tool is CableTool {
+  return tool === 'cable' || tool === 'uncable';
+}
+
 export function isDrawTool(tool: Tool): boolean {
-  return floorOf(tool) !== null || (isBuildTool(tool) && isLineType(tool));
+  return floorOf(tool) !== null || isCableTool(tool) || (isBuildTool(tool) && isLineType(tool));
 }
 
 interface Feedback {
@@ -167,6 +174,10 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
       paint(line, floor);
       return true;
     }
+    if (isCableTool(tool)) {
+      cable(line, tool === 'cable');
+      return true;
+    }
     const type: LineType = isBuildTool(tool) && isLineType(tool) ? tool : 'conveyor';
     const result = simulation.dispatch({ kind: 'build-line', tiles: line, type });
     store.setState({
@@ -178,6 +189,29 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
         : { kind: 'error', message: errorMessage(result.reason) },
     });
     return true;
+  }
+
+  function cable(tiles: readonly Tile[], laying: boolean) {
+    const world = simulation.getSnapshot();
+    const count = cableChanges(world, tiles, laying).length;
+    const cost = laying ? cableCost(world, tiles) : 0;
+    const result = simulation.dispatch(laying ? { kind: 'lay-cable', tiles } : { kind: 'remove-cable', tiles });
+    store.setState({
+      feedback: result.ok
+        ? { kind: 'success', message: ({ t, money }) => laying ? t.feedback.cablesLaid(count, money(cost)) : t.feedback.cablesRemoved(count) }
+        : { kind: 'error', message: errorMessage(result.reason) },
+    });
+  }
+
+  function repair(id: number) {
+    const machine = simulation.getSnapshot().machines.find(candidate => candidate.id === id);
+    const cost = machine ? repairCost(machine) : 0;
+    const result = simulation.dispatch({ kind: 'repair', id });
+    store.setState({
+      feedback: result.ok
+        ? { kind: 'success', message: ({ t, money }) => t.feedback.repaired(money(cost)) }
+        : { kind: 'error', message: errorMessage(result.reason) },
+    });
   }
 
   function paint(tiles: readonly Tile[], floor: FloorType) {
@@ -198,9 +232,10 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
 
   function upgrade(id: number) {
     const result = simulation.dispatch({ kind: 'upgrade', id });
+    const level = result.ok ? result.machine?.level ?? 2 : 2;
     store.setState({
       feedback: result.ok
-        ? { kind: 'success', message: ({ t }) => t.feedback.upgraded }
+        ? { kind: 'success', message: ({ t }) => t.feedback.upgradedTo(level) }
         : { kind: 'error', message: errorMessage(result.reason) },
     });
   }
@@ -350,6 +385,10 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
       paint([tile], floor);
       return;
     }
+    if (isCableTool(tool)) {
+      cable([tile], tool === 'cable');
+      return;
+    }
     if (isBuildTool(tool)) {
       const result = simulation.dispatch({ kind: 'build', type: tool, ...tile, rotation });
       store.setState({
@@ -400,7 +439,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
   }
 
   return {
-    store, clock, setSpeed, togglePause, order, checkout, setCartLots, buyParcel, hire, fire, assign, chooseSpecialty, takeLoan, repayLoan, buyTech, configure, selectMilestone, selectResearch, upgrade, setProductModel,
+    store, clock, setSpeed, togglePause, order, checkout, setCartLots, buyParcel, hire, fire, assign, chooseSpecialty, takeLoan, repayLoan, buyTech, repair, configure, selectMilestone, selectResearch, upgrade, setProductModel,
     startSale: (model: ProductModel) => changeSale(model), cancelSale: () => changeSale(),
     publishDesign,
     startLine, extendLine, cancelLine, finishLine,

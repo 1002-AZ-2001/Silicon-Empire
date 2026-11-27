@@ -1,5 +1,5 @@
-import { MACHINES, RESEARCH, RESEARCH_IDS, UPGRADABLE_MACHINES } from '@silicon-empire/game-data';
-import type { ItemType, MachineType, Recipe, ResearchId, UpgradableMachine } from '@silicon-empire/game-data';
+import { MACHINES, RESEARCH, RESEARCH_IDS, UPGRADE_COSTS } from '@silicon-empire/game-data';
+import type { ItemType, MachineType, Recipe, ResearchId, UpgradeLevel } from '@silicon-empire/game-data';
 import type { Inventory } from './inventory';
 import type { Progress } from './progress';
 
@@ -54,12 +54,20 @@ export function researchMachines(progress: Progress, research: ResearchState): M
   });
 }
 
-export function upgradeUnlocked(progress: Progress, research: ResearchState, machine: MachineType): machine is UpgradableMachine {
-  if (progress.sandbox) return (UPGRADABLE_MACHINES as readonly MachineType[]).includes(machine);
-  return RESEARCH_IDS.some(id => {
+/**
+ * Whether a machine can be upgraded to `level`. Sandbox: always. Career: the automation licence for Mk2,
+ * robotics for Mk3. Classic: a research project per machine for Mk2, advanced automation for Mk3.
+ */
+export function upgradeUnlocked(progress: Progress, research: ResearchState, machine: MachineType, level: UpgradeLevel = 2): boolean {
+  if (!UPGRADE_COSTS[machine]) return false;
+  if (progress.sandbox) return true;
+  if (progress.career) return progress.career.technologies.includes(level === 2 ? 'automation' : 'robotics');
+  const mk2 = RESEARCH_IDS.some(id => {
     const { effect } = RESEARCH[id];
     return effect.kind === 'upgrade' && effect.machine === machine && researched(progress, research, id);
   });
+  if (level === 2) return mk2;
+  return mk2 && RESEARCH_IDS.some(id => RESEARCH[id].effect.kind === 'mk3' && researched(progress, research, id));
 }
 
 /** Storage capacity of a building, raised by research for the receiving dock. */

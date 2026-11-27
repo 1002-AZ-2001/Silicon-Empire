@@ -1,10 +1,10 @@
 import {
-  CONVEYOR, ITEMS, ITEM_TYPES, LAND, MACHINES, MK2, PRODUCTION, PRODUCT_MODELS, PURCHASE, ROOMS, SUPPLIER_IDS, isConveyor, isFurniture,
+  CONVEYOR, ITEMS, ITEM_TYPES, LAND, MACHINES, POWER_SOURCES, PRODUCTION, UPGRADE_COSTS, WEAR, PRODUCT_MODELS, PURCHASE, ROOMS, SUPPLIER_IDS, isConveyor, isFurniture,
   isLineType, recipeOf,
   isComponentMachine,
 } from '@silicon-empire/game-data';
 import {
-  ROUTER_SIDES, batchTicks, beltStatus, beltTarget, checkBuild, checkFloor, checkLine, checkParcel, checkOrder, checkProductModel, footprintOf,
+  ROUTER_SIDES, batchTicks, monthlyPowerBill, nextLevel, powerOf, powerUse, productionTicks, repairCost, wearOf, beltStatus, beltTarget, checkBuild, checkFloor, checkLine, checkParcel, checkOrder, checkProductModel, footprintOf,
   floorCost, inventoryTotal, lineCost, modelUnlocked, operatorOf, orderCost, orderableItems, portConnections, portsOf,
   parcelPrice, productionStatus, rejectionFor, roomOfMachine, routerLinks,
   upgradeUnlocked,
@@ -146,14 +146,58 @@ function LabDetails({ world, controls }: { world: World; controls: WorkshopContr
 
 function UpgradeButton({ world, machine, controls }: { world: World; machine: Machine; controls: WorkshopControls }) {
   const { t, money } = useI18n();
-  if (machine.level === 2 || !upgradeUnlocked(world.progress, world.research, machine.type)) return null;
-  const cost = MK2.costCents[machine.type];
+  const level = nextLevel(machine);
+  const cost = level === null ? undefined : UPGRADE_COSTS[machine.type]?.[level];
+  if (level === null || cost === undefined || !upgradeUnlocked(world.progress, world.research, machine.type, level)) return null;
   return (
     <div className="upgrade-box">
       <button type="button" className="button button-primary" disabled={world.capitalCents < cost} onClick={() => controls.upgrade(machine.id)}>
-        {t.production.upgrade(money(cost))}
+        {t.production.upgradeTo(level, money(cost))}
       </button>
-      <p className="order-hint">{t.production.upgradeHint}</p>
+      <p className="order-hint">{level === 2 ? t.production.upgradeHint : t.production.upgradeHint3}</p>
+    </div>
+  );
+}
+
+/** Power use or output, network balance and wear of a machine. */
+function PowerDetails({ world, machine, controls }: { world: World; machine: Machine; controls: WorkshopControls }) {
+  const { t, money } = useI18n();
+  const use = powerUse(machine);
+  const source = POWER_SOURCES[machine.type];
+  if (!use && !source) return null;
+  if (!world.utilities.enabled) return <p className="placement-status">{t.power.legacy}</p>;
+  const { networks, machineNetwork } = powerOf(world);
+  const index = machineNetwork.get(machine.id);
+  const network = index === undefined ? undefined : networks[index];
+  const wear = wearOf(world, machine);
+  return (
+    <div className="room-details">
+      <h4 className="inspector-subtitle">{t.power.title}</h4>
+      <dl className="machine-stats">
+        {use > 0 && <div><dt>{t.power.consumption}</dt><dd>{t.power.use(use)}</dd></div>}
+        {source && <div><dt>{t.power.supply}</dt><dd>{t.power.use(source.supplyKw)}</dd></div>}
+        {network && <div><dt>{t.power.networkLabel}</dt><dd>{t.power.network(network.demandKw, network.supplyKw)}</dd></div>}
+      </dl>
+      {!network && <p className="order-hint text-error">{t.power.unconnected}</p>}
+      {network && use > 0 && network.ratio < 1 && <p className="order-hint text-error">{t.power.ratio(Math.floor(network.ratio * 100))}</p>}
+      {source && world.utilities.cut && source.billPerKwCents > 0 && <p className="order-hint text-error">{t.power.cut}</p>}
+      {source && <p className="placement-status">{t.power.bill(money(monthlyPowerBill(world)))}</p>}
+      {UPGRADE_COSTS[machine.type] && (
+        <>
+          <div className="staff-morale">
+            <span>{t.power.wear}</span>
+            <meter min={0} max={WEAR.breakdown} low={WEAR.slowFrom * 0.7} high={WEAR.slowFrom} optimum={0} value={wear} />
+            <span>{Math.round(wear * 100 / WEAR.breakdown)}&#8201;%</span>
+          </div>
+          {wear >= WEAR.breakdown ? <p className="order-hint text-error">{t.power.broken}</p>
+            : wear >= WEAR.slowFrom ? <p className="order-hint">{t.power.worn}</p> : null}
+          {wear > 0 && (
+            <button type="button" className="button" disabled={world.capitalCents < repairCost(machine)} onClick={() => controls.repair(machine.id)}>
+              {t.power.repair(money(repairCost(machine)))}
+            </button>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -171,7 +215,7 @@ function ProductionDetails({ world, machine, controls }: { world: World; machine
   const state = world.production[machine.id];
   // Mk2 machines start their batches with half the recipe time.
   const operator = operatorOf(world.staff, machine.id);
-  const duration = batchTicks(recipe, machine, operator?.skill);
+  const duration = productionTicks(world, machine, recipe, operator?.skill) ?? batchTicks(recipe, machine, operator?.skill);
   const done = state?.batch ? Math.max(0, duration - state.batch.remaining) : 0;
   const every = rejectionFor(world, machine, recipe);
   const output = state?.output[recipe.output] ?? 0;
@@ -206,7 +250,7 @@ function ProductionDetails({ world, machine, controls }: { world: World; machine
           <dt>{t.production.progress}</dt>
           <dd><progress max={duration} value={done} aria-label={t.production.progress} /> {Math.floor(done * 100 / duration)}&#8201;%</dd>
         </div>
-        <div><dt>{t.production.level}</dt><dd>{machine.level === 2 ? 'Mk2' : 'Mk1'}</dd></div>
+        <div><dt>{t.production.level}</dt><dd>Mk{machine.level ?? 1}</dd></div>
         <div>
           <dt>{t.production.operator}</dt>
           <dd>
@@ -458,6 +502,7 @@ export function Inspector({ controls, world }: { controls: WorkshopControls; wor
           {selected?.type === 'headquarters' && <HeadquartersDetails world={world} controls={controls} />}
           {selected?.type === 'lab' && <LabDetails world={world} controls={controls} />}
           {selected && isFurniture(selected.type) && <RoomDetails world={world} machine={selected} />}
+          {selected && <PowerDetails world={world} machine={selected} controls={controls} />}
           {selected?.type === 'shipping' && <ShippingDetails world={world} controls={controls} />}
         </div>
       ) : selectedParcel !== null && tool === 'inspect' ? (

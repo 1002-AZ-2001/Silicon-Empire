@@ -27,6 +27,9 @@ describe('construction', () => {
       },
       floors: {},
       parcels: [0, 1, 4, 5],
+      utilities: { enabled: false, cut: false, nextBill: 6000, spentCents: 0 },
+      cables: [],
+      wear: {},
       ledger: {
         purchased: {}, discarded: {}, purchaseSpentCents: 0, produced: {}, consumed: {}, delivered: {},
       },

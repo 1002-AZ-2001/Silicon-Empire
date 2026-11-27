@@ -50,6 +50,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
   const target = tutorialTarget(world, tutorialHidden);
   const highlight = (name: TutorialTarget) => target === name ? ' tutorial-target' : '';
   const previousCareer = useRef(career);
+  const previousUtilities = useRef(world.utilities);
   const [designerOpen, setDesignerOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const completedCount = useRef(world.progress.completed.length);
@@ -95,6 +96,20 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
     }
     researchCount.current = completed.length;
   }, [world.research, controls]);
+
+  // Announce electricity bills, paid or not.
+  useEffect(() => {
+    const before = previousUtilities.current;
+    const { utilities } = world;
+    previousUtilities.current = utilities;
+    if (!utilities.enabled || utilities.nextBill === before.nextBill) return;
+    const paid = utilities.spentCents - before.spentCents;
+    if (utilities.cut) {
+      controls.store.setState({ feedback: { kind: 'error', message: ({ t: text }) => text.feedback.powerCut } });
+    } else if (paid > 0) {
+      controls.store.setState({ feedback: { kind: 'success', message: ({ t: text, money: format }) => text.feedback.billPaid(format(paid)) } });
+    }
+  }, [world.utilities, controls]);
 
   // Announce loan instalments in a career.
   useEffect(() => {

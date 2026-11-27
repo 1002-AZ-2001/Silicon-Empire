@@ -14,6 +14,14 @@ import type { ItemCategory, ItemType, MilestoneId, SupplierId } from '@silicon-e
 import type { World } from '@silicon-empire/simulation';
 import type { WorkshopControls } from '../game/controls';
 
+const SHOP_SORTS = ['category', 'name', 'priceAsc', 'priceDesc'] as const;
+type ShopSort = (typeof SHOP_SORTS)[number];
+
+/** Lower case without accents, so that a search for « ceramique » finds « céramique ». */
+function fold(text: string): string {
+  return text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+}
+
 /** Components that can be bought at all, whether or not they are unlocked yet. */
 const CATALOGUE = ITEM_TYPES.filter(item => ITEMS[item].unitCostCents !== null);
 const CATEGORIES = ITEM_CATEGORIES.filter(category => CATALOGUE.some(item => ITEMS[item].category === category));
@@ -28,7 +36,7 @@ function listPrice(item: ItemType, supplier: SupplierId, lots: number): number {
 }
 
 export function ShopPanel({ world, controls, onClose }: { world: World; controls: WorkshopControls; onClose: () => void }) {
-  const { t, money } = useI18n();
+  const { t, money, locale } = useI18n();
   const cart = useStore(controls.store, state => state.cart);
   const docks = world.machines.filter(machine => machine.type === 'receiving');
   const [chosenDock, setDock] = useState<number | null>(null);
@@ -41,7 +49,16 @@ export function ShopPanel({ world, controls, onClose }: { world: World; controls
   const savings = lines.reduce((sum, line) => sum + listPrice(line.item, line.supplier, line.lots), 0) - total;
   const free = dock ? dockSpace(world, dock.id) : 0;
   const error = dock ? checkPurchase(world, dock.id, lines) : null;
-  const shown = CATALOGUE.filter(item => category === 'all' || ITEMS[item].category === category);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<ShopSort>('category');
+  const search = fold(query.trim());
+  const shown = CATALOGUE
+    .filter(item => category === 'all' || ITEMS[item].category === category)
+    .filter(item => search === '' || fold(`${t.items[item]} ${ITEMS[item].manufacturer}`).includes(search))
+    .sort((a, b) => sort === 'name' ? t.items[a].localeCompare(t.items[b], locale)
+      : sort === 'priceAsc' ? (ITEMS[a].unitCostCents ?? 0) - (ITEMS[b].unitCostCents ?? 0)
+        : sort === 'priceDesc' ? (ITEMS[b].unitCostCents ?? 0) - (ITEMS[a].unitCostCents ?? 0)
+          : ITEM_CATEGORIES.indexOf(ITEMS[a].category) - ITEM_CATEGORIES.indexOf(ITEMS[b].category));
 
   return (
     <Dialog
@@ -79,10 +96,21 @@ export function ShopPanel({ world, controls, onClose }: { world: World; controls
             {CATEGORIES.map(option => <option key={option} value={option}>{t.shop.categories[option]}</option>)}
           </select>
         </label>
+        <label>
+          <span>{t.shop.sort}</span>
+          <select value={sort} onChange={event => setSort(event.target.value as ShopSort)}>
+            {SHOP_SORTS.map(option => <option key={option} value={option}>{t.shop.sorts[option]}</option>)}
+          </select>
+        </label>
+        <label className="shop-search">
+          <span>{t.shop.search}</span>
+          <input type="search" value={query} placeholder={t.shop.searchPlaceholder} onChange={event => setQuery(event.target.value)} />
+        </label>
       </div>
 
       <div className="shop-layout">
         <ul className="shop-catalogue" aria-label={t.shop.title}>
+          {shown.length === 0 && <li className="placement-status">{t.shop.noResult}</li>}
           {shown.map(item => {
             const locked = !orderable.has(item);
             const milestone = unlockingMilestone(item);

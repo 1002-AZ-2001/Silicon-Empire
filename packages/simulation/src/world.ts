@@ -1,9 +1,9 @@
 import {
-  CAREER, CUSTOM_ITEMS, FLOOR_COST_CENTS, LOANS, SPECIALTIES, TECHNOLOGIES, FLOOR_TYPES, ITEMS, ITEM_TYPES, LAND, MACHINES, MAX_LINE_LENGTH, MK2, PURCHASE, STAFF, SUPPLIERS,
+  CAREER, CUSTOM_ITEMS, FLOOR_COST_CENTS, LOANS, SPECIALTIES, TECHNOLOGIES, FLOOR_TYPES, ITEMS, ITEM_TYPES, LAND, MACHINES, MAX_LINE_LENGTH, POWER, PURCHASE, STAFF, SUPPLIERS, UPGRADE_COSTS, WEAR,
   WORKSHOP, designParts, designPower, isLineType, pcDesignSchema, recipeOf, saleOffer,
 } from '@silicon-empire/game-data';
 import type {
-  Direction, FloorType, ItemType, LineType, LoanId, MachineType, Specialty, TechId, MilestoneId, PcDesign, ProductModel, PublishedDesign, ResearchId,
+  Direction, FloorType, ItemType, LineType, LoanId, MachineType, Specialty, TechId, UpgradeLevel, MilestoneId, PcDesign, ProductModel, PublishedDesign, ResearchId,
   SupplierId,
 } from '@silicon-empire/game-data';
 import { addItems, fitsInputStock, inventoryTotal, mergeInventories } from './inventory';
@@ -50,8 +50,8 @@ export interface Machine extends Placement {
   readonly filter?: RouterFilter;
   /** Production machines only. Defaults to office, including in older saved workshops. */
   readonly model?: ProductModel;
-  /** Production machines upgraded after research run their batches faster. Absent means Mk1. */
-  readonly level?: 2;
+  /** Production machines upgraded after research or licences run their batches faster. Absent means Mk1. */
+  readonly level?: UpgradeLevel;
 }
 
 /** Unit held by a splitter or merger, and the side it serves next. */
@@ -131,6 +131,12 @@ export interface World {
   readonly floors: Floors;
   /** Owned parcels in ascending order. Buildings and floors stay on owned land. */
   readonly parcels: readonly number[];
+  /** Electricity, bills and wear. Disabled for workshops saved before v0.11.0. */
+  readonly utilities: Utilities;
+  /** Tiles with a cable, in ascending order. Cables lie under buildings and conveyors. */
+  readonly cables: readonly number[];
+  /** Wear of production machines by machine id. New machines are absent. */
+  readonly wear: Readonly<Record<string, number>>;
   readonly ledger: Ledger;
 }
 
@@ -144,6 +150,9 @@ export type Command =
   | { readonly kind: 'build-line'; readonly tiles: readonly LineTile[]; readonly type?: LineType }
   | { readonly kind: 'paint-floor'; readonly tiles: readonly Tile[]; readonly floor: FloorType }
   | { readonly kind: 'buy-parcel'; readonly parcel: number }
+  | { readonly kind: 'lay-cable'; readonly tiles: readonly Tile[] }
+  | { readonly kind: 'remove-cable'; readonly tiles: readonly Tile[] }
+  | { readonly kind: 'repair'; readonly id: number }
   | { readonly kind: 'choose-specialty'; readonly specialty: Specialty }
   | { readonly kind: 'take-loan'; readonly offer: LoanId }
   | { readonly kind: 'repay-loan'; readonly offer: LoanId }
@@ -180,7 +189,8 @@ type DesignError = 'design-invalid' | 'design-power' | 'design-in-use';
 export type CommandError = BuildError | OrderError | ModelError | SaleError | DesignError |
   'missing-machine' | 'not-a-splitter' | 'milestone-unavailable' | 'deliveries-pending' |
   'research-unavailable' | 'not-upgradable' | 'missing-candidate' | 'missing-employee' | 'staff-full' | 'not-staffed' |
-  'parcel-unavailable' | 'not-career' | 'specialty-chosen' | 'loan-unavailable' | 'tech-unavailable' | 'bankrupt';
+  'parcel-unavailable' | 'not-career' | 'specialty-chosen' | 'loan-unavailable' | 'tech-unavailable' | 'bankrupt' |
+  'not-worn';
 
 export type CommandResult =
   | { readonly ok: true; readonly world: World; readonly machine: Machine | null }
@@ -193,7 +203,18 @@ export const EMPTY_LEDGER: Ledger = {
 /** A new workshop. Sandbox mode unlocks everything; progression mode starts at tier 0. */
 export type GameMode = 'sandbox' | 'progression' | 'career';
 
-export function createWorld(mode: GameMode = 'sandbox'): World {
+export interface Utilities {
+  /** Machines need power and wear out. */
+  readonly enabled: boolean;
+  /** The last bill was not paid: grid connections deliver nothing until the next one is. */
+  readonly cut: boolean;
+  readonly nextBill: number;
+  /** Bills and repairs paid. */
+  readonly spentCents: number;
+}
+
+/** `utilities` turns on electricity and wear; the game turns it on for new workshops. */
+export function createWorld(mode: GameMode = 'sandbox', { utilities = false } = {}): World {
   return {
     columns: WORKSHOP.columns,
     rows: WORKSHOP.rows,
@@ -214,6 +235,9 @@ export function createWorld(mode: GameMode = 'sandbox'): World {
     staff: createStaff(),
     floors: {},
     parcels: [...LAND.initialParcels],
+    utilities: { enabled: utilities, cut: false, nextBill: POWER.billPeriodTicks, spentCents: 0 },
+    cables: [],
+    wear: {},
     ledger: EMPTY_LEDGER,
   };
 }
@@ -329,6 +353,41 @@ export function floorChanges(world: World, tiles: readonly Tile[], floor: FloorT
 
 export function floorCost(world: World, tiles: readonly Tile[], floor: FloorType): number {
   return floorChanges(world, tiles, floor).length * FLOOR_COST_CENTS[floor];
+}
+
+/** Level a machine reaches with its next upgrade, if any. */
+export function nextLevel(machine: Machine): UpgradeLevel | null {
+  if (!UPGRADE_COSTS[machine.type]) return null;
+  return machine.level === undefined ? 2 : machine.level === 2 ? 3 : null;
+}
+
+export function repairCost(machine: Machine): number {
+  return Math.ceil(machine.paidCents * WEAR.repairPercent / 100);
+}
+
+/** Cable tiles a stroke adds (laying) or removes, in stroke order, without repeats. */
+export function cableChanges(world: World, tiles: readonly Tile[], laying: boolean): number[] {
+  const changed: number[] = [];
+  for (const tile of tiles) {
+    const index = tile.y * world.columns + tile.x;
+    if (!changed.includes(index) && world.cables.includes(index) !== laying) changed.push(index);
+  }
+  return changed;
+}
+
+export function cableCost(world: World, tiles: readonly Tile[]): number {
+  return cableChanges(world, tiles, true).length * POWER.cableCostCents;
+}
+
+export function checkCables(world: World, tiles: readonly Tile[], laying = true): BuildError | null {
+  if (tiles.length === 0 || tiles.length > MAX_LINE_LENGTH) return 'invalid-line';
+  if (tiles.some(tile => !Number.isInteger(tile.x) || !Number.isInteger(tile.y) || !fitsMap(world, { ...tile, width: 1, height: 1 }))) {
+    return 'out-of-bounds';
+  }
+  if (!laying) return null;
+  if (tiles.some(tile => !ownsTile(world, tile))) return 'not-owned';
+  if (world.capitalCents < cableCost(world, tiles)) return 'insufficient-funds';
+  return null;
 }
 
 /** Buying land opens at a milestone in progression; the parcel must be next to the owned land. */
@@ -589,12 +648,13 @@ export function applyCommand(world: World, command: Command): CommandResult {
   if (command.kind === 'upgrade') {
     const machine = world.machines.find(candidate => candidate.id === command.id);
     if (!machine) return { ok: false, reason: 'missing-machine' };
-    if (machine.level === 2 || !upgradeUnlocked(world.progress, world.research, machine.type)) {
+    const level = nextLevel(machine);
+    const cost = level === null ? undefined : UPGRADE_COSTS[machine.type]?.[level];
+    if (level === null || cost === undefined || !upgradeUnlocked(world.progress, world.research, machine.type, level)) {
       return { ok: false, reason: 'not-upgradable' };
     }
-    const cost = MK2.costCents[machine.type];
     if (world.capitalCents < cost) return { ok: false, reason: 'insufficient-funds' };
-    const upgraded: Machine = { ...machine, level: 2, paidCents: machine.paidCents + cost };
+    const upgraded: Machine = { ...machine, level, paidCents: machine.paidCents + cost };
     return {
       ok: true,
       world: {
@@ -611,6 +671,38 @@ export function applyCommand(world: World, command: Command): CommandResult {
       return { ok: false, reason: 'milestone-unavailable' };
     }
     return { ok: true, world: { ...world, progress: { ...world.progress, active: command.milestone } }, machine: null };
+  }
+
+  if (command.kind === 'lay-cable' || command.kind === 'remove-cable') {
+    const laying = command.kind === 'lay-cable';
+    const reason = checkCables(world, command.tiles, laying);
+    if (reason) return { ok: false, reason };
+    const changed = cableChanges(world, command.tiles, laying);
+    if (changed.length === 0) return { ok: true, world, machine: null };
+    const cables = laying
+      ? [...world.cables, ...changed].sort((a, b) => a - b)
+      : world.cables.filter(tile => !changed.includes(tile));
+    return {
+      ok: true, machine: null,
+      world: { ...world, cables, capitalCents: world.capitalCents - (laying ? changed.length * POWER.cableCostCents : 0) },
+    };
+  }
+
+  if (command.kind === 'repair') {
+    const machine = world.machines.find(candidate => candidate.id === command.id);
+    if (!machine) return { ok: false, reason: 'missing-machine' };
+    if (!world.wear[machine.id]) return { ok: false, reason: 'not-worn' };
+    const cost = repairCost(machine);
+    if (world.capitalCents < cost) return { ok: false, reason: 'insufficient-funds' };
+    const wear = { ...world.wear };
+    delete wear[machine.id];
+    return {
+      ok: true, machine,
+      world: {
+        ...world, wear, capitalCents: world.capitalCents - cost,
+        utilities: { ...world.utilities, spentCents: world.utilities.spentCents + cost },
+      },
+    };
   }
 
   if (command.kind === 'buy-parcel') {
@@ -761,6 +853,7 @@ export function applyCommand(world: World, command: Command): CommandResult {
         belts: withoutKey(world.belts, machine.id),
         routers: withoutKey(world.routers, machine.id),
         production: withoutKey(world.production, machine.id),
+        wear: withoutKey(world.wear, machine.id),
         staff: unassign(world.staff, machine.id),
         ledger: inventoryTotal(lost) === 0
           ? world.ledger
@@ -800,6 +893,6 @@ export function sameContents(a: World, b: World): boolean {
     a.production === b.production && a.progress === b.progress && a.research === b.research &&
     a.ledger === b.ledger && a.sales === b.sales && a.design === b.design && a.deliveries === b.deliveries &&
     a.staff.employees === b.staff.employees && a.staff.paidCents === b.staff.paidCents && a.floors === b.floors &&
-    a.parcels === b.parcels &&
+    a.parcels === b.parcels && a.cables === b.cables && a.wear === b.wear && a.utilities === b.utilities &&
     (a.deliveries.length === 0 || a.tick === b.tick) && a.capitalCents === b.capitalCents;
 }

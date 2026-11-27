@@ -125,7 +125,7 @@ const deliveryLine: Command[] = [
 describe('progression', () => {
   it('limite la construction et les achats aux éléments débloqués', () => {
     const world = createWorld('progression');
-    expect([...unlockedMachines(world.progress)].sort()).toEqual(['conveyor', 'headquarters', 'receiving', 'storage']);
+    expect([...unlockedMachines(world.progress)].sort()).toEqual(['conveyor', 'generator', 'grid-connection', 'headquarters', 'receiving', 'storage']);
     expect(applyCommand(world, { kind: 'build', type: 'assembler', x: 5, y: 5, rotation: 0 })).toEqual({ ok: false, reason: 'locked' });
     const withHq = run(world, deliveryLine[0] as Command);
     expect(applyCommand(withHq, { kind: 'build', type: 'headquarters', x: 40, y: 40, rotation: 0 })).toEqual({ ok: false, reason: 'unique' });

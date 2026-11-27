@@ -1,4 +1,4 @@
-import { MK2, ROOMS, SKILL_LEVELS, STAFF, STAFF_NAMES, UPGRADABLE_MACHINES } from '@silicon-empire/game-data';
+import { LEVELS, ROOMS, SKILL_LEVELS, STAFF, STAFF_NAMES, UPGRADABLE_MACHINES } from '@silicon-empire/game-data';
 import type { MachineType, Recipe, SkillLevel, UpgradableMachine } from '@silicon-empire/game-data';
 import type { Progress } from './progress';
 import type { Machine } from './world';
@@ -111,9 +111,9 @@ export function severance(employee: Employee): number {
   return Math.floor(employee.salaryCents * STAFF.severancePercent / 100);
 }
 
-/** Ticks a batch takes: Mk2 halves the recipe time, then the operator's skill scales it. */
+/** Ticks a batch takes: the machine level divides the recipe time, then the operator's skill scales it. */
 export function batchTicks(recipe: Recipe, machine: Machine | undefined, skill?: SkillLevel): number {
-  const base = machine?.level === 2 ? Math.ceil(recipe.ticks / MK2.speed) : recipe.ticks;
+  const base = Math.ceil(recipe.ticks / LEVELS[machine?.level ?? 1].speed);
   return skill === undefined ? base : Math.ceil(base * STAFF.batchPercent[skill] / 100);
 }
 
