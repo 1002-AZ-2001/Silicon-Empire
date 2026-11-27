@@ -46,6 +46,7 @@ Le **Guide d’atelier**, dans la barre de construction, suit les étapes jusqu�
 | Alimenter | Onglet **Énergie** : poser un raccordement au réseau ou un groupe électrogène, puis tracer des **câbles** jusqu’aux machines. Une machine usée se répare depuis l’inspecteur |
 | Agrandir le terrain | Cliquer une parcelle encadrée « À vendre » à côté du terrain, puis **Acheter la parcelle** dans l’inspecteur (après le jalon Entrepôt en progression) |
 | Aménager des pièces | **Mur** au glisser pour fermer une zone, **Porte**, puis le mobilier : canapé et café (salle de repos), bureau de travail (bureau), filtre à air sur **Sol de salle blanche** (salle blanche). Les sols se peignent au glisser |
+| Entreprise | **Entreprise** : couleur et emblème, effectifs par rôle. Les rôles de bureau ont besoin d’un **poste informatique** dans un bureau |
 | Embaucher | **Personnel** : embaucher un candidat, puis l’affecter à un établi, un banc de test ou une emballeuse (ou depuis l’inspecteur de la machine). En progression, ces machines exigent un opérateur après le Conditionnement |
 | Commander des composants | **Boutique** : remplir le panier (lots de 10, remise dès 5 lots), choisir le quai, puis **Commander** ; ou inspecter un quai de réception et **Commander 10 unités** |
 | Régler le temps | **Pause**, **×1**, **×2**, **×5** dans la barre haute ; **P** met en pause ou reprend |

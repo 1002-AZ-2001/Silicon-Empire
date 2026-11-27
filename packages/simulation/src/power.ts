@@ -1,6 +1,7 @@
 import { LEVELS, POWER, POWER_SOURCES, POWER_USE_KW, WEAR } from '@silicon-empire/game-data';
 import type { Recipe, SkillLevel } from '@silicon-empire/game-data';
 import { tilesOf } from './rooms';
+import { developerPercent } from './company';
 import { batchTicks } from './staff';
 import type { Machine, World } from './world';
 
@@ -124,7 +125,9 @@ export function brokenDown(world: World, machine: Machine): boolean {
  * then the share of power it receives. Null when it cannot start (no power or broken down).
  */
 export function productionTicks(world: World, machine: Machine, recipe: Recipe, skill?: SkillLevel): number | null {
-  const base = batchTicks(recipe, machine, skill);
+  const tested = batchTicks(recipe, machine, skill);
+  // Developers shorten test benches with their test software.
+  const base = machine.type === 'tester' ? Math.ceil(tested * developerPercent(world) / 100) : tested;
   if (!world.utilities.enabled) return base;
   const ratio = powerRatio(world, machine);
   if (ratio <= 0 || brokenDown(world, machine)) return null;

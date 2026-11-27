@@ -2,7 +2,7 @@ import {
   CAREER, COMPONENT_RECIPES, ITEM_TYPES, LOANS, LOAN_IDS, MACHINES, MARKET_PRICES, SPECIALTIES, TECHNOLOGIES, TECH_IDS, instalment,
   isComponentMachine,
 } from '@silicon-empire/game-data';
-import { loanAvailable, monthlyDue, payoff, techAvailable } from '@silicon-empire/simulation';
+import { loanAvailable, monthlyDue, payoff, techAvailable, wholesalePrice } from '@silicon-empire/simulation';
 import { ITEM_ART } from '../art/items';
 import { MACHINE_ART } from '../art/machines';
 import { useI18n } from '../i18n';
@@ -168,7 +168,7 @@ export function TechPanel({ world, career, controls, onClose }: {
   );
 }
 
-export function MarketPrices({ career }: { career: CareerState }) {
+export function MarketPrices({ career, bonus }: { career: CareerState; bonus: number }) {
   const { t, money } = useI18n();
   return (
     <section className="tier" aria-label={t.career.market.title}>
@@ -179,7 +179,7 @@ export function MarketPrices({ career }: { career: CareerState }) {
           <li key={item}>
             <img src={ITEM_ART[item]} alt="" />
             <span>{t.items[item]} · {career.marketShipped[item] ?? 0}</span>
-            <strong>{money(MARKET_PRICES[item] ?? 0)}</strong>
+            <strong>{money(wholesalePrice(item, bonus))}</strong>
           </li>
         ))}
       </ul>

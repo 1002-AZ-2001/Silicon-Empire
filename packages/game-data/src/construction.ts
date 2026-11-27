@@ -42,7 +42,7 @@ export const MACHINE_TYPES = [
   'packager', 'warehouse', 'conveyor-fast', 'headquarters', 'shipping', 'lab', 'conveyor-express',
   'wall', 'door', 'sofa', 'coffee', 'desk', 'air-filter',
   'capacitor-press', 'pcb-etcher', 'coil-winder', 'smt-line',
-  'grid-connection', 'generator',
+  'grid-connection', 'generator', 'workstation',
 ] as const;
 export type MachineType = (typeof MACHINE_TYPES)[number];
 
@@ -63,7 +63,7 @@ export function isLineType(type: MachineType): type is LineType {
 
 /** Walls and doors close rooms; furniture gives a room its purpose. None has an inventory or ports. */
 export const ROOM_BOUNDARIES = ['wall', 'door'] as const;
-export const FURNITURE = ['sofa', 'coffee', 'desk', 'air-filter'] as const;
+export const FURNITURE = ['sofa', 'coffee', 'desk', 'air-filter', 'workstation'] as const;
 export type Furniture = (typeof FURNITURE)[number];
 
 export function isRoomBoundary(type: MachineType): boolean {
@@ -249,4 +249,6 @@ export const MACHINES = z.record(z.enum(MACHINE_TYPES), machineDefinition.readon
   },
   'grid-connection': { width: 2, height: 1, costCents: 500_000, capacity: 0, ports: [] },
   generator: { width: 2, height: 2, costCents: 800_000, capacity: 0, ports: [] },
+  /** Office computer: equips one office employee when it stands in an office. */
+  workstation: { width: 1, height: 1, costCents: 150_000, capacity: 0, ports: [] },
 } satisfies Record<MachineType, z.input<typeof machineDefinition>>);

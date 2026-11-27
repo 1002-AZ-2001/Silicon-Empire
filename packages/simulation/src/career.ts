@@ -84,10 +84,15 @@ export function marketPrice(item: ItemType): number | undefined {
 }
 
 /** Records one unit bought by the wholesaler. */
-export function sellToMarket(career: CareerState, item: ItemType): CareerState {
+/** Wholesale price of a unit, raised by the sales bonus in percent. */
+export function wholesalePrice(item: ItemType, bonusPercent = 0): number {
+  return Math.ceil((MARKET_PRICES[item] ?? 0) * (100 + bonusPercent) / 100);
+}
+
+export function sellToMarket(career: CareerState, item: ItemType, bonusPercent = 0): CareerState {
   return {
     ...career,
-    marketRevenueCents: career.marketRevenueCents + (MARKET_PRICES[item] ?? 0),
+    marketRevenueCents: career.marketRevenueCents + wholesalePrice(item, bonusPercent),
     marketShipped: addItems(career.marketShipped, item, 1),
   };
 }

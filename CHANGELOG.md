@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.12.0 — Rôles des employés et menu Entreprise
+
+- Chaque candidat a un **rôle**. Le premier candidat de chaque vivier est toujours un opérateur ; le salaire dépend du rôle (de 90 % à 150 % de celui d’un opérateur de même niveau) et est arrondi à l’euro.
+  - **Opérateur** : tient une machine de production (comme avant).
+  - **Technicien de maintenance** : retire toutes les 30 secondes 2 points d’usure par niveau de compétence à la machine la plus usée.
+  - **Magasinier** : affecté à un quai de réception, il commande un lot en livraison immédiate dès qu’un article de sa liste de **réassort** (4 au plus, réglée dans l’inspecteur du quai) tombe sous 10 unités.
+  - **Chercheur R&D** : chaque chercheur ajoute un tick d’analyse au laboratoire (3 au plus, soit des analyses jusqu’à 4 fois plus rapides).
+  - **Développeur** : −10 % sur la durée des tests par développeur (3 au plus).
+  - **Concepteur** : −10 % sur le prix des améliorations Mk2 et Mk3 par concepteur (3 au plus).
+  - **Manager** : +5 de moral à chaque paie versée par manager (2 au plus).
+  - **Commercial** : +5 % sur les prix des nouvelles commandes clients et du grossiste par commercial (4 au plus).
+- Les rôles de bureau (chercheur, développeur, concepteur, manager, commercial) n’agissent qu’avec un **poste informatique** (1 500 €) placé dans un bureau, à raison d’un poste par personne, dans l’ordre d’embauche.
+- Les rôles s’ouvrent avec la progression : magasinier à l’Entrepôt (Classique) ou à l’assemblage CMS (Carrière), chercheur avec le laboratoire, développeur au Contrôle qualité ou à l’assemblage d’ordinateurs, concepteur et commercial au Conditionnement ou à l’Automatisation (le commercial est ouvert dès le début en carrière).
+- **Menu Entreprise** : couleur et emblème de l’entreprise (affichés dans l’en-tête), effectifs et effet de chaque rôle, postes informatiques disponibles.
+- La sauvegarde v15 enregistre les rôles, les listes de réassort et l’identité. Les employés des versions précédentes deviennent des opérateurs ; les candidats gardent leurs noms et niveaux et reçoivent un rôle.
+
 ## 0.11.0 — Électricité, usure, Mk3 et interface triée
 
 - **Électricité** dans les nouveaux ateliers. Les machines de production et le laboratoire consomment de 6 à 30 kW, davantage en Mk2 et Mk3. Elles prennent le courant sur le réseau de **câbles** qu’elles touchent : sur leur emprise ou juste à côté. Le câble coûte 5 € la tuile, se trace au glisser et passe sous les bâtiments et les convoyeurs ; l’outil « Retirer un câble » l’enlève.

@@ -7,6 +7,44 @@ import type { MilestoneId } from './progression';
  * Candidates come from a pool renewed at a fixed rhythm; names and skills are drawn deterministically.
  */
 export const SKILL_LEVELS = [1, 2, 3, 4, 5] as const;
+
+/**
+ * Jobs in the company. Operators run production machines and storekeepers receiving docks; the
+ * office roles (researcher to sales) work only from a workstation placed in an office.
+ */
+export const ROLES = ['operator', 'technician', 'storekeeper', 'researcher', 'developer', 'designer', 'manager', 'sales'] as const;
+export type Role = (typeof ROLES)[number];
+export const OFFICE_ROLES: readonly Role[] = ['researcher', 'developer', 'designer', 'manager', 'sales'];
+
+/** How often each role shows up in a pool, in percent. The first candidate of a pool is always an operator. */
+export const ROLE_WEIGHTS: Readonly<Record<Role, number>> = {
+  operator: 30, technician: 15, storekeeper: 10, researcher: 9, developer: 9, designer: 9, manager: 9, sales: 9,
+};
+
+export const ROLE_EFFECTS = {
+  /** Salary of the role in percent of the operator salary at the same skill. */
+  salaryPercent: { operator: 100, technician: 110, storekeeper: 90, researcher: 140, developer: 130, designer: 130, manager: 150, sales: 120 },
+  /** Each technician removes this much wear, times their skill, from the most worn machine every `repairTicks`. */
+  repairPerSkill: 2,
+  repairTicks: 600,
+  /** Each equipped researcher adds one tick of analysis per tick, up to this many. */
+  maxResearchers: 3,
+  /** Test benches run this much faster per equipped developer, in percent, up to `maxDevelopers`. */
+  developerPercent: 10,
+  maxDevelopers: 3,
+  /** Upgrades cost this much less per equipped designer, in percent, up to `maxDesigners`. */
+  designerPercent: 10,
+  maxDesigners: 3,
+  /** Extra morale on a paid month per equipped manager, up to `maxManagers`. */
+  managerMorale: 5,
+  maxManagers: 2,
+  /** Customer and wholesale prices rise this much per equipped salesperson, in percent, up to `maxSales`. */
+  salesPercent: 5,
+  maxSales: 4,
+  /** A storekeeper checks the restock list of their dock at this rhythm and orders one lot of a missing item. */
+  restockTicks: 100,
+  maxRestockItems: 4,
+} as const;
 export type SkillLevel = (typeof SKILL_LEVELS)[number];
 
 export const STAFF = {

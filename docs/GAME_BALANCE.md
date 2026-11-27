@@ -10,6 +10,21 @@
 | Assemblage initial | 30 s simulées par PC |
 | Prix exemple Gaming X1 | 899 € |
 
+## Rôles v0.12.0
+
+| Rôle | Salaire (% opérateur) | Fréquence au vivier | Effet | Plafond |
+|---|---:|---:|---|---:|
+| Opérateur | 100 % | 30 % + 1er candidat | Tient une machine | — |
+| Technicien | 110 % | 15 % | −2 × niveau d’usure toutes les 30 s | — |
+| Magasinier | 90 % | 10 % | Réassort d’un quai (1 lot / 5 s au plus) | — |
+| Chercheur R&D | 140 % | 9 % | +1 tick d’analyse par tick | 3 |
+| Développeur | 130 % | 9 % | Tests −10 % | 3 |
+| Concepteur | 130 % | 9 % | Améliorations −10 % | 3 |
+| Manager | 150 % | 9 % | Moral +5 à la paie | 2 |
+| Commercial | 120 % | 9 % | Prix de vente +5 % | 4 |
+
+Un commercial de niveau 3 coûte environ 1 200 € par mois. Il rapporte 325 € par commande de 10 PC bureautiques (5 % de 6 500 €) et 5 % de chaque vente au grossiste : il devient rentable à partir de 4 commandes par mois, ou de 24 000 € de ventes au grossiste. Un technicien de niveau 3 retire 6 points toutes les 30 s, soit 60 points par mois de jeu. Cela compense l’usure d’une presse Mk1 qui tourne en continu (50 points par mois).
+
 ## Électricité, usure et niveaux v0.11.0
 
 | Machine | Consommation Mk1 | Mk2 (×1,5) | Mk3 (×2) | Amélioration Mk2 | Amélioration Mk3 |

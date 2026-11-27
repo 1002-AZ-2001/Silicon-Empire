@@ -1,12 +1,14 @@
 import {
-  CONVEYOR, ITEM_TYPES, LAND, LOAN_IDS, MACHINE_TYPES, POWER, WEAR, SPECIALTIES, TECH_IDS, MILESTONE_IDS, PRODUCT_MODELS, RESEARCH_IDS, STAFF, STANDARD_MODELS, SUPPLIER_IDS, WORKSHOP,
+  BRAND_COLORS, BRAND_EMBLEMS, CONVEYOR, ITEM_TYPES, LAND, LOAN_IDS, MACHINE_TYPES, POWER, ROLES, ROLE_EFFECTS, WEAR, SPECIALTIES, TECH_IDS, MILESTONE_IDS, PRODUCT_MODELS, RESEARCH_IDS, STAFF, STANDARD_MODELS, SUPPLIER_IDS, WORKSHOP,
   publishedDesignSchema,
 } from '@silicon-empire/game-data';
-import { ROTATIONS, ROUTER_SIDES, checkIntegrity, createStaff, withRequiredStaff } from '@silicon-empire/simulation';
+import {
+  DEFAULT_COMPANY, ROTATIONS, ROUTER_SIDES, candidatesFor, checkIntegrity, createStaff, withRequiredStaff,
+} from '@silicon-empire/simulation';
 import { z } from 'zod';
 import type { World } from '@silicon-empire/simulation';
 
-export const SAVE_VERSION = 14;
+export const SAVE_VERSION = 15;
 const OLD_MAP = 64;
 export const MAX_WORKSHOP_NAME = 40;
 
@@ -356,9 +358,17 @@ function migrateV9(value: unknown): unknown {
   if (!v9.success) return null;
   const { staff } = withRequiredStaff({
     ...v9.data.world, staff: createStaff(v9.data.world.tick), floors: {}, parcels: [...LAND.initialParcels],
-    utilities: { enabled: false, cut: false, nextBill: 1, spentCents: 0 }, cables: [], wear: {},
+    utilities: { enabled: false, cut: false, nextBill: 1, spentCents: 0 }, cables: [], wear: {}, company: DEFAULT_COMPANY,
   });
-  return { ...v9.data, version: 10, world: { ...v9.data.world, staff } };
+  // Roles arrive with v15: the v10 record keeps employees without one.
+  const employees = staff.employees.map(employee => ({
+    id: employee.id, name: employee.name, skill: employee.skill, salaryCents: employee.salaryCents,
+    morale: employee.morale, machineId: employee.machineId,
+  }));
+  const candidates = staff.candidates.map(candidate => ({
+    id: candidate.id, name: candidate.name, skill: candidate.skill, salaryCents: Math.round(candidate.salaryCents * 100 / ROLE_EFFECTS.salaryPercent[candidate.role]),
+  }));
+  return { ...v9.data, version: 10, world: { ...v9.data.world, staff: { ...staff, employees, candidates } } };
 }
 
 /** Older workshops have bare concrete everywhere. */
@@ -433,7 +443,7 @@ function migrateV12(value: unknown): z.input<typeof saveV13> | null {
 
 /** Version 14 (v0.11.0): Mk3 machines, electricity, cables and wear. */
 const saveV14 = z.strictObject({
-  version: z.literal(SAVE_VERSION),
+  version: z.literal(14),
   ...header,
   world: z.strictObject({
     ...saveV13.shape.world.shape,
@@ -459,7 +469,7 @@ function migrateV13(value: unknown): z.input<typeof saveV14> | null {
   const { tick } = v13.data.world;
   return {
     ...v13.data,
-    version: SAVE_VERSION,
+    version: 14,
     world: {
       ...v13.data.world,
       utilities: { enabled: false, cut: false, nextBill: tick + POWER.billPeriodTicks, spentCents: 0 }, cables: [], wear: {},
@@ -467,7 +477,54 @@ function migrateV13(value: unknown): z.input<typeof saveV14> | null {
   };
 }
 
-const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9, migrateV10, migrateV11, migrateV12, migrateV13];
+const role = z.enum(ROLES);
+const staffV14 = saveV14.shape.world.shape.staff;
+
+/** Version 15 (v0.12.0): roles, restock lists and the company brand. */
+const saveV15 = z.strictObject({
+  version: z.literal(SAVE_VERSION),
+  ...header,
+  world: z.strictObject({
+    ...saveV14.shape.world.shape,
+    machines: z.array(machine.extend({
+      model: z.enum(PRODUCT_MODELS).optional(),
+      level: z.union([z.literal(2), z.literal(3)]).optional(),
+      restock: z.array(z.enum(ITEM_TYPES)).min(1).max(ROLE_EFFECTS.maxRestockItems).optional(),
+    })).max(WORKSHOP.columns * WORKSHOP.rows),
+    staff: z.strictObject({
+      ...staffV14.shape,
+      employees: z.array(staffV14.shape.employees.element.extend({ role })).max(STAFF.maxEmployees),
+      candidates: z.array(staffV14.shape.candidates.element.extend({ role })).max(STAFF.maxPoolSize),
+    }),
+    company: z.strictObject({ color: z.enum(BRAND_COLORS), emblem: z.enum(BRAND_EMBLEMS) }),
+  }),
+});
+
+/**
+ * Employees of earlier versions were all operators. The pool is drawn again with roles: names and
+ * skills are those of the saved candidates, salaries follow the role.
+ */
+function migrateV14(value: unknown): z.input<typeof saveV15> | null {
+  const v14 = saveV14.safeParse(value);
+  if (!v14.success) return null;
+  const { staff } = v14.data.world;
+  const drawn = candidatesFor(staff.pool, STAFF.maxPoolSize);
+  return {
+    ...v14.data,
+    version: SAVE_VERSION,
+    world: {
+      ...v14.data.world,
+      staff: {
+        ...staff,
+        employees: staff.employees.map(employee => ({ ...employee, role: 'operator' as const })),
+        candidates: drawn.filter(candidate => staff.candidates.some(saved => saved.id === candidate.id)),
+      },
+      company: { ...DEFAULT_COMPANY },
+    },
+  };
+}
+
+const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9, migrateV10, migrateV11, migrateV12, migrateV13, migrateV14];
 
 function versionOf(value: unknown): unknown {
   return typeof value === 'object' && value !== null && 'version' in value ? value.version : undefined;
@@ -480,7 +537,7 @@ export function decodeSave(value: unknown): SaveRecord | null {
   if (typeof version === 'number' && Number.isInteger(version) && version >= 1) {
     for (const migrate of migrations.slice(version - 1)) current = migrate(current);
   }
-  const decoded = saveV14.safeParse(current);
+  const decoded = saveV15.safeParse(current);
   if (!decoded.success) return null;
 
   const { data } = decoded;

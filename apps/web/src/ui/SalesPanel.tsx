@@ -1,5 +1,5 @@
 import { CAREER, PRODUCT_MODELS, WORKSHOP, saleOffer } from '@silicon-empire/game-data';
-import { landSpent, modelUnlocked, rewardsEarned, salesAccounts, techSpent } from '@silicon-empire/simulation';
+import { landSpent, modelUnlocked, rewardsEarned, salesAccounts, salesBonusPercent, techSpent } from '@silicon-empire/simulation';
 import { useI18n } from '../i18n';
 import { MarketPrices } from './CareerPanels';
 import { Dialog } from './shared';
@@ -79,7 +79,7 @@ export function SalesPanel({ world, controls }: { world: World; controls: Worksh
           </ul>
         )}
       </section>
-      {career && <MarketPrices career={career} />}
+      {career && <MarketPrices career={career} bonus={salesBonusPercent(world)} />}
       <section className="tier" aria-label={t.trade.finance}>
         <h3>{t.trade.finance}</h3>
         <dl className="machine-stats">

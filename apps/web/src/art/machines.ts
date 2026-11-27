@@ -24,6 +24,7 @@ import storage from './storage.png';
 import tester from './tester.png';
 import wall from './wall.png';
 import warehouse from './warehouse.png';
+import workstation from './workstation.png';
 import type { MachineType } from '@silicon-empire/game-data';
 
 export const MACHINE_ART: Record<MachineType, string> = {
@@ -31,7 +32,7 @@ export const MACHINE_ART: Record<MachineType, string> = {
   'conveyor-fast': conveyorFast, headquarters, lab, 'conveyor-express': conveyorExpress, shipping,
   wall, door, sofa, coffee, desk, 'air-filter': airFilter,
   'capacitor-press': capacitorPress, 'pcb-etcher': pcbEtcher, 'coil-winder': coilWinder, 'smt-line': smtLine,
-  'grid-connection': gridConnection, generator,
+  'grid-connection': gridConnection, generator, workstation,
 };
 export { default as CABLE_ART } from './cable.png';
 export { default as CONVEYOR_TURN_ART } from './conveyor-turn.png';

@@ -1,12 +1,12 @@
 import {
-  CONVEYOR, ITEMS, ITEM_TYPES, LAND, MACHINES, POWER_SOURCES, PRODUCTION, UPGRADE_COSTS, WEAR, PRODUCT_MODELS, PURCHASE, ROOMS, SUPPLIER_IDS, isConveyor, isFurniture,
+  CONVEYOR, ITEMS, ITEM_TYPES, LAND, MACHINES, POWER_SOURCES, PRODUCTION, ROLE_EFFECTS, UPGRADE_COSTS, WEAR, PRODUCT_MODELS, PURCHASE, ROOMS, SUPPLIER_IDS, isConveyor, isFurniture,
   isLineType, recipeOf,
   isComponentMachine,
 } from '@silicon-empire/game-data';
 import {
   ROUTER_SIDES, batchTicks, monthlyPowerBill, nextLevel, powerOf, powerUse, productionTicks, repairCost, wearOf, beltStatus, beltTarget, checkBuild, checkFloor, checkLine, checkParcel, checkOrder, checkProductModel, footprintOf,
   floorCost, inventoryTotal, lineCost, modelUnlocked, operatorOf, orderCost, orderableItems, portConnections, portsOf,
-  parcelPrice, productionStatus, rejectionFor, roomOfMachine, routerLinks,
+  parcelPrice, productionStatus, rejectionFor, upgradeCost, roomOfMachine, routerLinks,
   upgradeUnlocked,
 } from '@silicon-empire/simulation';
 import { useState } from 'react';
@@ -147,7 +147,7 @@ function LabDetails({ world, controls }: { world: World; controls: WorkshopContr
 function UpgradeButton({ world, machine, controls }: { world: World; machine: Machine; controls: WorkshopControls }) {
   const { t, money } = useI18n();
   const level = nextLevel(machine);
-  const cost = level === null ? undefined : UPGRADE_COSTS[machine.type]?.[level];
+  const cost = level === null ? undefined : upgradeCost(world, machine, level);
   if (level === null || cost === undefined || !upgradeUnlocked(world.progress, world.research, machine.type, level)) return null;
   return (
     <div className="upgrade-box">
@@ -264,7 +264,7 @@ function ProductionDetails({ world, machine, controls }: { world: World; machine
               }}
             >
               <option value="">{t.production.noOperator}</option>
-              {world.staff.employees.map(employee => (
+              {world.staff.employees.filter(employee => employee.role === 'operator').map(employee => (
                 <option key={employee.id} value={employee.id}>{t.production.operatorOption(employee.name, employee.skill)}</option>
               ))}
             </select>
@@ -363,6 +363,52 @@ function StockList({ stock, label }: { stock: Inventory; label: string }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Storekeeper of a dock and the items they keep in stock. */
+function RestockForm({ controls, world, dock }: { controls: WorkshopControls; world: World; dock: Machine }) {
+  const { t } = useI18n();
+  const keeper = operatorOf(world.staff, dock.id);
+  const storekeepers = world.staff.employees.filter(employee => employee.role === 'storekeeper');
+  const chosen = dock.restock ?? [];
+  const orderable = orderableItems(world.progress);
+  const toggle = (item: ItemType) => controls.setRestock(dock.id, chosen.includes(item) ? chosen.filter(other => other !== item) : [...chosen, item]);
+  return (
+    <div className="room-details">
+      <h4 className="inspector-subtitle">{t.inspector.restock}</h4>
+      <label className="order-form">
+        <span>{t.inspector.storekeeper}</span>
+        <select
+          value={keeper?.role === 'storekeeper' ? keeper.id : ''}
+          onChange={event => {
+            const chosenId = event.target.value;
+            if (chosenId === '') { if (keeper) controls.assign(keeper.id, null); }
+            else controls.assign(Number(chosenId), dock.id);
+          }}
+        >
+          <option value="">{t.production.noOperator}</option>
+          {storekeepers.map(employee => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
+        </select>
+      </label>
+      {!keeper && <p className="order-hint">{t.inspector.noStorekeeper}</p>}
+      <p className="order-hint">{t.inspector.restockHint(PURCHASE.lotSize)}</p>
+      <ul className="restock-list" aria-label={t.inspector.restock}>
+        {ITEM_TYPES.filter(item => orderable.has(item)).map(item => (
+          <li key={item}>
+            <label>
+              <input
+                type="checkbox"
+                checked={chosen.includes(item)}
+                disabled={!chosen.includes(item) && chosen.length >= ROLE_EFFECTS.maxRestockItems}
+                onChange={() => toggle(item)}
+              />
+              <img src={ITEM_ART[item]} alt="" /> {t.items[item]}
+            </label>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -498,6 +544,7 @@ export function Inspector({ controls, world }: { controls: WorkshopControls; wor
           )}
           {selected && <Logistics world={world} machine={selected} controls={controls} />}
           {selected?.type === 'receiving' && <OrderForm controls={controls} world={world} dock={selected} />}
+          {selected?.type === 'receiving' && <RestockForm controls={controls} world={world} dock={selected} />}
           {selected?.type === 'splitter' && <FilterForm controls={controls} splitter={selected} />}
           {selected?.type === 'headquarters' && <HeadquartersDetails world={world} controls={controls} />}
           {selected?.type === 'lab' && <LabDetails world={world} controls={controls} />}

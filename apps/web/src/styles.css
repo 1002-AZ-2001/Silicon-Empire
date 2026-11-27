@@ -1046,3 +1046,12 @@ kbd {
 .tool-tab { min-height: 28px; padding: 0 12px; border: 1px solid var(--line); border-radius: 14px; background: transparent; color: var(--muted); font: 600 .78rem var(--body, inherit); cursor: pointer; }
 .tool-tab[aria-selected="true"] { border-color: var(--lime); background: #1d2a1f; color: var(--lime); }
 .tool-art img.cable-remove { filter: grayscale(1) brightness(.8); }
+
+/* Company */
+.brand-editor { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px; }
+.brand-editor .brand-mark { width: 44px; height: 44px; }
+.staff-role { font-size: .8rem; }
+.staff-role small { color: var(--muted); }
+.restock-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; font-size: .8rem; }
+.restock-list label { display: flex; align-items: center; gap: 6px; }
+.restock-list img { width: 12px; height: 12px; image-rendering: pixelated; }

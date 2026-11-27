@@ -1070,3 +1070,38 @@ test('trie la construction par onglets, cherche à la boutique, alimente une mac
   await shop.getByLabel('Trier').selectOption('priceDesc');
   await expect(shop.getByRole('list', { name: 'Boutique de composants' }).getByRole('listitem').first()).toHaveAttribute('aria-label', 'Transformateur');
 });
+
+test('personnalise l’entreprise et confie le réassort d’un quai à un magasinier', async ({ page }) => {
+  await page.goto('/');
+  await startWorkshop(page, 'Atelier Héron');
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: 'Pause' }).click();
+
+  await page.getByRole('button', { name: 'Entreprise', exact: true }).click();
+  const company = page.getByRole('dialog', { name: 'Entreprise' });
+  await company.getByLabel('Couleur').selectOption('sky');
+  await company.getByLabel('Emblème').selectOption('bolt');
+  await company.getByRole('button', { name: 'Enregistrer l’identité' }).click();
+  await expect(page.getByText('Identité de l’entreprise enregistrée.')).toBeVisible();
+  await expect(page.locator('.workshop-brand .brand-mark')).toHaveCSS('background-color', 'rgb(140, 200, 255)');
+  await expect(company.getByRole('listitem', { name: 'Magasinier' })).toContainText('0 employé');
+  await company.getByRole('button', { name: 'Fermer' }).click();
+
+  await page.getByRole('button', { name: /^Réception/ }).click();
+  await clickTile(page, 30, 34);
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Personnel', exact: true }).click();
+  const staff = page.getByRole('dialog', { name: 'Personnel' });
+  const storekeeper = staff.getByRole('region', { name: 'Candidats' }).getByRole('listitem').filter({ hasText: 'Magasinier' }).first();
+  await expect(storekeeper).toContainText('Tient un quai de réception');
+  await storekeeper.getByRole('button', { name: /^Embaucher/ }).click();
+  await staff.getByRole('button', { name: 'Fermer' }).click();
+
+  await clickTile(page, 30, 34);
+  await inspector(page).getByLabel('Magasinier').selectOption({ index: 1 });
+  await inspector(page).getByRole('checkbox', { name: /Processeur 8 cœurs K8/ }).check();
+  await expect(page.getByText('Liste de réassort enregistrée.')).toBeVisible();
+  const before = await capital(page).innerText();
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: '×1' }).click();
+  await expect(capital(page)).not.toHaveText(before, { timeout: 15_000 });
+  await expect(inspector(page).getByRole('list', { name: 'Contenu du stock' })).toContainText('Processeur 8 cœurs K8');
+});

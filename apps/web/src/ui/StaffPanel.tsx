@@ -1,14 +1,21 @@
-import { STAFF } from '@silicon-empire/game-data';
-import { breakRoomSeats, isStaffed, payroll, poolSizeOf, severance, staffRequired } from '@silicon-empire/simulation';
+import { OFFICE_ROLES, STAFF } from '@silicon-empire/game-data';
+import {
+  breakRoomSeats, equippedEmployees, machineUnlocked, payroll, poolSizeOf, postAccepts, roleUnlocked, severance, staffRequired,
+} from '@silicon-empire/simulation';
 import { useI18n } from '../i18n';
 import { Dialog, gameTime } from './shared';
-import type { SkillLevel } from '@silicon-empire/game-data';
+import type { Role, SkillLevel } from '@silicon-empire/game-data';
 import type { Machine, World } from '@silicon-empire/simulation';
 import type { WorkshopControls } from '../game/controls';
 import type { Messages } from '../i18n';
 
 export function machineLabel(t: Messages, machine: Machine): string {
   return `${t.machines[machine.type].name} · ${machine.id}`;
+}
+
+function RoleLine({ role }: { role: Role }) {
+  const { t } = useI18n();
+  return <p className="staff-role"><strong>{t.staff.roles[role]}</strong> · <small>{t.staff.roleHints[role]}</small></p>;
 }
 
 function SkillEffect({ skill }: { skill: SkillLevel }) {
@@ -19,8 +26,9 @@ function SkillEffect({ skill }: { skill: SkillLevel }) {
 export function StaffPanel({ world, controls, onClose }: { world: World; controls: WorkshopControls; onClose: () => void }) {
   const { t, money } = useI18n();
   const { staff } = world;
-  const posts = world.machines.filter(machine => isStaffed(machine.type));
   const full = staff.employees.length >= STAFF.maxEmployees;
+  const equipped = equippedEmployees(world);
+  const labOpen = machineUnlocked(world, 'lab');
 
   return (
     <Dialog
@@ -49,23 +57,32 @@ export function StaffPanel({ world, controls, onClose }: { world: World; control
                   <strong>{employee.name}</strong>
                   <span>{t.staff.level(employee.skill)}</span>
                 </header>
-                <SkillEffect skill={employee.skill} />
+                <RoleLine role={employee.role} />
+                {employee.role === 'operator' && <SkillEffect skill={employee.skill} />}
                 <span>{t.staff.perMonth(money(employee.salaryCents))}</span>
                 <label className="staff-morale">
                   <span>{t.staff.morale}</span>
                   <meter min={0} max={100} low={35} high={70} optimum={100} value={employee.morale} />
                   <span>{employee.morale}</span>
                 </label>
-                <label className="order-form">
-                  <span>{t.staff.post}</span>
-                  <select
-                    value={employee.machineId ?? ''}
-                    onChange={event => controls.assign(employee.id, event.target.value === '' ? null : Number(event.target.value))}
-                  >
-                    <option value="">{t.staff.unassigned}</option>
-                    {posts.map(machine => <option key={machine.id} value={machine.id}>{machineLabel(t, machine)}</option>)}
-                  </select>
-                </label>
+                {employee.role === 'operator' || employee.role === 'storekeeper' ? (
+                  <label className="order-form">
+                    <span>{t.staff.post}</span>
+                    <select
+                      value={employee.machineId ?? ''}
+                      onChange={event => controls.assign(employee.id, event.target.value === '' ? null : Number(event.target.value))}
+                    >
+                      <option value="">{t.staff.unassigned}</option>
+                      {world.machines.filter(machine => postAccepts(employee.role, machine.type)).map(machine => (
+                        <option key={machine.id} value={machine.id}>{machineLabel(t, machine)}</option>
+                      ))}
+                    </select>
+                  </label>
+                ) : OFFICE_ROLES.includes(employee.role) ? (
+                  <p className={equipped.has(employee.id) ? 'placement-status' : 'order-hint text-error'}>
+                    {t.staff.office} · {equipped.has(employee.id) ? t.staff.equipped : t.staff.unequipped}
+                  </p>
+                ) : null}
                 <button
                   type="button"
                   className="button"
@@ -91,10 +108,17 @@ export function StaffPanel({ world, controls, onClose }: { world: World; control
                   <strong>{candidate.name}</strong>
                   <span>{t.staff.level(candidate.skill)}</span>
                 </header>
-                <SkillEffect skill={candidate.skill} />
-                <button type="button" className="button button-primary" disabled={full} onClick={() => controls.hire(candidate.id)}>
+                <RoleLine role={candidate.role} />
+                {candidate.role === 'operator' && <SkillEffect skill={candidate.skill} />}
+                <button
+                  type="button"
+                  className="button button-primary"
+                  disabled={full || !roleUnlocked(world, candidate.role, labOpen)}
+                  onClick={() => controls.hire(candidate.id)}
+                >
                   {t.staff.hire(money(candidate.salaryCents))}
                 </button>
+                {!roleUnlocked(world, candidate.role, labOpen) && <p className="order-hint">{t.staff.roleLocked}</p>}
               </li>
             ))}
           </ul>
