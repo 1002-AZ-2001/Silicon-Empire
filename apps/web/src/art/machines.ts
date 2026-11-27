@@ -1,5 +1,7 @@
 import airFilter from './air-filter.png';
 import capacitorPress from './capacitor-press.png';
+import generator from './generator.png';
+import gridConnection from './grid-connection.png';
 import coilWinder from './coil-winder.png';
 import pcbEtcher from './pcb-etcher.png';
 import smtLine from './smt-line.png';
@@ -29,7 +31,9 @@ export const MACHINE_ART: Record<MachineType, string> = {
   'conveyor-fast': conveyorFast, headquarters, lab, 'conveyor-express': conveyorExpress, shipping,
   wall, door, sofa, coffee, desk, 'air-filter': airFilter,
   'capacitor-press': capacitorPress, 'pcb-etcher': pcbEtcher, 'coil-winder': coilWinder, 'smt-line': smtLine,
+  'grid-connection': gridConnection, generator,
 };
+export { default as CABLE_ART } from './cable.png';
 export { default as CONVEYOR_TURN_ART } from './conveyor-turn.png';
 export { default as CONVEYOR_FAST_TURN_ART } from './conveyor-fast-turn.png';
 export { default as CONVEYOR_EXPRESS_TURN_ART } from './conveyor-express-turn.png';

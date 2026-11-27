@@ -1,14 +1,14 @@
 import { CONVEYOR, ITEM_TYPES, LAND, MACHINE_TYPES, WORKSHOP, isConveyor, isLineType, recipeOf } from '@silicon-empire/game-data';
 import {
-  checkBuild, checkFloor, checkLine, fitsMap, footprintOf, linksOf, machineAt, neighbour, portsOf, previewTarget, productionStatus,
-  ownedBounds, parcelBounds, parcelForSale, parcelPrice, roomsOf,
+  checkBuild, checkCables, checkFloor, checkLine, fitsMap, footprintOf, linksOf, machineAt, neighbour, portsOf, previewTarget, productionStatus,
+  ownedBounds, parcelBounds, parcelForSale, parcelPrice, powerOf, roomsOf,
 } from '@silicon-empire/simulation';
 import Phaser from 'phaser';
 import { ITEM_ART } from '../art/items';
 import { FLOOR_ART } from '../art/floors';
 import { CONVEYOR_EXPRESS_TURN_ART, CONVEYOR_FAST_TURN_ART, CONVEYOR_TURN_ART, MACHINE_ART } from '../art/machines';
 import { currentTranslator } from '../i18n';
-import { floorOf, isBuildTool, isDrawTool } from './controls';
+import { floorOf, isBuildTool, isCableTool, isDrawTool } from './controls';
 import { createFloor } from './floor';
 import type { Direction, FloorType, RoomType } from '@silicon-empire/game-data';
 import type { Footprint, Machine, Placement, Simulation, Tile, World, WorldPort } from '@silicon-empire/simulation';
@@ -104,6 +104,8 @@ export class WorkshopScene extends Phaser.Scene {
   private land!: Phaser.GameObjects.Graphics;
   private landLabels!: Phaser.GameObjects.Container;
   private drawnParcels: World['parcels'] | null = null;
+  private cableLayer!: Phaser.GameObjects.Graphics;
+  private drawnCables: World['cables'] | null = null;
   private readonly unitSprites = new Map<number, Phaser.GameObjects.Image>();
   private positionCache = new WeakMap<World, Map<number, Point>>();
 
@@ -129,6 +131,7 @@ export class WorkshopScene extends Phaser.Scene {
     createFloor(this, world.columns, world.rows);
     this.floorLayer = this.add.container(0, 0).setDepth(0.5);
     this.roomTint = this.add.graphics().setDepth(0.6);
+    this.cableLayer = this.add.graphics().setDepth(0.9);
     this.roomLabels = this.add.container(0, 0).setDepth(2.6);
     this.land = this.add.graphics().setDepth(2.7);
     this.landLabels = this.add.container(0, 0).setDepth(2.75);
@@ -351,6 +354,29 @@ export class WorkshopScene extends Phaser.Scene {
     sprite.setAngle(placement.rotation * 90);
   }
 
+  /** Cables as yellow lines between neighbouring tiles; grey on networks without power. */
+  private drawCables(world: World) {
+    if (world.cables === this.drawnCables && world.machines === this.drawnMachines) return;
+    this.drawnCables = world.cables;
+    this.cableLayer.clear();
+    const cables = new Set(world.cables);
+    const { networks, machineNetwork } = powerOf(world);
+    const live = networks.some(network => network.supplyKw > 0) && machineNetwork.size > 0;
+    const color = live ? 0xf2ce48 : 0x8d948c;
+    for (const tile of world.cables) {
+      const x = (tile % world.columns + 0.5) * TILE;
+      const y = (Math.floor(tile / world.columns) + 0.5) * TILE;
+      this.cableLayer.lineStyle(3, 0x101615, 0.85);
+      if (tile % world.columns < world.columns - 1 && cables.has(tile + 1)) this.cableLayer.lineBetween(x, y, x + TILE, y);
+      if (cables.has(tile + world.columns)) this.cableLayer.lineBetween(x, y, x, y + TILE);
+      this.cableLayer.lineStyle(1.5, color, 1);
+      if (tile % world.columns < world.columns - 1 && cables.has(tile + 1)) this.cableLayer.lineBetween(x, y, x + TILE, y);
+      if (cables.has(tile + world.columns)) this.cableLayer.lineBetween(x, y, x, y + TILE);
+      this.cableLayer.fillStyle(0x101615, 0.9).fillCircle(x, y, 3.5);
+      this.cableLayer.fillStyle(color, 1).fillCircle(x, y, 2);
+    }
+  }
+
   /** Veil over the parcels not owned yet; parcels for sale show their price. */
   private drawLand(world: World) {
     if (world.parcels === this.drawnParcels) return;
@@ -411,6 +437,7 @@ export class WorkshopScene extends Phaser.Scene {
 
   private drawEquipment(world: World) {
     this.drawLand(world);
+    this.drawCables(world);
     if (world.machines === this.drawnMachines && world.floors === this.drawnFloors) return;
     const layoutChanged = world.machines !== this.drawnMachines;
     this.drawFloorsAndRooms(world);
@@ -558,6 +585,11 @@ export class WorkshopScene extends Phaser.Scene {
     const { tool, rotation, hover, selectedId, line } = this.controls.store.getState();
 
     const floor = floorOf(tool);
+    if (line && isCableTool(tool)) {
+      const valid = checkCables(world, line, tool === 'cable') === null;
+      for (const tile of line) this.markFootprint({ ...tile, width: 1, height: 1 }, !valid ? 0xff8267 : tool === 'cable' ? 0xf2ce48 : 0x8d948c, 0.25);
+      return;
+    }
     if (line) {
       const conveyor = isBuildTool(tool) && isConveyor(tool);
       const valid = floor
@@ -577,6 +609,12 @@ export class WorkshopScene extends Phaser.Scene {
     const { selectedParcel } = this.controls.store.getState();
     if (selectedParcel !== null) this.markFootprint(parcelBounds(selectedParcel), 0xbde778, 0.08);
     if (!hover) return;
+
+    if (isCableTool(tool)) {
+      const error = checkCables(world, [hover], tool === 'cable');
+      this.markFootprint({ ...hover, width: 1, height: 1 }, error ? 0xff8267 : tool === 'cable' ? 0xf2ce48 : 0x8d948c, 0.3);
+      return;
+    }
 
     if (floor) {
       const error = checkFloor(world, [hover], floor);

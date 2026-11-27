@@ -1,12 +1,12 @@
 import {
-  CONVEYOR, ITEM_TYPES, LAND, LOAN_IDS, MACHINE_TYPES, SPECIALTIES, TECH_IDS, MILESTONE_IDS, PRODUCT_MODELS, RESEARCH_IDS, STAFF, STANDARD_MODELS, SUPPLIER_IDS, WORKSHOP,
+  CONVEYOR, ITEM_TYPES, LAND, LOAN_IDS, MACHINE_TYPES, POWER, WEAR, SPECIALTIES, TECH_IDS, MILESTONE_IDS, PRODUCT_MODELS, RESEARCH_IDS, STAFF, STANDARD_MODELS, SUPPLIER_IDS, WORKSHOP,
   publishedDesignSchema,
 } from '@silicon-empire/game-data';
 import { ROTATIONS, ROUTER_SIDES, checkIntegrity, createStaff, withRequiredStaff } from '@silicon-empire/simulation';
 import { z } from 'zod';
 import type { World } from '@silicon-empire/simulation';
 
-export const SAVE_VERSION = 13;
+export const SAVE_VERSION = 14;
 const OLD_MAP = 64;
 export const MAX_WORKSHOP_NAME = 40;
 
@@ -356,6 +356,7 @@ function migrateV9(value: unknown): unknown {
   if (!v9.success) return null;
   const { staff } = withRequiredStaff({
     ...v9.data.world, staff: createStaff(v9.data.world.tick), floors: {}, parcels: [...LAND.initialParcels],
+    utilities: { enabled: false, cut: false, nextBill: 1, spentCents: 0 }, cables: [], wear: {},
   });
   return { ...v9.data, version: 10, world: { ...v9.data.world, staff } };
 }
@@ -402,7 +403,7 @@ const count0 = z.int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 
 /** Version 13 (v0.10.0): career workshops keep their specialty, licences, loans and wholesale sales. */
 const saveV13 = z.strictObject({
-  version: z.literal(SAVE_VERSION),
+  version: z.literal(13),
   ...header,
   world: z.strictObject({
     ...saveV12.shape.world.shape,
@@ -427,10 +428,46 @@ const saveV13 = z.strictObject({
 /** Earlier workshops are classic or sandbox: nothing to add. */
 function migrateV12(value: unknown): z.input<typeof saveV13> | null {
   const v12 = saveV12.safeParse(value);
-  return v12.success ? { ...v12.data, version: SAVE_VERSION } : null;
+  return v12.success ? { ...v12.data, version: 13 } : null;
 }
 
-const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9, migrateV10, migrateV11, migrateV12];
+/** Version 14 (v0.11.0): Mk3 machines, electricity, cables and wear. */
+const saveV14 = z.strictObject({
+  version: z.literal(SAVE_VERSION),
+  ...header,
+  world: z.strictObject({
+    ...saveV13.shape.world.shape,
+    machines: z.array(machine.extend({
+      model: z.enum(PRODUCT_MODELS).optional(),
+      level: z.union([z.literal(2), z.literal(3)]).optional(),
+    })).max(WORKSHOP.columns * WORKSHOP.rows),
+    utilities: z.strictObject({
+      enabled: z.boolean(),
+      cut: z.boolean(),
+      nextBill: z.int().positive().max(Number.MAX_SAFE_INTEGER),
+      spentCents: count0,
+    }),
+    cables: z.array(z.int().nonnegative().max(WORKSHOP.columns * WORKSHOP.rows - 1)).max(WORKSHOP.columns * WORKSHOP.rows),
+    wear: z.record(machineId, z.int().positive().max(WEAR.breakdown)),
+  }),
+});
+
+/** Earlier workshops keep running without power or wear; their bill calendar starts at the saved tick. */
+function migrateV13(value: unknown): z.input<typeof saveV14> | null {
+  const v13 = saveV13.safeParse(value);
+  if (!v13.success) return null;
+  const { tick } = v13.data.world;
+  return {
+    ...v13.data,
+    version: SAVE_VERSION,
+    world: {
+      ...v13.data.world,
+      utilities: { enabled: false, cut: false, nextBill: tick + POWER.billPeriodTicks, spentCents: 0 }, cables: [], wear: {},
+    },
+  };
+}
+
+const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9, migrateV10, migrateV11, migrateV12, migrateV13];
 
 function versionOf(value: unknown): unknown {
   return typeof value === 'object' && value !== null && 'version' in value ? value.version : undefined;
@@ -443,7 +480,7 @@ export function decodeSave(value: unknown): SaveRecord | null {
   if (typeof version === 'number' && Number.isInteger(version) && version >= 1) {
     for (const migrate of migrations.slice(version - 1)) current = migrate(current);
   }
-  const decoded = saveV13.safeParse(current);
+  const decoded = saveV14.safeParse(current);
   if (!decoded.success) return null;
 
   const { data } = decoded;

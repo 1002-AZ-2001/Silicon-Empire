@@ -26,6 +26,7 @@ export function effectLabel(t: Messages, effect: ResearchEffect): string {
     case 'machine': return t.research.machineEffect(t.machines[effect.machine].name);
     case 'dock-capacity': return t.research.dockEffect(effect.capacity);
     case 'rejection': return t.research.rejectionEffect(effect.every);
+    case 'mk3': return t.research.mk3Effect;
   }
 }
 

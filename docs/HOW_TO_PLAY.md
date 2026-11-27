@@ -22,7 +22,8 @@ L’entreprise démarre avec **0 €**. Ouvrir **Banque** et prendre le **prêt 
 1. **Réception** : le quai où arrivent les matières premières.
 2. La **machine** de la spécialité.
 3. Des **convoyeurs** de la flèche orange du quai (sortie) vers la flèche verte de la machine (entrée). Maintenir le clic gauche et glisser pour tracer une ligne ; **R** change le sens.
-4. Un quai d’**Expédition**, relié par convoyeur à la sortie de la machine. Il vend chaque composant reçu au grossiste.
+4. Un **raccordement au réseau** (onglet Énergie), puis un **câble** tracé jusqu’à la machine : sans courant, elle ne démarre pas.
+5. Un quai d’**Expédition**, relié par convoyeur à la sortie de la machine. Il vend chaque composant reçu au grossiste.
 
 Un seul convoyeur suffit pour tous les ingrédients : le quai envoie à la machine ce qui lui manque, dans les bonnes proportions.
 

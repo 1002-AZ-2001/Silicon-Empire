@@ -8,7 +8,7 @@ import type { MilestoneId } from './progression';
  * Only one project is analysed at a time. Effects are permanent.
  */
 export const RESEARCH_IDS = [
-  'assembly-mk2', 'testing-mk2', 'packaging-mk2', 'dock-expansion', 'express-belts', 'yield-control',
+  'assembly-mk2', 'testing-mk2', 'packaging-mk2', 'dock-expansion', 'express-belts', 'yield-control', 'advanced-automation',
 ] as const;
 export type ResearchId = (typeof RESEARCH_IDS)[number];
 
@@ -20,7 +20,9 @@ export type ResearchEffect =
   | { readonly kind: 'upgrade'; readonly machine: UpgradableMachine }
   | { readonly kind: 'machine'; readonly machine: MachineType }
   | { readonly kind: 'dock-capacity'; readonly capacity: number }
-  | { readonly kind: 'rejection'; readonly every: number };
+  | { readonly kind: 'rejection'; readonly every: number }
+  /** Mk3 upgrades for every machine that has Mk2. */
+  | { readonly kind: 'mk3' };
 
 export interface Research {
   readonly cost: Readonly<Partial<Record<ItemType, number>>>;
@@ -66,6 +68,12 @@ export const RESEARCH: Readonly<Record<ResearchId, Research>> = {
     ticks: 2_400,
     requires: { milestones: ['professional-rollout'] },
     effect: { kind: 'rejection', every: 16 },
+  },
+  'advanced-automation': {
+    cost: { 'pc-gaming-packaged': 20 },
+    ticks: 3_000,
+    requires: { research: ['packaging-mk2'] },
+    effect: { kind: 'mk3' },
   },
 };
 

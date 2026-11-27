@@ -973,12 +973,12 @@ test('démarre une carrière : spécialité, prêt, première chaîne guidée pa
   await startWorkshop(page, 'Atelier Ardoise', { career: true });
   await expect(capital(page)).toHaveText(euros(0));
   const tutorial = page.getByRole('complementary', { name: 'Tutoriel' });
-  await expect(tutorial).toContainText('Étape 1 sur 9');
+  await expect(tutorial).toContainText('Étape 1 sur 10');
 
   const starter = page.getByRole('dialog', { name: 'Choisissez votre spécialité' });
   await starter.getByRole('listitem', { name: 'Composants passifs' }).getByRole('button', { name: 'Démarrer avec cette spécialité' }).click();
   await expect(starter).toHaveCount(0);
-  await expect(tutorial).toContainText('Étape 2 sur 9');
+  await expect(tutorial).toContainText('Étape 2 sur 10');
   await expect(page.getByRole('button', { name: 'Banque', exact: true })).toHaveClass(/tutorial-target/);
 
   await page.getByRole('button', { name: 'Banque', exact: true }).click();
@@ -995,13 +995,21 @@ test('démarre une carrière : spécialité, prêt, première chaîne guidée pa
   await expect(page.getByRole('button', { name: /^Presse/ })).toHaveClass(/tutorial-target/);
   await page.getByRole('button', { name: /^Presse/ }).click();
   await clickTile(page, 31, 33);
+  await expect(tutorial).toContainText('Étape 5 sur 10');
+  await expect(page.getByRole('button', { name: /^Réseau/ })).toHaveClass(/tutorial-target/);
+  await page.getByRole('button', { name: /^Réseau/ }).click();
+  await clickTile(page, 28, 33);
+  await page.getByRole('button', { name: /^Câble/ }).click();
+  await clickTile(page, 30, 33);
+  await expect(page.getByText(`1 câble posé pour ${euros(5)}.`)).toBeVisible();
+  await expect(tutorial).toContainText('Étape 6 sur 10');
   await page.getByRole('button', { name: /^Convoyeur/ }).click();
   await clickTile(page, 31, 35);
-  await expect(tutorial).toContainText('Étape 6 sur 9');
+  await expect(tutorial).toContainText('Étape 7 sur 10');
   await clickTile(page, 32, 32);
   await page.getByRole('button', { name: /^Expédition/ }).click();
   await clickTile(page, 32, 30);
-  await expect(tutorial).toContainText('Étape 7 sur 9');
+  await expect(tutorial).toContainText('Étape 8 sur 10');
 
   await page.getByRole('button', { name: 'Boutique', exact: true }).click();
   const shop = page.getByRole('dialog', { name: 'Boutique de composants' });
@@ -1011,13 +1019,54 @@ test('démarre une carrière : spécialité, prêt, première chaîne guidée pa
   await shop.getByRole('listitem', { name: 'Feuille de cuivre' }).first().getByRole('button', { name: 'Ajouter un lot' }).click();
   await shop.getByRole('region', { name: 'Panier' }).getByRole('button', { name: /^Commander/ }).click();
   await shop.getByRole('button', { name: 'Fermer' }).click();
-  await expect(tutorial).toContainText('Étape 8 sur 9');
+  await expect(tutorial).toContainText('Étape 9 sur 10');
 
-  const before = 20_000 - 4_200 - 6_000 - 80 - 1_600 - 700;
+  const before = 20_000 - 4_200 - 6_000 - 5_000 - 5 - 80 - 1_600 - 700;
   await expect(capital(page)).toHaveText(euros(before));
   await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: '×5' }).click();
   await expect(capital(page)).toHaveText(euros(before + 140), { timeout: 20_000 });
-  await expect(tutorial).toContainText('Étape 9 sur 9');
+  await expect(tutorial).toContainText('Étape 10 sur 10');
   await page.getByRole('button', { name: 'Ventes', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Grossiste' })).toContainText('Ventes au grossiste');
+});
+
+test('trie la construction par onglets, cherche à la boutique, alimente une machine et l’améliore en Mk3', async ({ page }) => {
+  await page.goto('/');
+  await startWorkshop(page, 'Atelier Volta');
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: 'Pause' }).click();
+  const tools = page.getByRole('group', { name: 'Outils de construction' });
+  await page.getByRole('tab', { name: 'Énergie' }).click();
+  await expect(page.getByRole('tab', { name: 'Énergie' })).toHaveAttribute('aria-selected', 'true');
+  await expect(tools.getByRole('button', { name: /^Assemblage/ })).toHaveCount(0);
+  await expect(tools.getByRole('button', { name: /^Réseau/ })).toBeVisible();
+  await expect(tools.getByRole('button', { name: /^Câble/ })).toBeVisible();
+  await page.getByRole('tab', { name: 'Tout' }).click();
+
+  await page.getByRole('button', { name: /^Assemblage/ }).click();
+  await clickTile(page, 31, 32);
+  await page.keyboard.press('Escape');
+  await clickTile(page, 31, 32);
+  await expect(inspector(page)).toContainText('Aucun câble');
+  await expect(inspector(page)).toContainText('Sans électricité');
+  await page.getByRole('button', { name: /^Réseau/ }).click();
+  await clickTile(page, 34, 32);
+  await page.getByRole('button', { name: /^Câble/ }).click();
+  await clickTile(page, 33, 32);
+  await page.keyboard.press('Escape');
+  await clickTile(page, 31, 32);
+  await expect(inspector(page)).toContainText('10 / 150 kW');
+
+  await inspector(page).getByRole('button', { name: /^Améliorer en Mk2/ }).click();
+  await inspector(page).getByRole('button', { name: /^Améliorer en Mk3/ }).click();
+  await expect(page.getByText('Machine améliorée en Mk3.')).toBeVisible();
+  await expect(inspector(page)).toContainText('20 / 150 kW');
+
+  await page.getByRole('button', { name: 'Boutique', exact: true }).click();
+  const shop = page.getByRole('dialog', { name: 'Boutique de composants' });
+  await shop.getByLabel('Rechercher').fill('ceramique');
+  await expect(shop.getByRole('list', { name: 'Boutique de composants' }).getByRole('listitem')).toHaveCount(1);
+  await expect(shop.getByRole('listitem', { name: 'Poudre céramique' })).toBeVisible();
+  await shop.getByLabel('Rechercher').fill('');
+  await shop.getByLabel('Trier').selectOption('priceDesc');
+  await expect(shop.getByRole('list', { name: 'Boutique de composants' }).getByRole('listitem').first()).toHaveAttribute('aria-label', 'Transformateur');
 });

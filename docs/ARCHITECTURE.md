@@ -65,6 +65,13 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - Les livraisons différées réservent la capacité du quai et débitent le capital à la commande. Elles entrent dans le stock et le registre des unités achetées au tick d’arrivée. Un quai qui attend des lots reste en place jusqu’à leur arrivée.
 - Le format v8 conserve les révisions, les délais et la réservation des stocks. Les commandes standard du format v7 gardent leurs conditions.
 
+## Électricité et usure (v0.11.0)
+
+- `world.utilities` (activé pour les nouveaux ateliers, `createWorld(mode, { utilities: true })`), `world.cables` (tuiles triées) et `world.wear` (usure par machine). `packages/simulation/src/power.ts` calcule les réseaux par union-find : les câbles adjacents se rejoignent, et une machine relie tous les réseaux qu’elle touche. Le résultat est mis en cache par disposition, câbles et coupure.
+- `productionTicks` combine niveau, opérateur, usure et part de courant reçue, ou renvoie `null` (pas de courant, panne). Chaque lot terminé ajoute l’usure du niveau. `advanceUtilities` paie la facture mensuelle en entier ou coupe le réseau.
+- Commandes `lay-cable`, `remove-cable`, `repair`, et `upgrade` vers le niveau suivant (`UPGRADE_COSTS`, `upgradeUnlocked(…, level)`). Le capital engagé compte factures et réparations.
+- Format v14 : `utilities`, `cables`, `wear`, `level` 2 ou 3. Les anciens ateliers sont migrés avec l’électricité désactivée.
+
 ## Carrière (v0.10.0)
 
 - `progress.career` (`packages/simulation/src/career.ts`) garde la spécialité, les licences dans l’ordre d’achat, les prêts, les montants empruntés et remboursés, les mensualités manquées, la faillite, la prochaine échéance et les ventes au grossiste. Les règles d’accès (`unlockedMachines`, `orderableItems`, `modelUnlocked`) lisent ces licences ; les jalons ne servent pas en carrière.

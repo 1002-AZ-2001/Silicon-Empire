@@ -104,7 +104,7 @@ export const TIERS = [
 ] as const satisfies readonly { tier: number; sequential: boolean; openedBy: number | null }[];
 
 /** Available in a new progression game before any milestone. */
-export const STARTING_MACHINES: readonly MachineType[] = ['storage', 'receiving', 'conveyor', 'headquarters'];
+export const STARTING_MACHINES: readonly MachineType[] = ['storage', 'receiving', 'conveyor', 'headquarters', 'grid-connection', 'generator'];
 export const STARTING_ITEMS: readonly ItemType[] = [
   'cpu-8c', 'gpu-8g', 'ram-16g', 'ssd-1t', 'motherboard-atx', 'psu-650', 'case-standard',
 ];

@@ -8,7 +8,7 @@ import type { ItemType } from './items';
 export const SPECIALTIES = ['passives', 'pcb', 'power'] as const;
 export type Specialty = (typeof SPECIALTIES)[number];
 
-export const TECH_IDS = [...SPECIALTIES, 'smt', 'computers'] as const;
+export const TECH_IDS = [...SPECIALTIES, 'smt', 'computers', 'automation', 'robotics'] as const;
 export type TechId = (typeof TECH_IDS)[number];
 
 export interface Technology {
@@ -36,11 +36,16 @@ export const TECHNOLOGIES: Readonly<Record<TechId, Technology>> = {
       items: ['cpu-8c', 'ram-16g', 'ssd-1t', 'motherboard-atx', 'psu-650', 'case-standard', 'carton'],
     },
   },
+  /** Mk2 upgrades for every production machine. */
+  automation: { costCents: 3_000_000, requires: [], branches: 1, unlocks: { machines: [], items: [] } },
+  /** Mk3 upgrades. */
+  robotics: { costCents: 6_000_000, requires: ['automation', 'smt'], branches: 0, unlocks: { machines: [], items: [] } },
 };
 
 /** Buildings open from the first day of a career. */
 export const CAREER_START_MACHINES: readonly MachineType[] = [
   'receiving', 'storage', 'conveyor', 'splitter', 'merger', 'shipping', 'wall', 'door', 'sofa', 'coffee', 'desk',
+  'grid-connection', 'generator',
 ];
 
 /** Price the wholesaler pays at the shipping dock, per unit. */

@@ -16,7 +16,7 @@ function App() {
 
   function startWorkshop(name: string, mode: GameMode) {
     const id = createSaveId();
-    setSession({ id, name, createdAt: Date.now(), savedAt: null, world: createWorld(mode) });
+    setSession({ id, name, createdAt: Date.now(), savedAt: null, world: createWorld(mode, { utilities: true }) });
   }
 
   return session

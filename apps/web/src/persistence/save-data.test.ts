@@ -1,4 +1,4 @@
-import { DEFAULT_DESIGN, PROFESSIONAL_RECIPES, SUPPLIERS, WORKSHOP, recipeOf } from '@silicon-empire/game-data';
+import { DEFAULT_DESIGN, POWER, PROFESSIONAL_RECIPES, SUPPLIERS, WORKSHOP, recipeOf } from '@silicon-empire/game-data';
 import { applyCommand, createStaff, createWorld, step } from '@silicon-empire/simulation';
 import { describe, expect, it } from 'vitest';
 import { parseBackup } from './backup';
@@ -12,7 +12,12 @@ const OLD_MAP = { columns: 64, rows: 64 };
 
 /** A world as read from a save older than v10: no staff yet, the first pool from the saved tick. */
 function asMigrated(world: World): World {
-  return { ...world, staff: createStaff(world.tick) };
+  return { ...asLegacy(world), staff: createStaff(world.tick) };
+}
+
+/** A world as read from a save older than v14: no utilities, bill calendar from the saved tick. */
+function asLegacy(world: World): World {
+  return { ...world, utilities: { enabled: false, cut: false, nextBill: world.tick + POWER.billPeriodTicks, spentCents: 0 } };
 }
 
 function run(world: World, command: Command): World {
@@ -85,7 +90,7 @@ describe('schéma de sauvegarde', () => {
 
   it('migre une sauvegarde v0.2.0 avec ses unités en transit', () => {
     const v2 = JSON.parse(JSON.stringify({ ...inTransit, version: 2 }));
-    for (const key of ['routers', 'production', 'progress', 'sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels']) delete v2.world[key];
+    for (const key of ['routers', 'production', 'progress', 'sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels', 'utilities', 'cables', 'wear']) delete v2.world[key];
     Object.assign(v2.world, OLD_MAP);
     for (const key of ['produced', 'consumed', 'delivered']) delete v2.world.ledger[key];
     expect(decodeSave(v2)).toEqual({ ...inTransit, world: asMigrated(inTransit.world) });
@@ -94,7 +99,7 @@ describe('schéma de sauvegarde', () => {
 
   it('migre une sauvegarde v0.2.x en bac à sable et refuse ses champs v4', () => {
     const v3 = JSON.parse(JSON.stringify({ ...inTransit, version: 3 }));
-    for (const key of ['production', 'progress', 'sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels']) delete v3.world[key];
+    for (const key of ['production', 'progress', 'sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels', 'utilities', 'cables', 'wear']) delete v3.world[key];
     Object.assign(v3.world, OLD_MAP);
     for (const key of ['produced', 'consumed', 'delivered']) delete v3.world.ledger[key];
     const migrated = decodeSave(v3);
@@ -107,7 +112,7 @@ describe('schéma de sauvegarde', () => {
     const world = runningAssembler('office');
     const { sales, design, deliveries } = world;
     const oldWorld: Record<string, unknown> = { ...world };
-    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels']) delete oldWorld[key];
+    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels', 'utilities', 'cables', 'wear']) delete oldWorld[key];
     Object.assign(oldWorld, OLD_MAP);
     const legacy = { ...record, version: 4, world: oldWorld };
     const restored = decodeSave(legacy);
@@ -132,7 +137,7 @@ describe('schéma de sauvegarde', () => {
     const world = runningAssembler('gaming');
     const { sales, design, deliveries } = world;
     const oldWorld: Record<string, unknown> = { ...world };
-    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels']) delete oldWorld[key];
+    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels', 'utilities', 'cables', 'wear']) delete oldWorld[key];
     Object.assign(oldWorld, OLD_MAP);
     const restored = decodeSave({ ...record, version: 5, world: oldWorld });
     expect(restored).toEqual({ ...record, world: asMigrated(world) });
@@ -251,6 +256,7 @@ describe('schéma de sauvegarde', () => {
     delete v8.world.staff;
     delete v8.world.floors;
     delete v8.world.parcels;
+    for (const key of ['utilities', 'cables', 'wear']) delete v8.world[key];
     Object.assign(v8.world, OLD_MAP);
     expect(decodeSave(v8)?.world.research).toEqual({ active: null, delivered: {}, analysing: null, completed: [] });
     expect(decodeSave({ ...v8, world: { ...v8.world, research: world.research } })).toBeNull();
@@ -349,6 +355,7 @@ describe('personnel dans la sauvegarde', () => {
     delete legacyWorld.staff;
     delete legacyWorld.floors;
     delete legacyWorld.parcels;
+    for (const key of ['utilities', 'cables', 'wear']) delete legacyWorld[key];
     Object.assign(legacyWorld, OLD_MAP);
     const migrated = decodeSave({ ...record, version: 9, world: legacyWorld });
     expect(migrated?.world.staff.employees).toMatchObject([{ id: 1, skill: 2, machineId: 1, morale: 70 }]);
@@ -367,6 +374,7 @@ describe('sols dans la sauvegarde', () => {
     const v10 = JSON.parse(JSON.stringify({ ...saved, version: 10 }));
     delete v10.world.floors;
     delete v10.world.parcels;
+    for (const key of ['utilities', 'cables', 'wear']) delete v10.world[key];
     Object.assign(v10.world, OLD_MAP);
     expect(decodeSave(v10)?.world.floors).toEqual({});
     expect(decodeSave({ ...v10, world: { ...v10.world, floors: {} } })).toBeNull();
@@ -383,6 +391,7 @@ describe('parcelles dans la sauvegarde', () => {
     const painted = run(createWorld(), { kind: 'paint-floor', tiles: [{ x: 3, y: 4 }, { x: 63, y: 63 }], floor: 'wood' });
     const v11 = JSON.parse(JSON.stringify({ ...record, version: 11, world: painted }));
     delete v11.world.parcels;
+    for (const key of ['utilities', 'cables', 'wear']) delete v11.world[key];
     Object.assign(v11.world, OLD_MAP, { floors: { [4 * 64 + 3]: 'wood', [63 * 64 + 63]: 'wood' } });
     const migrated = decodeSave(v11);
     expect(migrated?.world.floors).toEqual(painted.floors);
@@ -401,6 +410,23 @@ describe('carrière dans la sauvegarde', () => {
     expect(decodeSave({ ...saved, world: { ...world, progress: { ...world.progress, career: { ...career, missed: 3 } } } })).toBeNull();
     expect(decodeSave({ ...saved, world: { ...world, progress: { ...world.progress, career: { ...career, technologies: ['pcb'] } } } })).toBeNull();
     const v12 = JSON.parse(JSON.stringify({ ...record, version: 12 }));
-    expect(decodeSave(v12)).toEqual(record);
+    for (const key of ['utilities', 'cables', 'wear']) delete v12.world[key];
+    expect(decodeSave(v12)).toEqual({ ...record, world: asLegacy(record.world) });
+  });
+});
+
+describe('énergie et usure dans la sauvegarde', () => {
+  it('restaure câbles, usure, factures et machines Mk3, et relit un atelier v13 sans électricité', () => {
+    let world = createWorld('sandbox', { utilities: true });
+    world = run(run(run(world, { kind: 'build', type: 'assembler', x: 10, y: 10, rotation: 0 }), { kind: 'upgrade', id: 1 }), { kind: 'upgrade', id: 1 });
+    world = run(world, { kind: 'lay-cable', tiles: [{ x: 10, y: 12 }, { x: 11, y: 12 }] });
+    world = { ...world, wear: { 1: 40 } };
+    const saved: SaveRecord = { ...record, world };
+    expect(decodeSave(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+    expect(decodeSave({ ...saved, world: { ...world, wear: { 1: 999 } } })).toBeNull();
+    expect(decodeSave({ ...saved, world: { ...world, cables: [99_999] } })).toBeNull();
+    const v13 = JSON.parse(JSON.stringify({ ...record, version: 13 }));
+    for (const key of ['utilities', 'cables', 'wear']) delete v13.world[key];
+    expect(decodeSave(v13)?.world).toMatchObject({ utilities: { enabled: false }, cables: [], wear: {} });
   });
 });

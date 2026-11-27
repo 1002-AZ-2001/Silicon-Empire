@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.11.0 — Électricité, usure, Mk3 et interface triée
+
+- **Électricité** dans les nouveaux ateliers. Les machines de production et le laboratoire consomment de 6 à 30 kW, davantage en Mk2 et Mk3. Elles prennent le courant sur le réseau de **câbles** qu’elles touchent : sur leur emprise ou juste à côté. Le câble coûte 5 € la tuile, se trace au glisser et passe sous les bâtiments et les convoyeurs ; l’outil « Retirer un câble » l’enlève.
+- Sources d’énergie : **raccordement au réseau** (5 000 €, 150 kW, facturé 12 € par kW consommé et par mois) et **groupe électrogène** (8 000 €, 60 kW, 400 € de carburant par mois). Sans câble, une machine ne démarre pas ; quand la demande dépasse l’offre, les lots ralentissent dans la même proportion. Une facture impayée coupe le réseau jusqu’au paiement suivant.
+- **Usure** : chaque lot use la machine (2 points en Mk1 et Mk2, 1 en Mk3). À 140 points, les lots prennent 25 % de temps en plus. À 200, la machine tombe en panne. La réparation coûte 10 % de ce que la machine a coûté.
+- **Mk3** : trois fois plus rapide que Mk1, deux fois moins d’usure, double consommation. Mk2 et Mk3 s’étendent aux machines de la carrière. Classique : recherche « Automatisation avancée ». Carrière : licences « Automatisation » (Mk2, 30 000 €) puis « Robotique » (Mk3, 60 000 €).
+- **Construction triée** par onglets : Tout, Logistique, Production, Énergie, Aménagement. Les outils suivent cet ordre.
+- **Boutique** : barre de recherche, sans tenir compte des accents ni des majuscules, et tri par catégorie, nom ou prix.
+- Le tutoriel de carrière ajoute l’étape du raccordement électrique. L’inspecteur affiche consommation, équilibre du réseau, usure et facture estimée.
+- La sauvegarde v14 enregistre câbles, usure, factures et niveaux Mk3. Les ateliers précédents continuent sans électricité ni usure.
+
 ## 0.10.0 — Mode Carrière et tutoriel
 
 - Nouveau mode **Carrière**, choisi par défaut : l’entreprise démarre avec 0 €. Les modes **Classique** (l’ancienne progression) et **Bac à sable** restent proposés dans le menu.

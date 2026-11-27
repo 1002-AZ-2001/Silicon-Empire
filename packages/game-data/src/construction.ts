@@ -42,6 +42,7 @@ export const MACHINE_TYPES = [
   'packager', 'warehouse', 'conveyor-fast', 'headquarters', 'shipping', 'lab', 'conveyor-express',
   'wall', 'door', 'sofa', 'coffee', 'desk', 'air-filter',
   'capacitor-press', 'pcb-etcher', 'coil-winder', 'smt-line',
+  'grid-connection', 'generator',
 ] as const;
 export type MachineType = (typeof MACHINE_TYPES)[number];
 
@@ -246,4 +247,6 @@ export const MACHINES = z.record(z.enum(MACHINE_TYPES), machineDefinition.readon
     width: 3, height: 2, costCents: 2_500_000, capacity: 0,
     ports: [{ kind: 'input', side: 2, offset: 0 }, { kind: 'input', side: 2, offset: 2 }, { kind: 'output', side: 0, offset: 1 }],
   },
+  'grid-connection': { width: 2, height: 1, costCents: 500_000, capacity: 0, ports: [] },
+  generator: { width: 2, height: 2, costCents: 800_000, capacity: 0, ports: [] },
 } satisfies Record<MachineType, z.input<typeof machineDefinition>>);

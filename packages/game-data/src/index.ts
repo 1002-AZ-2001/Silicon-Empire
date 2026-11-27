@@ -10,3 +10,4 @@ export * from './staff';
 export * from './rooms';
 export * from './land';
 export * from './career';
+export * from './power';
