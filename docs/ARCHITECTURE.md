@@ -65,6 +65,13 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - Les livraisons différées réservent la capacité du quai et débitent le capital à la commande. Elles entrent dans le stock et le registre des unités achetées au tick d’arrivée. Un quai qui attend des lots reste en place jusqu’à leur arrivée.
 - Le format v8 conserve les révisions, les délais et la réservation des stocks. Les commandes standard du format v7 gardent leurs conditions.
 
+## Rôles et entreprise (v0.12.0)
+
+- `Person.role` (`ROLES`, `packages/game-data/src/staff.ts`). Les rôles des candidats viennent d’une suite pseudo-aléatoire distincte de celle des noms et niveaux, pondérée par `ROLE_WEIGHTS`, avec un opérateur au premier rang. Les identifiants et noms des viviers ne changent donc pas.
+- `packages/simulation/src/company.ts` : `equippedEmployees` (rôles de bureau servis en postes informatiques de bureau dans l’ordre d’embauche), effets (`upgradeCost`, `salesBonusPercent`, `developerPercent`, `researchBoost`, `managerMorale`, `technicianRepairs`, `restockItem`) et `roleUnlocked`.
+- `assign` vérifie le poste selon le rôle (`postAccepts`). La commande `set-restock` règle la liste d’un quai ; `step` fait commander le magasinier toutes les 100 ticks et réparer les techniciens toutes les 600 ticks. Les commandes clients acceptent un prix entre le tarif du catalogue et le tarif majoré du bonus commercial maximal.
+- Commande `brand` et `world.company`. Format v15 : `role`, `restock`, `company` ; la migration v14 tire à nouveau les candidats restants avec leur rôle.
+
 ## Électricité et usure (v0.11.0)
 
 - `world.utilities` (activé pour les nouveaux ateliers, `createWorld(mode, { utilities: true })`), `world.cables` (tuiles triées) et `world.wear` (usure par machine). `packages/simulation/src/power.ts` calcule les réseaux par union-find : les câbles adjacents se rejoignent, et une machine relie tous les réseaux qu’elle touche. Le résultat est mis en cache par disposition, câbles et coupure.

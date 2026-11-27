@@ -7,6 +7,13 @@ import type { Command, World } from '@silicon-empire/simulation';
 import type { ItemType, ProductModel } from '@silicon-empire/game-data';
 import type { SaveRecord } from './save-data';
 
+/** Saves before v15 (v0.12.0) have no roles. */
+function withoutRoles<T>(saved: T): T {
+  const { staff } = (saved as { world: { staff?: { employees: Record<string, unknown>[]; candidates: Record<string, unknown>[] } } }).world;
+  for (const person of [...staff?.employees ?? [], ...staff?.candidates ?? []]) delete person.role;
+  return saved;
+}
+
 /** Saves before v12 (v0.9.1) cover a 64 × 64 map. */
 const OLD_MAP = { columns: 64, rows: 64 };
 
@@ -90,7 +97,7 @@ describe('schéma de sauvegarde', () => {
 
   it('migre une sauvegarde v0.2.0 avec ses unités en transit', () => {
     const v2 = JSON.parse(JSON.stringify({ ...inTransit, version: 2 }));
-    for (const key of ['routers', 'production', 'progress', 'sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels', 'utilities', 'cables', 'wear']) delete v2.world[key];
+    for (const key of ['routers', 'production', 'progress', 'sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels', 'utilities', 'cables', 'wear', 'company']) delete v2.world[key];
     Object.assign(v2.world, OLD_MAP);
     for (const key of ['produced', 'consumed', 'delivered']) delete v2.world.ledger[key];
     expect(decodeSave(v2)).toEqual({ ...inTransit, world: asMigrated(inTransit.world) });
@@ -99,7 +106,7 @@ describe('schéma de sauvegarde', () => {
 
   it('migre une sauvegarde v0.2.x en bac à sable et refuse ses champs v4', () => {
     const v3 = JSON.parse(JSON.stringify({ ...inTransit, version: 3 }));
-    for (const key of ['production', 'progress', 'sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels', 'utilities', 'cables', 'wear']) delete v3.world[key];
+    for (const key of ['production', 'progress', 'sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels', 'utilities', 'cables', 'wear', 'company']) delete v3.world[key];
     Object.assign(v3.world, OLD_MAP);
     for (const key of ['produced', 'consumed', 'delivered']) delete v3.world.ledger[key];
     const migrated = decodeSave(v3);
@@ -112,7 +119,7 @@ describe('schéma de sauvegarde', () => {
     const world = runningAssembler('office');
     const { sales, design, deliveries } = world;
     const oldWorld: Record<string, unknown> = { ...world };
-    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels', 'utilities', 'cables', 'wear']) delete oldWorld[key];
+    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels', 'utilities', 'cables', 'wear', 'company']) delete oldWorld[key];
     Object.assign(oldWorld, OLD_MAP);
     const legacy = { ...record, version: 4, world: oldWorld };
     const restored = decodeSave(legacy);
@@ -137,7 +144,7 @@ describe('schéma de sauvegarde', () => {
     const world = runningAssembler('gaming');
     const { sales, design, deliveries } = world;
     const oldWorld: Record<string, unknown> = { ...world };
-    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels', 'utilities', 'cables', 'wear']) delete oldWorld[key];
+    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels', 'utilities', 'cables', 'wear', 'company']) delete oldWorld[key];
     Object.assign(oldWorld, OLD_MAP);
     const restored = decodeSave({ ...record, version: 5, world: oldWorld });
     expect(restored).toEqual({ ...record, world: asMigrated(world) });
@@ -256,7 +263,7 @@ describe('schéma de sauvegarde', () => {
     delete v8.world.staff;
     delete v8.world.floors;
     delete v8.world.parcels;
-    for (const key of ['utilities', 'cables', 'wear']) delete v8.world[key];
+    for (const key of ['utilities', 'cables', 'wear', 'company']) delete v8.world[key];
     Object.assign(v8.world, OLD_MAP);
     expect(decodeSave(v8)?.world.research).toEqual({ active: null, delivered: {}, analysing: null, completed: [] });
     expect(decodeSave({ ...v8, world: { ...v8.world, research: world.research } })).toBeNull();
@@ -355,7 +362,7 @@ describe('personnel dans la sauvegarde', () => {
     delete legacyWorld.staff;
     delete legacyWorld.floors;
     delete legacyWorld.parcels;
-    for (const key of ['utilities', 'cables', 'wear']) delete legacyWorld[key];
+    for (const key of ['utilities', 'cables', 'wear', 'company']) delete legacyWorld[key];
     Object.assign(legacyWorld, OLD_MAP);
     const migrated = decodeSave({ ...record, version: 9, world: legacyWorld });
     expect(migrated?.world.staff.employees).toMatchObject([{ id: 1, skill: 2, machineId: 1, morale: 70 }]);
@@ -372,9 +379,10 @@ describe('sols dans la sauvegarde', () => {
     expect(decodeSave({ ...saved, world: { ...world, floors: { 515: 'concrete' } } })).toBeNull();
     expect(decodeSave({ ...saved, world: { ...world, floors: { 99999: 'wood' } } })).toBeNull();
     const v10 = JSON.parse(JSON.stringify({ ...saved, version: 10 }));
+    withoutRoles(v10);
     delete v10.world.floors;
     delete v10.world.parcels;
-    for (const key of ['utilities', 'cables', 'wear']) delete v10.world[key];
+    for (const key of ['utilities', 'cables', 'wear', 'company']) delete v10.world[key];
     Object.assign(v10.world, OLD_MAP);
     expect(decodeSave(v10)?.world.floors).toEqual({});
     expect(decodeSave({ ...v10, world: { ...v10.world, floors: {} } })).toBeNull();
@@ -390,8 +398,9 @@ describe('parcelles dans la sauvegarde', () => {
 
     const painted = run(createWorld(), { kind: 'paint-floor', tiles: [{ x: 3, y: 4 }, { x: 63, y: 63 }], floor: 'wood' });
     const v11 = JSON.parse(JSON.stringify({ ...record, version: 11, world: painted }));
+    withoutRoles(v11);
     delete v11.world.parcels;
-    for (const key of ['utilities', 'cables', 'wear']) delete v11.world[key];
+    for (const key of ['utilities', 'cables', 'wear', 'company']) delete v11.world[key];
     Object.assign(v11.world, OLD_MAP, { floors: { [4 * 64 + 3]: 'wood', [63 * 64 + 63]: 'wood' } });
     const migrated = decodeSave(v11);
     expect(migrated?.world.floors).toEqual(painted.floors);
@@ -410,7 +419,8 @@ describe('carrière dans la sauvegarde', () => {
     expect(decodeSave({ ...saved, world: { ...world, progress: { ...world.progress, career: { ...career, missed: 3 } } } })).toBeNull();
     expect(decodeSave({ ...saved, world: { ...world, progress: { ...world.progress, career: { ...career, technologies: ['pcb'] } } } })).toBeNull();
     const v12 = JSON.parse(JSON.stringify({ ...record, version: 12 }));
-    for (const key of ['utilities', 'cables', 'wear']) delete v12.world[key];
+    withoutRoles(v12);
+    for (const key of ['utilities', 'cables', 'wear', 'company']) delete v12.world[key];
     expect(decodeSave(v12)).toEqual({ ...record, world: asLegacy(record.world) });
   });
 });
@@ -426,7 +436,29 @@ describe('énergie et usure dans la sauvegarde', () => {
     expect(decodeSave({ ...saved, world: { ...world, wear: { 1: 999 } } })).toBeNull();
     expect(decodeSave({ ...saved, world: { ...world, cables: [99_999] } })).toBeNull();
     const v13 = JSON.parse(JSON.stringify({ ...record, version: 13 }));
-    for (const key of ['utilities', 'cables', 'wear']) delete v13.world[key];
+    withoutRoles(v13);
+    for (const key of ['utilities', 'cables', 'wear', 'company']) delete v13.world[key];
     expect(decodeSave(v13)?.world).toMatchObject({ utilities: { enabled: false }, cables: [], wear: {} });
+  });
+});
+
+describe('rôles et entreprise dans la sauvegarde', () => {
+  it('restaure les rôles, le réassort et la marque, et fait des employés v14 des opérateurs', () => {
+    let world = run(createWorld(), { kind: 'build', type: 'receiving', x: 20, y: 10, rotation: 0 });
+    world = run(run(world, { kind: 'set-restock', id: 1, items: ['cpu-8c'] }), { kind: 'brand', company: { color: 'rose', emblem: 'gear' } });
+    const [candidate] = world.staff.candidates;
+    if (!candidate) throw new Error('vivier vide');
+    world = run(world, { kind: 'hire', candidate: candidate.id });
+    const saved: SaveRecord = { ...record, world };
+    expect(decodeSave(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+    const forged = world.staff.employees.map(employee => ({ ...employee, role: 'pilot' }));
+    expect(decodeSave({ ...saved, world: { ...world, staff: { ...world.staff, employees: forged } } })).toBeNull();
+    const v14 = withoutRoles(JSON.parse(JSON.stringify({ ...saved, version: 14 })));
+    delete v14.world.company;
+    delete v14.world.machines[0].restock;
+    const migrated = decodeSave(v14);
+    expect(migrated?.world.staff.employees.map(employee => employee.role)).toEqual(['operator']);
+    expect(migrated?.world.staff.candidates).toEqual(world.staff.candidates);
+    expect(migrated?.world.company).toEqual({ color: 'lime', emblem: 'chip' });
   });
 });

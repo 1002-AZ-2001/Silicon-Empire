@@ -9,7 +9,7 @@ import { createStore } from 'zustand/vanilla';
 import type { Messages, Translator } from '../i18n';
 import type { ItemType, MachineType } from '@silicon-empire/game-data';
 import type {
-  Command, LineTile, PurchaseLine, Rotation, RouterFilter, Simulation, Speed, Tile,
+  Command, Company, LineTile, PurchaseLine, Rotation, RouterFilter, Simulation, Speed, Tile,
 } from '@silicon-empire/simulation';
 
 /** Shop cart: lots per component, all from one supplier. Kept while the shop is closed. */
@@ -72,6 +72,7 @@ interface WorkshopUi {
   salesOpen: boolean;
   shopOpen: boolean;
   staffOpen: boolean;
+  companyOpen: boolean;
   bankOpen: boolean;
   techOpen: boolean;
   cart: Cart;
@@ -120,6 +121,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     salesOpen: false,
     shopOpen: false,
     staffOpen: false,
+    companyOpen: false,
     bankOpen: false,
     techOpen: false,
     cart: EMPTY_CART,
@@ -307,6 +309,20 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     return career({ kind: 'repay-loan', offer }, ({ t, money }) => t.feedback.loanRepaid(money(cost)));
   }
 
+  function setRestock(id: number, items: readonly ItemType[]) {
+    const result = simulation.dispatch({ kind: 'set-restock', id, items });
+    store.setState({
+      feedback: result.ok ? { kind: 'success', message: ({ t }) => t.feedback.restockSet } : { kind: 'error', message: errorMessage(result.reason) },
+    });
+  }
+
+  function brand(company: Company) {
+    const result = simulation.dispatch({ kind: 'brand', company });
+    store.setState({
+      feedback: result.ok ? { kind: 'success', message: ({ t }) => t.feedback.brandSaved } : { kind: 'error', message: errorMessage(result.reason) },
+    });
+  }
+
   function buyParcel(parcel: number) {
     const cost = parcelPrice(simulation.getSnapshot());
     const result = simulation.dispatch({ kind: 'buy-parcel', parcel });
@@ -439,7 +455,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
   }
 
   return {
-    store, clock, setSpeed, togglePause, order, checkout, setCartLots, buyParcel, hire, fire, assign, chooseSpecialty, takeLoan, repayLoan, buyTech, repair, configure, selectMilestone, selectResearch, upgrade, setProductModel,
+    store, clock, setSpeed, togglePause, order, checkout, setCartLots, buyParcel, hire, fire, assign, chooseSpecialty, takeLoan, repayLoan, buyTech, repair, setRestock, brand, configure, selectMilestone, selectResearch, upgrade, setProductModel,
     startSale: (model: ProductModel) => changeSale(model), cancelSale: () => changeSale(),
     publishDesign,
     startLine, extendLine, cancelLine, finishLine,

@@ -30,6 +30,7 @@ describe('construction', () => {
       utilities: { enabled: false, cut: false, nextBill: 6000, spentCents: 0 },
       cables: [],
       wear: {},
+      company: { color: 'lime', emblem: 'chip' },
       ledger: {
         purchased: {}, discarded: {}, purchaseSpentCents: 0, produced: {}, consumed: {}, delivered: {},
       },

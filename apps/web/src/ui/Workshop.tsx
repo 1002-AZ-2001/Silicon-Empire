@@ -6,6 +6,7 @@ import { createWorkshopControls } from '../game/controls';
 import { writeSave } from '../persistence/indexed-saves';
 import { SAVE_VERSION } from '../persistence/save-data';
 import { BankPanel, BankruptPanel, StarterPanel, TechPanel } from './CareerPanels';
+import { CompanyPanel, Emblem } from './CompanyPanel';
 import { ConstructionBar, getShortcut } from './ConstructionBar';
 import { DesignerPanel } from './DesignerPanel';
 import { GuidePanel } from './GuidePanel';
@@ -43,6 +44,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
   const salesOpen = useStore(controls.store, state => state.salesOpen);
   const shopOpen = useStore(controls.store, state => state.shopOpen);
   const staffOpen = useStore(controls.store, state => state.staffOpen);
+  const companyOpen = useStore(controls.store, state => state.companyOpen);
   const bankOpen = useStore(controls.store, state => state.bankOpen);
   const techOpen = useStore(controls.store, state => state.techOpen);
   const [tutorialHidden, setTutorialHidden] = useTutorialHidden(session.id);
@@ -228,7 +230,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
   return (
     <div className="workshop-shell">
       <header className="workshop-header">
-        <div className="workshop-brand"><span className="brand-mark"><Icon name="chip" /></span><span>Silicon<br />Empire</span></div>
+        <div className="workshop-brand"><Emblem company={world.company} /><span>Silicon<br />Empire</span></div>
         <div className="workshop-metrics">
           <div className="metric">
             <span className="metric-label">{t.workshop.capital}</span>
@@ -279,6 +281,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
           </button>
         )}
         <button type="button" className={`button${highlight('shop')}`} onClick={() => controls.store.setState({ shopOpen: true })}>{t.workshop.shop}</button>
+        <button type="button" className="button" onClick={() => controls.store.setState({ companyOpen: true })}>{t.workshop.company}</button>
         <button type="button" className="button" onClick={() => controls.store.setState({ staffOpen: true })}>{t.workshop.staff}</button>
         <button type="button" className="button" onClick={() => controls.store.setState({ salesOpen: true })}>{t.trade.title}</button>
         {modelUnlocked(world.progress, 'custom') && (
@@ -324,6 +327,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
         <TechPanel world={world} career={career} controls={controls} onClose={() => controls.store.setState({ techOpen: false })} />
       )}
       {career?.bankrupt && <BankruptPanel name={session.name} career={career} onMenu={onMenu} />}
+      {companyOpen && <CompanyPanel world={world} controls={controls} onClose={() => controls.store.setState({ companyOpen: false })} />}
       {staffOpen && <StaffPanel world={world} controls={controls} onClose={() => controls.store.setState({ staffOpen: false })} />}
       {shopOpen && <ShopPanel world={world} controls={controls} onClose={() => controls.store.setState({ shopOpen: false })} />}
       {researchOpen && (

@@ -1,11 +1,12 @@
-import { LEVELS, ROOMS, SKILL_LEVELS, STAFF, STAFF_NAMES, UPGRADABLE_MACHINES } from '@silicon-empire/game-data';
-import type { MachineType, Recipe, SkillLevel, UpgradableMachine } from '@silicon-empire/game-data';
+import { LEVELS, ROLES, ROLE_EFFECTS, ROLE_WEIGHTS, ROOMS, SKILL_LEVELS, STAFF, STAFF_NAMES, UPGRADABLE_MACHINES } from '@silicon-empire/game-data';
+import type { MachineType, Recipe, Role, SkillLevel, UpgradableMachine } from '@silicon-empire/game-data';
 import type { Progress } from './progress';
 import type { Machine } from './world';
 
-/** Name, skill and monthly salary of a person, employed or not. */
+/** Name, job, skill and monthly salary of a person, employed or not. */
 export interface Person {
   readonly name: string;
+  readonly role: Role;
   readonly skill: SkillLevel;
   readonly salaryCents: number;
 }
@@ -22,7 +23,10 @@ export interface Employee extends Person {
   readonly id: number;
   /** 0 to 100. Raised by each paid month, lowered by each unpaid one; at 0 the employee leaves. */
   readonly morale: number;
-  /** Production machine the employee operates, if any. At most one employee per machine. */
+  /**
+   * Machine the employee works at: a production machine for an operator, a receiving dock for a
+   * storekeeper. At most one employee per machine. Always null for the other roles.
+   */
   readonly machineId: number | null;
 }
 
@@ -70,6 +74,15 @@ export function baseSalary(skill: SkillLevel): number {
   return STAFF.baseSalaryCents[skill];
 }
 
+function roleFrom(draw: number): Role {
+  let total = 0;
+  for (const role of ROLES) {
+    total += ROLE_WEIGHTS[role];
+    if (draw < total) return role;
+  }
+  return 'operator';
+}
+
 /**
  * Candidates of a pool, before any hiring. Skills lean towards the middle levels. A larger pool
  * (offices) appends candidates: the first ones are the same whatever the size.
@@ -82,7 +95,13 @@ export function candidatesFor(pool: number, size: number = STAFF.poolSize): Cand
     const name = nameFrom(next);
     const skill = SKILL_LEVELS[Math.min(4, Math.floor((next() + next()) * 2.5))] ?? 3;
     const percent = min + Math.floor(next() * steps) * step;
-    return { id: pool * STAFF.poolSize + rank, name, skill, salaryCents: baseSalary(skill) * percent / 100 };
+    // Roles come from their own sequence, so names and skills stay those of earlier versions.
+    const role = rank === 0 ? 'operator' : roleFrom(random(Math.imul(pool + 1, 3_266_489_917) ^ (rank * 668_265_263))() * 100);
+    return {
+      id: pool * STAFF.poolSize + rank, name, role, skill,
+      // Rounded to the euro.
+      salaryCents: Math.round(baseSalary(skill) * percent / 100 * ROLE_EFFECTS.salaryPercent[role] / 10_000) * 100,
+    };
   });
 }
 
@@ -99,8 +118,14 @@ export function staffRequired(progress: Progress): boolean {
   return !progress.sandbox && progress.completed.includes(STAFF.requiredFrom);
 }
 
+/** Employee working at a machine: its operator, or the storekeeper of a dock. */
 export function operatorOf(staff: StaffState, machineId: number): Employee | undefined {
   return staff.employees.find(employee => employee.machineId === machineId);
+}
+
+/** Machine a role works at, if any: operators at production machines, storekeepers at receiving docks. */
+export function postAccepts(role: Role, type: MachineType): boolean {
+  return role === 'operator' ? isStaffed(type) : role === 'storekeeper' && type === 'receiving';
 }
 
 export function payroll(staff: StaffState): number {
@@ -135,7 +160,7 @@ export function assignBaseOperators(staff: StaffState, machines: readonly { read
     if (staff.employees.length + added.length >= STAFF.maxEmployees) break;
     const skill = STAFF.baseOperatorSkill;
     added.push({
-      id: nextEmployeeId, name: nameFrom(random(Math.imul(nextEmployeeId, 2_246_822_519))), skill,
+      id: nextEmployeeId, name: nameFrom(random(Math.imul(nextEmployeeId, 2_246_822_519))), role: 'operator', skill,
       salaryCents: baseSalary(skill), morale: STAFF.morale.initial, machineId: machine.id,
     });
     nextEmployeeId += 1;
@@ -149,6 +174,8 @@ export function assignBaseOperators(staff: StaffState, machines: readonly { read
  */
 /** Room effects on staff, read only on the ticks that need them. */
 export interface StaffEffects {
+  /** Extra morale on a paid month, from equipped managers. */
+  readonly managerMorale: number;
   /** Every employee has a seat in a break room. */
   readonly rested: boolean;
   readonly poolSize: number;
@@ -165,7 +192,8 @@ export function advanceStaff(
   if (tick >= staff.nextPayday) {
     const due = payroll(next);
     const paid = capitalCents >= due;
-    const { paid: raise, unpaid: drop } = effects().rested ? ROOMS.restedMorale : STAFF.morale;
+    const { paid: rested, unpaid: drop } = effects().rested ? ROOMS.restedMorale : STAFF.morale;
+    const raise = rested + effects().managerMorale;
     const employees = next.employees
       .map(employee => ({ ...employee, morale: paid ? Math.min(100, employee.morale + raise) : Math.max(0, employee.morale - drop) }))
       .filter(employee => employee.morale > 0);

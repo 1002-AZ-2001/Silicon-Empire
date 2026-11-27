@@ -1,4 +1,4 @@
-import { designPower, saleOffer } from '@silicon-empire/game-data';
+import { ROLE_EFFECTS, designPower, saleOffer } from '@silicon-empire/game-data';
 import { addItems } from './inventory';
 import type { ItemType, SaleTerms } from '@silicon-empire/game-data';
 import type { Inventory } from './inventory';
@@ -39,5 +39,7 @@ export function validSaleTerms(terms: SaleTerms): boolean {
   const offer = saleOffer(terms.model, terms.design);
   if (!offer) return false;
   return terms.revision === offer.revision && terms.item === offer.item && terms.units === offer.units &&
-    terms.unitPriceCents === offer.unitPriceCents && terms.unitMaterialCents === offer.unitMaterialCents;
+    terms.unitMaterialCents === offer.unitMaterialCents && terms.unitPriceCents >= offer.unitPriceCents &&
+    // Salespeople can raise the catalogue price by up to the largest sales bonus.
+    terms.unitPriceCents <= Math.ceil(offer.unitPriceCents * (100 + ROLE_EFFECTS.maxSales * ROLE_EFFECTS.salesPercent) / 100);
 }

@@ -1,6 +1,6 @@
 import {
   CONVEYOR, ITEM_TYPES, MILESTONES, MILESTONE_IDS, PRODUCTION, PURCHASE, RESEARCH, RESEARCH_IDS, SKILL_LEVELS, STAFF, SUPPLIERS,
-  WORKSHOP, FLOOR_TYPES, LAND, CAREER, POWER, POWER_USE_KW, WEAR, LOANS, LOAN_IDS, MARKET_PRICES,
+  WORKSHOP, FLOOR_TYPES, LAND, CAREER, POWER, POWER_USE_KW, ROLES, ROLE_EFFECTS, WEAR, LOANS, LOAN_IDS, MARKET_PRICES,
   designParts, designPower, isConveyor, recipeOf, sameDesign,
 } from '@silicon-empire/game-data';
 import type { ItemType, MilestoneId, ResearchId } from '@silicon-empire/game-data';
@@ -11,7 +11,8 @@ import type { Progress } from './progress';
 import { NO_RESEARCH, capacityOf, researchAvailable, researchPartsDone, upgradeUnlocked } from './research';
 import type { ResearchState } from './research';
 import { salesAccounts, validSaleTerms } from './sales';
-import { candidatesFor, isStaffed } from './staff';
+import { candidatesFor, postAccepts } from './staff';
+import { validCompany } from './company';
 import { techAvailable, techSpent } from './career';
 import type { CareerState } from './career';
 import { landConnected, landSpent, ownsFootprint, ownsTile } from './land';
@@ -116,7 +117,7 @@ function checkStaff(world: World): boolean {
   for (const candidate of staff.candidates) {
     while (rank < pool.length && pool[rank]?.id !== candidate.id) rank += 1;
     const original = pool[rank];
-    if (!original || original.name !== candidate.name || original.skill !== candidate.skill ||
+    if (!original || original.name !== candidate.name || original.skill !== candidate.skill || original.role !== candidate.role ||
       original.salaryCents !== candidate.salaryCents) return false;
     rank += 1;
   }
@@ -129,11 +130,12 @@ function checkStaff(world: World): boolean {
   for (const employee of staff.employees) {
     if (!Number.isSafeInteger(employee.id) || employee.id <= previousId || employee.id >= staff.nextEmployeeId ||
       !SKILL_LEVELS.includes(employee.skill) || !Number.isSafeInteger(employee.salaryCents) || employee.salaryCents <= 0 ||
-      employee.name.length === 0 || !Number.isInteger(employee.morale) || employee.morale < 1 || employee.morale > 100) return false;
+      employee.name.length === 0 || !ROLES.includes(employee.role) ||
+      !Number.isInteger(employee.morale) || employee.morale < 1 || employee.morale > 100) return false;
     previousId = employee.id;
     if (employee.machineId === null) continue;
     const machine = world.machines.find(candidate => candidate.id === employee.machineId);
-    if (!machine || !isStaffed(machine.type) || operated.has(machine.id)) return false;
+    if (!machine || !postAccepts(employee.role, machine.type) || operated.has(machine.id)) return false;
     operated.add(machine.id);
   }
   return true;
@@ -148,7 +150,13 @@ export function checkIntegrity(world: World): boolean {
   if (world.parcels.some((parcel, index) => !Number.isInteger(parcel) || parcel < 0 ||
     parcel >= LAND.gridColumns * LAND.gridRows || (index > 0 && parcel <= (world.parcels[index - 1] as number))) ||
     !landConnected(world) || (world.parcels.length > LAND.initialParcels.length && !landUnlocked(world.progress))) return false;
-  if (!checkUtilities(world)) return false;
+  if (!checkUtilities(world) || !validCompany(world.company)) return false;
+  const restockable = orderableItems(world.progress);
+  for (const machine of world.machines) {
+    if (machine.restock === undefined) continue;
+    if (machine.type !== 'receiving' || machine.restock.length === 0 || machine.restock.length > ROLE_EFFECTS.maxRestockItems ||
+      new Set(machine.restock).size !== machine.restock.length || machine.restock.some(item => !restockable.has(item))) return false;
+  }
   const tiles = world.columns * world.rows;
   for (const [key, floor] of Object.entries(world.floors)) {
     const index = Number(key);

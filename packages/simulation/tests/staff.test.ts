@@ -1,4 +1,4 @@
-import { RECIPES, STAFF } from '@silicon-empire/game-data';
+import { RECIPES, ROLE_EFFECTS, STAFF } from '@silicon-empire/game-data';
 import { describe, expect, it } from 'vitest';
 import {
   applyCommand, assignBaseOperators, batchTicks, candidatesFor, checkIntegrity, createWorld, operatorOf, payroll,
@@ -28,7 +28,7 @@ describe('personnel', () => {
     expect(pool).toHaveLength(STAFF.poolSize);
     expect(pool.map(candidate => candidate.id)).toEqual([0, 1, 2, 3, 4]);
     for (const candidate of pool) {
-      const base = STAFF.baseSalaryCents[candidate.skill];
+      const base = STAFF.baseSalaryCents[candidate.skill] * ROLE_EFFECTS.salaryPercent[candidate.role] / 100;
       expect(candidate.salaryCents).toBeGreaterThanOrEqual(base * 85 / 100);
       expect(candidate.salaryCents).toBeLessThanOrEqual(base * 115 / 100);
       expect(candidate.name).toMatch(/^\S+ \S+$/);
@@ -41,7 +41,7 @@ describe('personnel', () => {
 
   it('embauche un candidat, l’affecte à une machine et le licencie avec indemnité', () => {
     let world = run(createWorld(), assembler);
-    const candidate = world.staff.candidates[2];
+    const candidate = world.staff.candidates[0];
     if (!candidate) throw new Error('vivier vide');
     world = run(world, { kind: 'hire', candidate: candidate.id });
     expect(world.staff.candidates).toHaveLength(STAFF.poolSize - 1);
@@ -65,6 +65,8 @@ describe('personnel', () => {
 
   it('libère l’ancien opérateur d’une machine et celui d’une machine démolie', () => {
     let world = run(createWorld(), assembler);
+    // The third pool opens with two operators.
+    world = { ...world, staff: { ...world.staff, pool: 2, candidates: candidatesFor(2) } };
     const [first, second] = world.staff.candidates;
     if (!first || !second) throw new Error('vivier vide');
     world = run(run(world, { kind: 'hire', candidate: first.id }), { kind: 'hire', candidate: second.id });

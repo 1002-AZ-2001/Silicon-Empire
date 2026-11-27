@@ -2,19 +2,24 @@ import { TIME } from '@silicon-empire/game-data';
 import { useEffect, useId, useRef } from 'react';
 import arrow from '../art/icons/arrow.png';
 import back from '../art/icons/back.png';
+import bolt from '../art/icons/bolt.png';
 import chip from '../art/icons/chip.png';
+import cube from '../art/icons/cube.png';
 import folder from '../art/icons/folder.png';
+import gear from '../art/icons/gear.png';
 import grid from '../art/icons/grid.png';
 import minus from '../art/icons/minus.png';
 import move from '../art/icons/move.png';
 import plus from '../art/icons/plus.png';
 import rotate from '../art/icons/rotate.png';
 import save from '../art/icons/save.png';
+import star from '../art/icons/star.png';
 import target from '../art/icons/target.png';
 import trash from '../art/icons/trash.png';
+import wave from '../art/icons/wave.png';
 import type { ReactNode } from 'react';
 
-const icons = { arrow, back, chip, folder, grid, minus, move, plus, rotate, save, target, trash };
+const icons = { arrow, back, bolt, chip, cube, folder, gear, grid, minus, move, plus, rotate, save, star, target, trash, wave };
 
 export function Icon({ name }: { name: keyof typeof icons }) {
   return <span className="icon" aria-hidden="true" style={{ maskImage: `url("${icons[name]}")` }} />;

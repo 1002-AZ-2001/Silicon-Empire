@@ -17,6 +17,8 @@ export interface Room {
   readonly coffees: number;
   readonly desks: number;
   readonly filters: number;
+  /** Office computers; they equip office employees when the room is an office. */
+  readonly workstations: number;
   /** Every tile has the clean floor. */
   readonly clean: boolean;
 }
@@ -80,7 +82,7 @@ export function roomsOf(world: Pick<World, 'machines' | 'floors' | 'columns' | '
     found.push({ tiles, open });
   }
 
-  const counts = found.map(() => ({ sofas: 0, coffees: 0, desks: 0, filters: 0 }));
+  const counts = found.map(() => ({ sofas: 0, coffees: 0, desks: 0, filters: 0, workstations: 0 }));
   for (const machine of world.machines) {
     if (!isFurniture(machine.type)) continue;
     const tiles = tilesOf(machine, columns);
@@ -90,6 +92,7 @@ export function roomsOf(world: Pick<World, 'machines' | 'floors' | 'columns' | '
     if (machine.type === 'sofa') count.sofas += 1;
     else if (machine.type === 'coffee') count.coffees += 1;
     else if (machine.type === 'desk') count.desks += 1;
+    else if (machine.type === 'workstation') count.workstations += 1;
     else count.filters += 1;
   }
 

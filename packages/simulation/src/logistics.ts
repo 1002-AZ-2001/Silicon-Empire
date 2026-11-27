@@ -6,15 +6,16 @@ import { addItems, inputRoom, inventoryTotal, mergeInventories, mostStocked } fr
 import type { Inventory } from './inventory';
 import { milestoneDone, stillNeeded } from './progress';
 import type { Progress } from './progress';
-import { LEVELS, RESEARCH, WEAR } from '@silicon-empire/game-data';
+import { LEVELS, RESEARCH, ROLE_EFFECTS, WEAR } from '@silicon-empire/game-data';
 import { capacityOf, researchPartsDone, researchStillNeeded } from './research';
 import type { ResearchState } from './research';
 import { acceptsSale } from './sales';
-import { advanceCareer, marketPrice, sellToMarket } from './career';
+import { advanceCareer, marketPrice, sellToMarket, wholesalePrice } from './career';
+import { managerMorale, researchBoost, restockItem, salesBonusPercent, technicianRepairs } from './company';
 import { advanceStaff, assignBaseOperators, operatorOf, staffRequired } from './staff';
 import { advanceUtilities, brokenDown, powerRatio, productionTicks } from './power';
 import { poolSizeOf, rejectionFor, staffRested } from './rooms';
-import { ROUTER_SIDES, footprintOf } from './world';
+import { ROUTER_SIDES, dockSpace, footprintOf, orderCost } from './world';
 import type { BeltItem, Ledger, Machine, Placement, ProductionState, RouterState, Tile, World } from './world';
 
 const STEPS: readonly Tile[] = [{ x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }];
@@ -366,8 +367,9 @@ export function step(world: World): World {
       record({ delivered: addItems(ledger.delivered, unit.item, 1) });
     } else if (machines.get(target.id)?.type === 'shipping' && progress.career && !acceptsSale(sales, unit.item)) {
       // The wholesaler buys career components at the market price, one unit at a time.
-      capitalCents += marketPrice(unit.item) ?? 0;
-      progress = { ...progress, career: sellToMarket(progress.career, unit.item) };
+      const bonus = salesBonusPercent(world);
+      capitalCents += wholesalePrice(unit.item, bonus);
+      progress = { ...progress, career: sellToMarket(progress.career, unit.item, bonus) };
     } else if (machines.get(target.id)?.type === 'shipping' && sales.active) {
       const { terms, delivered } = sales.active;
       const total = delivered + 1;
@@ -527,7 +529,8 @@ export function step(world: World): World {
   // Research: the running analysis advances while a laboratory stands, then the next project whose
   // parts have all arrived starts its analysis.
   if (research.analysing && world.machines.some(machine => machine.type === 'lab')) {
-    const remaining = research.analysing.remaining - 1;
+    // Equipped researchers each add one tick of analysis.
+    const remaining = Math.max(0, research.analysing.remaining - 1 - researchBoost(world));
     research = remaining > 0
       ? { ...research, analysing: { ...research.analysing, remaining } }
       : { ...research, analysing: null, completed: [...research.completed, research.analysing.id] };
@@ -548,6 +551,28 @@ export function step(world: World): World {
     if (!required && staffRequired(progress)) staff = assignBaseOperators(staff, world.machines);
   }
 
+  // Technicians service the most worn machines.
+  if (world.utilities.enabled && tick % ROLE_EFFECTS.repairTicks === 0 && Object.keys(wear).length > 0) {
+    wear = technicianRepairs(world, wear);
+  }
+
+  // Storekeepers order one express lot of a missing item for their dock.
+  if (tick % ROLE_EFFECTS.restockTicks === 0) {
+    for (const dock of world.machines) {
+      if (dock.type !== 'receiving' || !dock.restock || operatorOf(staff, dock.id)?.role !== 'storekeeper') continue;
+      const stock = stocks[dock.id] ?? {};
+      const item = restockItem(world, dock, stock);
+      const cost = item && orderCost(item);
+      if (!item || cost === undefined || capitalCents < cost || dockSpace({ ...world, stocks, deliveries }, dock.id) < PURCHASE.lotSize) continue;
+      capitalCents -= cost;
+      setStock(dock.id, current => addItems(current, item, PURCHASE.lotSize));
+      record({
+        purchased: addItems(ledger.purchased, item, PURCHASE.lotSize),
+        purchaseSpentCents: ledger.purchaseSpentCents + cost,
+      });
+    }
+  }
+
   const billed = advanceUtilities({ ...world, wear }, tick, capitalCents);
   const { utilities } = billed;
   capitalCents = billed.capitalCents;
@@ -559,7 +584,7 @@ export function step(world: World): World {
   }
 
   ({ staff, capitalCents } = advanceStaff(staff, tick, capitalCents, () => ({
-    rested: staffRested({ ...world, staff }), poolSize: poolSizeOf(world),
+    rested: staffRested({ ...world, staff }), poolSize: poolSizeOf(world), managerMorale: managerMorale({ ...world, staff }),
   })));
 
   return {

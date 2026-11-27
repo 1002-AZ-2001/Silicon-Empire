@@ -45,7 +45,7 @@ export const TECHNOLOGIES: Readonly<Record<TechId, Technology>> = {
 /** Buildings open from the first day of a career. */
 export const CAREER_START_MACHINES: readonly MachineType[] = [
   'receiving', 'storage', 'conveyor', 'splitter', 'merger', 'shipping', 'wall', 'door', 'sofa', 'coffee', 'desk',
-  'grid-connection', 'generator',
+  'grid-connection', 'generator', 'workstation',
 ];
 
 /** Price the wholesaler pays at the shipping dock, per unit. */

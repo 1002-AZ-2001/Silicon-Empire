@@ -59,7 +59,9 @@ L’assembleur et le banc de test restent sans ports ni inventaire jusqu’à la
 
 **v0.11.0** ajoute l’électricité (câbles, réseau, groupe électrogène, factures), l’usure et les réparations, le niveau Mk3, la construction triée par onglets et la recherche dans la boutique.
 
-Ordre retenu ensuite, une version par étape : rôles des employés (R&D, développeur, concepteur, manager, maintenance, commercial, magasinier) et menu Entreprise, timeline par époques (1975, 1985, 1995, 2005) avec le matériel de chaque époque, décor et paysage, carte du monde avec usines et transport, puces (semi-conducteurs) et chaîne complète jusqu’aux ordinateurs en carrière, une carte du monde pour ouvrir des usines dans d’autres pays, conception de composants maison (CPU, GPU, RAM, carte mère), concurrents simulés sur le marché. L’électricité, la maintenance et le confort de construction suivront.
+**v0.12.0** ajoute les rôles des employés (opérateur, technicien, magasinier avec réassort, chercheur, développeur, concepteur, manager, commercial), les postes informatiques et le menu Entreprise.
+
+Ordre retenu ensuite, une version par étape : timeline par époques (1975, 1985, 1995, 2005) avec le matériel de chaque époque, décor et paysage, carte du monde avec usines et transport, puces (semi-conducteurs) et chaîne complète jusqu’aux ordinateurs en carrière, une carte du monde pour ouvrir des usines dans d’autres pays, conception de composants maison (CPU, GPU, RAM, carte mère), concurrents simulés sur le marché. L’électricité, la maintenance et le confort de construction suivront.
 
 La version 0.2.0 publie la tranche 1 avec l’application de bureau (Windows, Debian, Arch, AppImage) et ses mises à jour. La version 0.2.1 publie la tranche 2.
 

@@ -1,5 +1,5 @@
 import {
-  CAREER, CUSTOM_ITEMS, FLOOR_COST_CENTS, LOANS, SPECIALTIES, TECHNOLOGIES, FLOOR_TYPES, ITEMS, ITEM_TYPES, LAND, MACHINES, MAX_LINE_LENGTH, POWER, PURCHASE, STAFF, SUPPLIERS, UPGRADE_COSTS, WEAR,
+  CAREER, CUSTOM_ITEMS, FLOOR_COST_CENTS, LOANS, SPECIALTIES, TECHNOLOGIES, FLOOR_TYPES, ITEMS, ITEM_TYPES, LAND, MACHINES, MAX_LINE_LENGTH, POWER, PURCHASE, ROLE_EFFECTS, STAFF, SUPPLIERS, UPGRADE_COSTS, WEAR,
   WORKSHOP, designParts, designPower, isLineType, pcDesignSchema, recipeOf, saleOffer,
 } from '@silicon-empire/game-data';
 import type {
@@ -13,11 +13,13 @@ import type { Progress } from './progress';
 import { NO_RESEARCH, capacityOf, researchAvailable, researchMachines, upgradeUnlocked } from './research';
 import type { ResearchState } from './research';
 import type { Sales } from './sales';
-import { assignBaseOperators, createStaff, isStaffed, severance, staffRequired } from './staff';
+import { assignBaseOperators, createStaff, postAccepts, severance, staffRequired } from './staff';
 import type { Employee, StaffState } from './staff';
 import type { Floors } from './rooms';
 import { loanAvailable, payoff, techAvailable } from './career';
 import type { CareerState } from './career';
+import { DEFAULT_COMPANY, roleUnlocked, salesBonusPercent, upgradeCost, validCompany } from './company';
+import type { Company } from './company';
 import { ownsFootprint, ownsTile, parcelForSale, parcelPrice } from './land';
 
 export const ROTATIONS = [0, 1, 2, 3] as const satisfies readonly Direction[];
@@ -52,6 +54,8 @@ export interface Machine extends Placement {
   readonly model?: ProductModel;
   /** Production machines upgraded after research or licences run their batches faster. Absent means Mk1. */
   readonly level?: UpgradeLevel;
+  /** Receiving docks: items its storekeeper keeps in stock, at most four. */
+  readonly restock?: readonly ItemType[];
 }
 
 /** Unit held by a splitter or merger, and the side it serves next. */
@@ -137,6 +141,8 @@ export interface World {
   readonly cables: readonly number[];
   /** Wear of production machines by machine id. New machines are absent. */
   readonly wear: Readonly<Record<string, number>>;
+  /** Brand colour and emblem. */
+  readonly company: Company;
   readonly ledger: Ledger;
 }
 
@@ -153,6 +159,8 @@ export type Command =
   | { readonly kind: 'lay-cable'; readonly tiles: readonly Tile[] }
   | { readonly kind: 'remove-cable'; readonly tiles: readonly Tile[] }
   | { readonly kind: 'repair'; readonly id: number }
+  | { readonly kind: 'set-restock'; readonly id: number; readonly items: readonly ItemType[] }
+  | { readonly kind: 'brand'; readonly company: Company }
   | { readonly kind: 'choose-specialty'; readonly specialty: Specialty }
   | { readonly kind: 'take-loan'; readonly offer: LoanId }
   | { readonly kind: 'repay-loan'; readonly offer: LoanId }
@@ -238,6 +246,7 @@ export function createWorld(mode: GameMode = 'sandbox', { utilities = false } = 
     utilities: { enabled: utilities, cut: false, nextBill: POWER.billPeriodTicks, spentCents: 0 },
     cables: [],
     wear: {},
+    company: DEFAULT_COMPANY,
     ledger: EMPTY_LEDGER,
   };
 }
@@ -570,8 +579,9 @@ export function applyCommand(world: World, command: Command): CommandResult {
     if (world.sales.active) return { ok: false, reason: 'sale-in-progress' };
     if (!modelUnlocked(world.progress, command.model)) return { ok: false, reason: 'locked' };
     if (!world.machines.some(machine => machine.type === 'shipping')) return { ok: false, reason: 'no-shipping-dock' };
-    const terms = saleOffer(command.model, world.design);
-    if (!terms) return { ok: false, reason: 'design-required' };
+    const offer = saleOffer(command.model, world.design);
+    if (!offer) return { ok: false, reason: 'design-required' };
+    const terms = { ...offer, unitPriceCents: Math.ceil(offer.unitPriceCents * (100 + salesBonusPercent(world)) / 100) };
     const sales = { ...world.sales, active: { terms, delivered: 0 } };
     return { ok: true, world: { ...world, sales }, machine: null };
   }
@@ -585,10 +595,11 @@ export function applyCommand(world: World, command: Command): CommandResult {
     const { staff } = world;
     const candidate = staff.candidates.find(person => person.id === command.candidate);
     if (!candidate) return { ok: false, reason: 'missing-candidate' };
+    if (!roleUnlocked(world, candidate.role, machineUnlocked(world, 'lab'))) return { ok: false, reason: 'locked' };
     if (staff.employees.length >= STAFF.maxEmployees) return { ok: false, reason: 'staff-full' };
     if (!Number.isSafeInteger(staff.nextEmployeeId + 1)) return { ok: false, reason: 'id-limit' };
     const employee: Employee = {
-      id: staff.nextEmployeeId, name: candidate.name, skill: candidate.skill, salaryCents: candidate.salaryCents,
+      id: staff.nextEmployeeId, name: candidate.name, role: candidate.role, skill: candidate.skill, salaryCents: candidate.salaryCents,
       morale: STAFF.morale.initial, machineId: null,
     };
     return {
@@ -628,7 +639,7 @@ export function applyCommand(world: World, command: Command): CommandResult {
     if (command.machine !== null) {
       const target = world.machines.find(candidate => candidate.id === command.machine);
       if (!target) return { ok: false, reason: 'missing-machine' };
-      if (!isStaffed(target.type)) return { ok: false, reason: 'not-staffed' };
+      if (!postAccepts(employee.role, target.type)) return { ok: false, reason: 'not-staffed' };
     }
     // The previous operator of the target machine, if any, becomes free.
     const employees = staff.employees.map(person => {
@@ -649,7 +660,7 @@ export function applyCommand(world: World, command: Command): CommandResult {
     const machine = world.machines.find(candidate => candidate.id === command.id);
     if (!machine) return { ok: false, reason: 'missing-machine' };
     const level = nextLevel(machine);
-    const cost = level === null ? undefined : UPGRADE_COSTS[machine.type]?.[level];
+    const cost = level === null ? undefined : upgradeCost(world, machine, level);
     if (level === null || cost === undefined || !upgradeUnlocked(world.progress, world.research, machine.type, level)) {
       return { ok: false, reason: 'not-upgradable' };
     }
@@ -671,6 +682,11 @@ export function applyCommand(world: World, command: Command): CommandResult {
       return { ok: false, reason: 'milestone-unavailable' };
     }
     return { ok: true, world: { ...world, progress: { ...world.progress, active: command.milestone } }, machine: null };
+  }
+
+  if (command.kind === 'brand') {
+    if (!validCompany(command.company)) return { ok: false, reason: 'invalid-order' };
+    return { ok: true, machine: null, world: { ...world, company: { color: command.company.color, emblem: command.company.emblem } } };
   }
 
   if (command.kind === 'lay-cable' || command.kind === 'remove-cable') {
@@ -792,6 +808,19 @@ export function applyCommand(world: World, command: Command): CommandResult {
     };
   }
 
+  if (command.kind === 'set-restock') {
+    if (machine.type !== 'receiving') return { ok: false, reason: 'not-a-dock' };
+    const orderable = orderableItems(world.progress);
+    if (command.items.length > ROLE_EFFECTS.maxRestockItems || new Set(command.items).size !== command.items.length ||
+      command.items.some(item => !orderable.has(item))) return { ok: false, reason: 'invalid-order' };
+    const configured: Machine = { ...machine, restock: [...command.items] };
+    if (command.items.length === 0) delete (configured as { restock?: readonly ItemType[] }).restock;
+    return {
+      ok: true, machine: configured,
+      world: { ...world, machines: world.machines.map(candidate => candidate.id === machine.id ? configured : candidate) },
+    };
+  }
+
   if (command.kind === 'configure') {
     if (machine.type !== 'splitter') return { ok: false, reason: 'not-a-splitter' };
     const rest: Machine = { type: machine.type, x: machine.x, y: machine.y, rotation: machine.rotation, id: machine.id, paidCents: machine.paidCents };
@@ -893,6 +922,6 @@ export function sameContents(a: World, b: World): boolean {
     a.production === b.production && a.progress === b.progress && a.research === b.research &&
     a.ledger === b.ledger && a.sales === b.sales && a.design === b.design && a.deliveries === b.deliveries &&
     a.staff.employees === b.staff.employees && a.staff.paidCents === b.staff.paidCents && a.floors === b.floors &&
-    a.parcels === b.parcels && a.cables === b.cables && a.wear === b.wear && a.utilities === b.utilities &&
+    a.parcels === b.parcels && a.cables === b.cables && a.wear === b.wear && a.utilities === b.utilities && a.company === b.company &&
     (a.deliveries.length === 0 || a.tick === b.tick) && a.capitalCents === b.capitalCents;
 }
