@@ -64,7 +64,13 @@ describe('usines à l’étranger', () => {
       ...world, tick: ticksUntilYear(1975, 1980),
       staff: { ...world.staff, nextPayday: world.staff.nextPayday + ticksUntilYear(1975, 1980), nextPool: world.staff.nextPool + ticksUntilYear(1975, 1980) },
       utilities: { ...world.utilities, nextBill: world.utilities.nextBill + ticksUntilYear(1975, 1980) },
-      progress: { ...world.progress, career: { ...career, nextInstalment: career.nextInstalment + ticksUntilYear(1975, 1980) } },
+      progress: {
+        ...world.progress,
+        career: {
+          ...career, nextInstalment: career.nextInstalment + ticksUntilYear(1975, 1980),
+          competition: { ...career.competition, nextMonth: career.competition.nextMonth + ticksUntilYear(1975, 1980) },
+        },
+      },
     };
     expect(applyCommand(step(later), { kind: 'buy-factory', region: 'china' }).ok).toBe(true);
   });
@@ -98,7 +104,9 @@ describe('usines à l’étranger', () => {
     const before = world.capitalCents;
     world = ticks(world, 34 * ABROAD.dayTicks);
     expect(careerOf(world).abroad.shipments).toEqual([]);
-    expect(world.capitalCents).toBe(before + 80 * homePrice('transformer', MODERN) - overhead('china'));
+    // The home wholesaler pays the price of the day: the index set by the last month's market.
+    const prices = careerOf(world).competition.prices;
+    expect(world.capitalCents).toBe(before + 80 * homePrice('transformer', { ...MODERN, prices }) - overhead('china'));
     expect(checkIntegrity(world)).toBe(true);
   });
 

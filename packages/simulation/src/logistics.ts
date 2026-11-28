@@ -1,7 +1,7 @@
 import {
-  CONVEYOR, CONVEYOR_SPEEDS, ITEM_TYPES, MACHINES, MILESTONES, PRODUCTION, PURCHASE, isConveyor, recipeOf,
+  CONVEYOR, CONVEYOR_SPEEDS, ITEM_TYPES, MACHINES, MILESTONES, PRODUCTION, PURCHASE, isConveyor, marketOfModel, recipeOf,
 } from '@silicon-empire/game-data';
-import type { Direction, EraId, ItemType, PortDefinition, Recipe } from '@silicon-empire/game-data';
+import type { Direction, EraId, ItemType, PortDefinition, Recipe, SubsidiaryProduct } from '@silicon-empire/game-data';
 import { addItems, inputRoom, inventoryTotal, mergeInventories, mostStocked } from './inventory';
 import type { Inventory } from './inventory';
 import { eraOf, milestoneDone, stillNeeded } from './progress';
@@ -10,9 +10,10 @@ import { LEVELS, RESEARCH, ROLE_EFFECTS, WEAR } from '@silicon-empire/game-data'
 import { capacityOf, researchPartsDone, researchStillNeeded } from './research';
 import type { ResearchState } from './research';
 import { acceptsSale } from './sales';
-import { advanceAbroad } from './abroad';
+import { advanceAbroad, marketOfProduct } from './abroad';
 import type { DockAccess } from './abroad';
-import { advanceCareer, erasBehind, marketPrice, sellToMarket, wholesalePrice } from './career';
+import { advanceCareer, erasBehind, marketPercent, marketPrice, sellToMarket, wholesalePrice } from './career';
+import { recordSale } from './competition';
 import { managerMorale, researchBoost, restockItem, salesBonusPercent, technicianRepairs } from './company';
 import { advanceStaff, assignBaseOperators, operatorOf, staffRequired } from './staff';
 import { advanceUtilities, brokenDown, powerRatio, productionTicks } from './power';
@@ -371,11 +372,16 @@ export function step(world: World): World {
     } else if (machines.get(target.id)?.type === 'shipping' && progress.career && !acceptsSale(sales, unit.item)) {
       // The wholesaler buys career components at the market price, one unit at a time.
       const bonus = salesBonusPercent(world);
-      capitalCents += wholesalePrice(unit.item, bonus);
+      capitalCents += wholesalePrice(unit.item, bonus, marketPercent(progress.career, unit.item));
       progress = { ...progress, career: sellToMarket(progress.career, unit.item, bonus) };
     } else if (machines.get(target.id)?.type === 'shipping' && sales.active) {
       const { terms, delivered } = sales.active;
       const total = delivered + 1;
+      // A career contract counts on its PC market once the unit is delivered.
+      const career = progress.career;
+      if (career && terms.model !== 'custom') {
+        progress = { ...progress, career: { ...career, competition: recordSale(career.competition, marketOfModel(terms.model), 1) } };
+      }
       if (total === terms.units) {
         capitalCents += terms.units * terms.unitPriceCents;
         sales = { active: null, completed: [...sales.completed, terms] };
@@ -590,8 +596,15 @@ export function step(world: World): World {
       deliver: (id, item, units) => setStock(id, current => addItems(current, item, units)),
     };
     let abroad;
-    ({ abroad, capitalCents } = advanceAbroad(career.abroad, tick, capitalCents, { era: career.era, behind: erasBehind(career) }, docks));
+    let exported;
+    ({ abroad, capitalCents, sold: exported } = advanceAbroad(
+      career.abroad, tick, capitalCents, { era: career.era, behind: erasBehind(career), prices: career.competition.prices }, docks,
+    ));
     if (abroad !== career.abroad) career = { ...career, abroad };
+    // Goods sold to the home wholesaler count on the home markets.
+    for (const [item, units] of Object.entries(exported) as [SubsidiaryProduct, number][]) {
+      career = { ...career, competition: recordSale(career.competition, marketOfProduct(item), units) };
+    }
     if (career !== progress.career) progress = { ...progress, career };
   }
 

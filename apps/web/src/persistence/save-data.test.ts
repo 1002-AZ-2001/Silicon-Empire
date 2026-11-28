@@ -477,10 +477,10 @@ describe('époques dans la sauvegarde', () => {
     expect(decodeSave(forge({ era: 'steam' }))).toBeNull();
     world = createWorld('career');
     const v15 = JSON.parse(JSON.stringify({ ...record, version: 15, world }));
-    for (const key of ['startYear', 'released', 'era', 'retoolCents', 'abroad']) delete v15.world.progress.career[key];
+    for (const key of ['startYear', 'released', 'era', 'retoolCents', 'abroad', 'competition']) delete v15.world.progress.career[key];
     expect(decodeSave(v15)).toEqual({ ...record, world });
     expect(decodeSave(JSON.parse(JSON.stringify({ ...record, version: 15 })))).toEqual(record);
-    expect(SAVE_VERSION).toBe(17);
+    expect(SAVE_VERSION).toBe(18);
   });
 });
 
@@ -500,6 +500,22 @@ describe('usines à l’étranger dans la sauvegarde', () => {
     const world = createWorld('career');
     const v16 = JSON.parse(JSON.stringify({ ...record, version: 16, world }));
     delete v16.world.progress.career.abroad;
+    delete v16.world.progress.career.competition;
     expect(decodeSave(v16)).toEqual({ ...record, world });
+  });
+});
+
+describe('concurrence dans la sauvegarde', () => {
+  it('restaure les marchés et les rivaux, rejette un indice hors bornes et migre une carrière v17', () => {
+    const world = createWorld('career', { startYear: 1995 });
+    const saved: SaveRecord = { ...record, world };
+    expect(decodeSave(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+    expect(world.progress.career?.competition.rivals.map(rival => rival.id)).toEqual(['helion', 'vortek', 'norrland', 'kaori', 'xinhe']);
+    const forged = JSON.parse(JSON.stringify(saved));
+    forged.world.progress.career.competition.prices.office = 500;
+    expect(decodeSave(forged)).toBeNull();
+    const v17 = JSON.parse(JSON.stringify({ ...saved, version: 17 }));
+    delete v17.world.progress.career.competition;
+    expect(decodeSave(v17)).toEqual(saved);
   });
 });

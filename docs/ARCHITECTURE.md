@@ -65,6 +65,13 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - Les livraisons différées réservent la capacité du quai et débitent le capital à la commande. Elles entrent dans le stock et le registre des unités achetées au tick d’arrivée. Un quai qui attend des lots reste en place jusqu’à leur arrivée.
 - Le format v8 conserve les révisions, les délais et la réservation des stocks. Les commandes standard du format v7 gardent leurs conditions.
 
+## Concurrence (v0.16.0)
+
+- `packages/game-data/src/competition.ts` : `MARKET_IDS`, `MARKET_DEMAND`, `RIVALS` (nom fictif, année d’entrée, parts, agressivité), `COMPETITION`.
+- `packages/simulation/src/competition.ts` : `career.competition` (indices, rivaux, ventes du mois et du mois précédent, prochain mois, actualités). `advanceCompetition` est appelé par `advanceCareer` au premier tick de chaque mois ; tirages pseudo-aléatoires par mois (mulberry32). `recordSale` compte les ventes au grossiste, les unités livrées des contrats et les marchandises des usines vendues à l’atelier.
+- `wholesalePrice(item, bonus, index)`, `contractPrice(world, prix, modèle)` et `homePrice` appliquent l’indice. `validSaleTerms` accepte des contrats de 60 % à 130 % du catalogue (hors modèle sur mesure).
+- Interface : `apps/web/src/ui/CompetitionPanel.tsx`. Format v18 : `career.competition` ; la migration v17 crée la concurrence de l’année en cours.
+
 ## Carte du monde (v0.15.0)
 
 - `packages/game-data/src/regions.ts` : `REGIONS` (ouverture, prix, taux, délais, fret, position sur la carte), `PRODUCT_LINES`, `PRODUCT_INPUTS`, `ABROAD`. Licence `global`.

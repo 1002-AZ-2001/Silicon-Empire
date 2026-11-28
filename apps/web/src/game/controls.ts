@@ -77,6 +77,7 @@ interface WorkshopUi {
   techOpen: boolean;
   eraOpen: boolean;
   worldOpen: boolean;
+  competitionOpen: boolean;
   cart: Cart;
 }
 
@@ -128,6 +129,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     techOpen: false,
     eraOpen: false,
     worldOpen: false,
+    competitionOpen: false,
     cart: EMPTY_CART,
   }));
   const clock = new FixedStepClock();

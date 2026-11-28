@@ -20,6 +20,7 @@ import { TutorialCard, tutorialTarget, useTutorialHidden } from './Tutorial';
 import type { TutorialTarget } from './Tutorial';
 import { SalesPanel } from './SalesPanel';
 import { WorldPanel } from './WorldPanel';
+import { CompetitionPanel, newsText } from './CompetitionPanel';
 import { Dialog, Icon, gameTime } from './shared';
 import { useWorld } from './use-world';
 import type { World } from '@silicon-empire/simulation';
@@ -50,6 +51,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
   const techOpen = useStore(controls.store, state => state.techOpen);
   const eraOpen = useStore(controls.store, state => state.eraOpen);
   const worldOpen = useStore(controls.store, state => state.worldOpen);
+  const competitionOpen = useStore(controls.store, state => state.competitionOpen);
   const [tutorialHidden, setTutorialHidden] = useTutorialHidden(session.id);
   const career = world.progress.career;
   const target = tutorialTarget(world, tutorialHidden);
@@ -115,6 +117,16 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
       controls.store.setState({ feedback: { kind: 'success', message: ({ t: text, money: format }) => text.feedback.billPaid(format(paid)) } });
     }
   }, [world.utilities, controls]);
+
+  // Announce market news: rivals entering and price wars.
+  const previousNews = useRef(career?.competition.news[0]);
+  useEffect(() => {
+    const before = previousNews.current;
+    const latest = career?.competition.news[0];
+    previousNews.current = latest;
+    if (!latest || latest === before) return;
+    controls.store.setState({ feedback: { kind: latest.kind === 'price-war' ? 'error' : 'success', message: ({ t: text }) => newsText(text, latest) } });
+  }, [career, controls]);
 
   // Announce the eras going on sale.
   const previousRelease = useRef(career?.released);
@@ -285,6 +297,9 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
             <button type="button" className={`button${highlight('technologies')}`} onClick={() => controls.store.setState({ techOpen: true })}>
               {t.workshop.technologies}
             </button>
+            <button type="button" className="button" onClick={() => controls.store.setState({ competitionOpen: true })}>
+              {t.competition.title}
+            </button>
             <button type="button" className="button" onClick={() => controls.store.setState({ worldOpen: true })}>
               {t.world.title}
               {career.abroad.shipments.length > 0 && <small className="button-detail"> · {career.abroad.shipments.length}</small>}
@@ -350,6 +365,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
       {career && bankOpen && (
         <BankPanel world={world} career={career} controls={controls} onClose={() => controls.store.setState({ bankOpen: false })} />
       )}
+      {career && competitionOpen && <CompetitionPanel career={career} onClose={() => controls.store.setState({ competitionOpen: false })} />}
       {career && worldOpen && (
         <WorldPanel world={world} career={career} controls={controls} onClose={() => controls.store.setState({ worldOpen: false })} />
       )}

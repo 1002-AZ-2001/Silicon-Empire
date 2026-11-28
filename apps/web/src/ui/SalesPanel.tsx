@@ -70,7 +70,7 @@ export function SalesPanel({ world, controls }: { world: World; controls: Worksh
             {PRODUCT_MODELS.filter(model => modelUnlocked(world.progress, model)).map(model => {
               const offer = saleOffer(model, world.design, eraOf(world.progress));
               if (!offer) return null;
-              const terms = { ...offer, unitPriceCents: contractPrice(world, offer.unitPriceCents) };
+              const terms = { ...offer, unitPriceCents: contractPrice(world, offer.unitPriceCents, model) };
               const name = offerName(terms, t);
               return (
                 <li className="milestone" key={model} aria-label={name}>

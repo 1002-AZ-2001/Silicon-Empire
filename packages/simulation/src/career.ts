@@ -1,8 +1,10 @@
 import {
-  CAREER, ERAS, ERA_IDS, LOANS, LOAN_IDS, MARKET_PRICES, SPECIALTIES, STAFF, TECHNOLOGIES, TECH_IDS, dateAt, eraIndex, eraOfYear, instalment,
+  CAREER, ERAS, ERA_IDS, LOANS, marketOfItem, LOAN_IDS, MARKET_PRICES, SPECIALTIES, STAFF, TECHNOLOGIES, TECH_IDS, dateAt, eraIndex, eraOfYear, instalment,
 } from '@silicon-empire/game-data';
 import type { EraId, ItemType, LoanId, Specialty, StartYear, TechId } from '@silicon-empire/game-data';
 import { NO_ABROAD } from './abroad';
+import { advanceCompetition, createCompetition, recordSale } from './competition';
+import type { CompetitionState } from './competition';
 import type { AbroadState } from './abroad';
 import { addItems } from './inventory';
 import type { Inventory } from './inventory';
@@ -39,6 +41,8 @@ export interface CareerState {
   readonly retoolCents: number;
   /** Factories abroad and their shipments. */
   readonly abroad: AbroadState;
+  /** Markets, rivals and price indexes. */
+  readonly competition: CompetitionState;
 }
 
 export function createCareer(tick = 0, startYear: StartYear = 2017): CareerState {
@@ -46,7 +50,7 @@ export function createCareer(tick = 0, startYear: StartYear = 2017): CareerState
   return {
     specialty: null, technologies: [], loans: [], borrowedCents: 0, repaidCents: 0, missed: 0, bankrupt: false,
     nextInstalment: tick + STAFF.payPeriodTicks, marketRevenueCents: 0, marketShipped: {},
-    startYear, released: era, era, retoolCents: 0, abroad: NO_ABROAD,
+    startYear, released: era, era, retoolCents: 0, abroad: NO_ABROAD, competition: createCompetition(startYear, tick),
   };
 }
 
@@ -111,7 +115,9 @@ export function monthlyDue(career: CareerState): number {
 
 /** Instalment day: pays every loan or none; after `CAREER.maxMissed` misses in a row, the company is bankrupt. */
 export function advanceCareer(current: CareerState, tick: number, capitalCents: number): { career: CareerState; capitalCents: number } {
-  const career = advanceEra(current, tick);
+  const dated = advanceEra(current, tick);
+  const competition = advanceCompetition(dated.competition, dated.startYear, tick);
+  const career = competition === dated.competition ? dated : { ...dated, competition };
   if (tick < career.nextInstalment) return { career, capitalCents };
   const nextInstalment = career.nextInstalment + STAFF.payPeriodTicks;
   const due = monthlyDue(career);
@@ -128,16 +134,24 @@ export function marketPrice(item: ItemType): number | undefined {
   return MARKET_PRICES[item];
 }
 
-/** Records one unit bought by the wholesaler. */
-/** Wholesale price of a unit, raised by the sales bonus in percent. */
-export function wholesalePrice(item: ItemType, bonusPercent = 0): number {
-  return Math.ceil((MARKET_PRICES[item] ?? 0) * (100 + bonusPercent) / 100);
+/** Price index of the market an item is sold on, in percent; 100 outside the career markets. */
+export function marketPercent(career: CareerState | undefined, item: ItemType): number {
+  const market = marketOfItem(item);
+  return career && market ? career.competition.prices[market] : 100;
 }
 
+/** Wholesale price of a unit, raised by the sales bonus and moved by the market index, in percent. */
+export function wholesalePrice(item: ItemType, bonusPercent = 0, indexPercent = 100): number {
+  return Math.ceil((MARKET_PRICES[item] ?? 0) * (100 + bonusPercent) * indexPercent / 10_000);
+}
+
+/** Records one unit bought by the wholesaler, at the market price of the day. */
 export function sellToMarket(career: CareerState, item: ItemType, bonusPercent = 0): CareerState {
+  const market = marketOfItem(item);
   return {
     ...career,
-    marketRevenueCents: career.marketRevenueCents + wholesalePrice(item, bonusPercent),
+    marketRevenueCents: career.marketRevenueCents + wholesalePrice(item, bonusPercent, marketPercent(career, item)),
     marketShipped: addItems(career.marketShipped, item, 1),
+    competition: market ? recordSale(career.competition, market, 1) : career.competition,
   };
 }

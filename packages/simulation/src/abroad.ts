@@ -3,7 +3,7 @@ import {
   TRANSPORT_MODES, dateAt, obsolescence, saleOffer,
 } from '@silicon-empire/game-data';
 import type {
-  ItemType, RegionId, SubsidiaryDestination, SubsidiaryProduct, TransportMode,
+  ItemType, MarketId, RegionId, SubsidiaryDestination, SubsidiaryProduct, TransportMode,
 } from '@silicon-empire/game-data';
 import { addItems } from './inventory';
 import type { Inventory } from './inventory';
@@ -58,6 +58,13 @@ export interface AbroadContext {
   readonly era: Parameters<typeof saleOffer>[2];
   /** Eras behind the latest one, for the price of PCs. */
   readonly behind: number;
+  /** Price indexes of the home markets; absent means the reference prices. */
+  readonly prices?: Readonly<Record<MarketId, number>>;
+}
+
+/** Home market of a product made abroad. */
+export function marketOfProduct(product: SubsidiaryProduct): MarketId {
+  return product === 'pc-office-packaged' ? 'office' : product;
 }
 
 /** Cost of one unit made in a region: local materials and local labour. */
@@ -77,14 +84,21 @@ export function freightCost(region: RegionId, product: SubsidiaryProduct, mode: 
   return Math.ceil(REGIONS[region].freightCentsPerKg[mode] * PRODUCT_LINES[product].weightKg * units);
 }
 
-/** Price the home wholesaler pays for a unit: the wholesale price, or a PC at its contract price. */
-export function homePrice(product: SubsidiaryProduct, context: AbroadContext): number {
+/** Reference price at home: the wholesale price, or a PC at its contract price for its era. */
+function referencePrice(product: SubsidiaryProduct, context: AbroadContext): number {
   if (product === 'pc-office-packaged') return Math.ceil((saleOffer('office').unitPriceCents) * obsolescence(context.behind) / 100);
   return MARKET_PRICES[product] ?? 0;
 }
 
+/** Price the home wholesaler pays for a unit, moved by the home market index. */
+export function homePrice(product: SubsidiaryProduct, context: AbroadContext): number {
+  const index = context.prices?.[marketOfProduct(product)] ?? 100;
+  return Math.ceil(referencePrice(product, context) * index / 100);
+}
+
+/** Local markets abroad are not shared with the home rivals: their price follows the reference. */
 export function localPrice(region: RegionId, product: SubsidiaryProduct, context: AbroadContext): number {
-  return Math.floor(homePrice(product, context) * REGIONS[region].marketPercent / 100);
+  return Math.floor(referencePrice(product, context) * REGIONS[region].marketPercent / 100);
 }
 
 export function transitTicks(region: RegionId, mode: TransportMode): number {
@@ -133,9 +147,10 @@ export interface DockAccess {
  */
 export function advanceAbroad(
   abroad: AbroadState, tick: number, capitalCents: number, context: AbroadContext, docks: DockAccess,
-): { abroad: AbroadState; capitalCents: number } {
+): { abroad: AbroadState; capitalCents: number; sold: Inventory } {
   let next = abroad;
   let capital = capitalCents;
+  let sold: Inventory = {};
   if (abroad.subsidiaries.some(subsidiary => tick >= subsidiary.nextRun)) {
     const shipments = [...next.shipments];
     let { nextShipmentId, spentCents, revenueCents } = next;
@@ -188,8 +203,9 @@ export function advanceAbroad(
       const revenue = shipment.units * homePrice(shipment.item, context);
       capital += revenue;
       revenueCents += revenue;
+      sold = addItems(sold, shipment.item, shipment.units);
     }
     next = { ...next, shipments, revenueCents, imported };
   }
-  return { abroad: next, capitalCents: capital };
+  return { abroad: next, capitalCents: capital, sold };
 }

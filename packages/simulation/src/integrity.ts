@@ -1,9 +1,9 @@
 import {
   CONVEYOR, ITEM_TYPES, MILESTONES, MILESTONE_IDS, PRODUCTION, PURCHASE, RESEARCH, RESEARCH_IDS, SKILL_LEVELS, STAFF, SUPPLIERS,
   WORKSHOP, FLOOR_TYPES, LAND, CAREER, POWER, POWER_USE_KW, ROLES, ROLE_EFFECTS, WEAR, LOANS, LOAN_IDS, MARKET_PRICES,
-  ABROAD, CALENDAR, REGIONS, START_YEARS, SUBSIDIARY_PRODUCTS, TRANSPORT_MODES, designParts, designPower, eraIndex, eraOfYear, isConveyor, recipeOf, sameDesign,
+  ABROAD, CALENDAR, COMPETITION, MARKET_IDS, REGIONS, RIVALS, RIVAL_IDS, START_YEARS, SUBSIDIARY_PRODUCTS, TRANSPORT_MODES, designParts, designPower, eraIndex, eraOfYear, isConveyor, recipeOf, sameDesign,
 } from '@silicon-empire/game-data';
-import type { ItemType, MilestoneId, ResearchId } from '@silicon-empire/game-data';
+import type { ItemType, MarketId, MilestoneId, ResearchId, RivalId } from '@silicon-empire/game-data';
 import { addItems, fitsInputStock, inventoryTotal, mergeInventories } from './inventory';
 import type { Inventory } from './inventory';
 import { createProgress, eraOf, milestoneAvailable, milestoneDone, modelUnlocked, orderableItems, rewardsEarned, unlockedMachines } from './progress';
@@ -15,6 +15,7 @@ import { candidatesFor, postAccepts } from './staff';
 import { validCompany } from './company';
 import { regionOpen, transitTicks, validSubsidiarySettings } from './abroad';
 import { careerDate, techAvailable, techSpent } from './career';
+import { supplyBounds } from './competition';
 import type { CareerState } from './career';
 import { landConnected, landSpent, ownsFootprint, ownsTile } from './land';
 import { fitsMap, footprintOf, landUnlocked, machineUnlocked } from './world';
@@ -31,7 +32,7 @@ function checkCareer(career: CareerState, tick: number): boolean {
   if (career.released !== eraOfYear(careerDate(career, tick).year) || eraIndex(career.era) > eraIndex(career.released) ||
     eraIndex(career.era) < eraIndex(eraOfYear(career.startYear))) return false;
   if (!career.technologies.includes('computers') && career.era !== career.released) return false;
-  if (!checkAbroad(career, tick)) return false;
+  if (!checkAbroad(career, tick) || !checkCompetition(career, tick)) return false;
   if (career.nextInstalment <= tick || career.nextInstalment - tick > STAFF.payPeriodTicks) return false;
   if (career.specialty === null ? career.technologies.length > 0 : career.technologies[0] !== career.specialty) return false;
   let replay: CareerState = { ...career, technologies: career.technologies.slice(0, 1) };
@@ -70,6 +71,31 @@ function checkAbroad(career: CareerState, tick: number): boolean {
     previous = shipment.id;
   }
   return Object.entries(abroad.imported).every(([item, count]) => (SUBSIDIARY_PRODUCTS as readonly string[]).includes(item) && (count ?? 0) > 0);
+}
+
+/** Markets: prices in range, rivals entered by now with supplies in range, counters and calendar valid. */
+function checkCompetition(career: CareerState, tick: number): boolean {
+  const { competition } = career;
+  const year = careerDate(career, tick).year;
+  if (MARKET_IDS.some(market => {
+    const price = competition.prices[market];
+    return !Number.isInteger(price) || price < COMPETITION.minPercent || price > COMPETITION.maxPercent;
+  })) return false;
+  const counters = [competition.sold, competition.lastSold].flatMap(sold => Object.entries(sold));
+  if (counters.some(([market, units]) => !MARKET_IDS.includes(market as MarketId) || !Number.isSafeInteger(units) || (units ?? 0) < 0)) return false;
+  if (competition.nextMonth <= tick || competition.nextMonth - tick > CALENDAR.monthTicks || competition.nextMonth % CALENDAR.monthTicks !== 0) {
+    return false;
+  }
+  const ids = competition.rivals.map(rival => rival.id);
+  if (ids.some((id, index) => !RIVAL_IDS.includes(id) || RIVALS[id].entryYear > year || (index > 0 && RIVAL_IDS.indexOf(id) <= RIVAL_IDS.indexOf(ids[index - 1] as RivalId)))) {
+    return false;
+  }
+  if (competition.rivals.some(rival => Object.entries(rival.supply).some(([market, units]) => {
+    const bounds = MARKET_IDS.includes(market as MarketId) ? supplyBounds(market as MarketId) : null;
+    return !bounds || RIVALS[rival.id].markets[market as MarketId] === undefined || !Number.isInteger(units) ||
+      (units ?? 0) < bounds.min || (units ?? 0) > bounds.max;
+  }))) return false;
+  return competition.news.length <= COMPETITION.maxNews && competition.news.every(news => news.tick <= tick && RIVAL_IDS.includes(news.rival));
 }
 
 function checkProgress(progress: Progress, tick = 0): boolean {

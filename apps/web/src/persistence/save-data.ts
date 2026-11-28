@@ -1,14 +1,14 @@
 import {
-  BRAND_COLORS, BRAND_EMBLEMS, CONVEYOR, ERA_IDS, REGION_IDS, START_YEARS, SUBSIDIARY_DESTINATIONS, SUBSIDIARY_PRODUCTS, TRANSPORT_MODES, ITEM_TYPES, LAND, LOAN_IDS, MACHINE_TYPES, POWER, ROLES, ROLE_EFFECTS, WEAR, SPECIALTIES, TECH_IDS, MILESTONE_IDS, PRODUCT_MODELS, RESEARCH_IDS, STAFF, STANDARD_MODELS, SUPPLIER_IDS, WORKSHOP,
+  BRAND_COLORS, BRAND_EMBLEMS, COMPETITION, CONVEYOR, ERA_IDS, MARKET_IDS, RIVAL_IDS, REGION_IDS, START_YEARS, SUBSIDIARY_DESTINATIONS, SUBSIDIARY_PRODUCTS, TRANSPORT_MODES, ITEM_TYPES, LAND, LOAN_IDS, MACHINE_TYPES, POWER, ROLES, ROLE_EFFECTS, WEAR, SPECIALTIES, TECH_IDS, MILESTONE_IDS, PRODUCT_MODELS, RESEARCH_IDS, STAFF, STANDARD_MODELS, SUPPLIER_IDS, WORKSHOP,
   publishedDesignSchema,
 } from '@silicon-empire/game-data';
 import {
-  DEFAULT_COMPANY, ROTATIONS, ROUTER_SIDES, candidatesFor, checkIntegrity, createStaff, withRequiredStaff,
+  DEFAULT_COMPANY, ROTATIONS, createCompetition, ROUTER_SIDES, candidatesFor, checkIntegrity, createStaff, withRequiredStaff,
 } from '@silicon-empire/simulation';
 import { z } from 'zod';
 import type { World } from '@silicon-empire/simulation';
 
-export const SAVE_VERSION = 17;
+export const SAVE_VERSION = 18;
 const OLD_MAP = 64;
 export const MAX_WORKSHOP_NAME = 40;
 
@@ -597,7 +597,7 @@ const abroadSchema = z.strictObject({
 
 /** Version 17 (v0.15.0): factories abroad and their shipments. */
 const saveV17 = z.strictObject({
-  version: z.literal(SAVE_VERSION),
+  version: z.literal(17),
   ...header,
   world: z.strictObject({
     ...saveV16.shape.world.shape,
@@ -615,12 +615,65 @@ function migrateV16(value: unknown): z.input<typeof saveV17> | null {
   const { career, ...progress } = v16.data.world.progress;
   return {
     ...v16.data,
-    version: SAVE_VERSION,
+    version: 17,
     world: { ...v16.data.world, progress: career ? { ...progress, career: { ...career, abroad: { subsidiaries: [], shipments: [], nextShipmentId: 1, spentCents: 0, revenueCents: 0, imported: {} } } } : progress },
   };
 }
 
-const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9, migrateV10, migrateV11, migrateV12, migrateV13, migrateV14, migrateV15, migrateV16];
+const careerV17 = saveV17.shape.world.shape.progress.shape.career.unwrap();
+const market = z.enum(MARKET_IDS);
+const marketUnits = z.partialRecord(market, count0);
+const competitionSchema = z.strictObject({
+  prices: z.record(market, z.int().min(COMPETITION.minPercent).max(COMPETITION.maxPercent)),
+  rivals: z.array(z.strictObject({ id: z.enum(RIVAL_IDS), supply: z.partialRecord(market, count0) })).max(RIVAL_IDS.length),
+  sold: marketUnits,
+  lastSold: marketUnits,
+  nextMonth: z.int().positive().max(Number.MAX_SAFE_INTEGER),
+  news: z.array(z.strictObject({
+    tick: z.int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    kind: z.enum(['entry', 'price-war']),
+    rival: z.enum(RIVAL_IDS),
+    market: market.nullable(),
+  })).max(COMPETITION.maxNews),
+});
+
+/** Version 18 (v0.16.0): markets, rivals and price indexes. */
+const saveV18 = z.strictObject({
+  version: z.literal(SAVE_VERSION),
+  ...header,
+  world: z.strictObject({
+    ...saveV17.shape.world.shape,
+    progress: z.strictObject({
+      ...saveV17.shape.world.shape.progress.shape,
+      career: careerV17.extend({ competition: competitionSchema }).optional(),
+    }),
+  }),
+});
+
+/** Careers of earlier versions meet the rivals of their current year, prices at the reference. */
+function migrateV17(value: unknown): z.input<typeof saveV18> | null {
+  const v17 = saveV17.safeParse(value);
+  if (!v17.success) return null;
+  const { career, ...progress } = v17.data.world.progress;
+  if (!career) return { ...v17.data, version: SAVE_VERSION, world: { ...v17.data.world, progress } };
+  const competition = createCompetition(career.startYear, v17.data.world.tick);
+  return {
+    ...v17.data,
+    version: SAVE_VERSION,
+    world: {
+      ...v17.data.world,
+      progress: {
+        ...progress,
+        career: {
+          ...career,
+          competition: { ...competition, prices: { ...competition.prices }, rivals: competition.rivals.map(rival => ({ ...rival, supply: { ...rival.supply } })), news: [] },
+        },
+      },
+    },
+  };
+}
+
+const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9, migrateV10, migrateV11, migrateV12, migrateV13, migrateV14, migrateV15, migrateV16, migrateV17];
 
 function versionOf(value: unknown): unknown {
   return typeof value === 'object' && value !== null && 'version' in value ? value.version : undefined;
@@ -633,7 +686,7 @@ export function decodeSave(value: unknown): SaveRecord | null {
   if (typeof version === 'number' && Number.isInteger(version) && version >= 1) {
     for (const migrate of migrations.slice(version - 1)) current = migrate(current);
   }
-  const decoded = saveV17.safeParse(current);
+  const decoded = saveV18.safeParse(current);
   if (!decoded.success) return null;
 
   const { data } = decoded;
