@@ -1,7 +1,7 @@
 import {
   CONVEYOR, ITEM_TYPES, MILESTONES, MILESTONE_IDS, PRODUCTION, PURCHASE, RESEARCH, RESEARCH_IDS, SKILL_LEVELS, STAFF, SUPPLIERS,
   WORKSHOP, FLOOR_TYPES, LAND, CAREER, POWER, POWER_USE_KW, ROLES, ROLE_EFFECTS, WEAR, LOANS, LOAN_IDS, MARKET_PRICES,
-  START_YEARS, designParts, designPower, eraIndex, eraOfYear, isConveyor, recipeOf, sameDesign,
+  ABROAD, CALENDAR, REGIONS, START_YEARS, SUBSIDIARY_PRODUCTS, TRANSPORT_MODES, designParts, designPower, eraIndex, eraOfYear, isConveyor, recipeOf, sameDesign,
 } from '@silicon-empire/game-data';
 import type { ItemType, MilestoneId, ResearchId } from '@silicon-empire/game-data';
 import { addItems, fitsInputStock, inventoryTotal, mergeInventories } from './inventory';
@@ -13,6 +13,7 @@ import type { ResearchState } from './research';
 import { salesAccounts, validSaleTerms } from './sales';
 import { candidatesFor, postAccepts } from './staff';
 import { validCompany } from './company';
+import { regionOpen, transitTicks, validSubsidiarySettings } from './abroad';
 import { careerDate, techAvailable, techSpent } from './career';
 import type { CareerState } from './career';
 import { landConnected, landSpent, ownsFootprint, ownsTile } from './land';
@@ -30,6 +31,7 @@ function checkCareer(career: CareerState, tick: number): boolean {
   if (career.released !== eraOfYear(careerDate(career, tick).year) || eraIndex(career.era) > eraIndex(career.released) ||
     eraIndex(career.era) < eraIndex(eraOfYear(career.startYear))) return false;
   if (!career.technologies.includes('computers') && career.era !== career.released) return false;
+  if (!checkAbroad(career, tick)) return false;
   if (career.nextInstalment <= tick || career.nextInstalment - tick > STAFF.payPeriodTicks) return false;
   if (career.specialty === null ? career.technologies.length > 0 : career.technologies[0] !== career.specialty) return false;
   let replay: CareerState = { ...career, technologies: career.technologies.slice(0, 1) };
@@ -41,6 +43,33 @@ function checkCareer(career: CareerState, tick: number): boolean {
   if (career.loans.some(loan => !LOAN_IDS.includes(loan.offer) || !Number.isInteger(loan.remaining) || loan.remaining < 1 ||
     loan.remaining > LOANS[loan.offer].months)) return false;
   return Object.entries(career.marketShipped).every(([item, count]) => MARKET_PRICES[item as ItemType] !== undefined && (count ?? 0) > 0);
+}
+
+/** Factories abroad: open regions, one each, valid settings; counters and shipments in range. */
+function checkAbroad(career: CareerState, tick: number): boolean {
+  const { abroad } = career;
+  if ([abroad.spentCents, abroad.revenueCents].some(value => !Number.isSafeInteger(value) || value < 0)) return false;
+  if (!Number.isSafeInteger(abroad.nextShipmentId) || abroad.nextShipmentId < 1) return false;
+  if (abroad.subsidiaries.length > 0 && !career.technologies.includes('global')) return false;
+  const regions = abroad.subsidiaries.map(subsidiary => subsidiary.region);
+  if (new Set(regions).size !== regions.length) return false;
+  // Every factory was bought: its cost is part of the spending.
+  if (regions.reduce((total, region) => total + REGIONS[region].factoryCostCents, 0) > abroad.spentCents) return false;
+  const month = CALENDAR.monthTicks;
+  if (abroad.subsidiaries.some(subsidiary => !regionOpen(subsidiary.region, career.startYear, Math.max(0, subsidiary.nextRun - month)) ||
+    !validSubsidiarySettings(subsidiary) || subsidiary.nextRun <= tick || subsidiary.nextRun - tick > month ||
+    (subsidiary.product === 'pc-office-packaged' && !career.technologies.includes('computers')))) return false;
+  let previous = 0;
+  for (const shipment of abroad.shipments) {
+    if (shipment.id <= previous || shipment.id >= abroad.nextShipmentId || !regions.includes(shipment.region) ||
+      !Number.isSafeInteger(shipment.units) || shipment.units < 1 || shipment.dueTick <= tick ||
+      shipment.dueTick - tick > Math.max(...TRANSPORT_MODES.map(mode => transitTicks(shipment.region, mode)), ABROAD.retryTicks) ||
+      !validSubsidiarySettings({ product: shipment.item, destination: shipment.destination, mode: 'surface', dockId: shipment.dockId })) {
+      return false;
+    }
+    previous = shipment.id;
+  }
+  return Object.entries(abroad.imported).every(([item, count]) => (SUBSIDIARY_PRODUCTS as readonly string[]).includes(item) && (count ?? 0) > 0);
 }
 
 function checkProgress(progress: Progress, tick = 0): boolean {
@@ -186,10 +215,11 @@ export function checkIntegrity(world: World): boolean {
   const machines = new Map<string, Machine>();
   let previousId = 0;
   const career = world.progress.career;
-  const capitalCeiling = (career ? CAREER.initialCapitalCents + career.borrowedCents + career.marketRevenueCents : WORKSHOP.initialCapitalCents) +
+  const capitalCeiling = (career ? CAREER.initialCapitalCents + career.borrowedCents + career.marketRevenueCents + career.abroad.revenueCents
+    : WORKSHOP.initialCapitalCents) +
     rewardsEarned(world.progress) + revenueCents;
   let bookedCapital = world.capitalCents + world.ledger.purchaseSpentCents + world.staff.paidCents + landSpent(world) +
-    (career ? career.repaidCents + techSpent(career) + career.retoolCents : 0) + world.utilities.spentCents;
+    (career ? career.repaidCents + techSpent(career) + career.retoolCents + career.abroad.spentCents : 0) + world.utilities.spentCents;
   if (bookedCapital > capitalCeiling) return false;
   if (world.machines.filter(machine => machine.type === 'headquarters').length > 1) return false;
 
@@ -293,7 +323,7 @@ export function checkIntegrity(world: World): boolean {
   if (world.machines.some(machine => machine.filter && machine.type !== 'splitter')) return false;
 
   const { purchased, produced, consumed, delivered, discarded } = world.ledger;
-  const entered = mergeInventories(purchased, produced);
+  const entered = [purchased, produced, world.progress.career?.abroad.imported ?? {}].reduce(mergeInventories, {});
   const left = [held, discarded, consumed, delivered, shipped, world.progress.career?.marketShipped ?? {}].reduce(mergeInventories, {});
   const completedCosts = world.progress.completed.map(id => MILESTONES[id].cost);
   const researchCosts = [

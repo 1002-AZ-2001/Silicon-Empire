@@ -13,3 +13,4 @@ export * from './career';
 export * from './power';
 export * from './company';
 export * from './eras';
+export * from './regions';

@@ -1,5 +1,5 @@
 import {
-  BRAND_COLORS, BRAND_EMBLEMS, CONVEYOR, ERA_IDS, START_YEARS, ITEM_TYPES, LAND, LOAN_IDS, MACHINE_TYPES, POWER, ROLES, ROLE_EFFECTS, WEAR, SPECIALTIES, TECH_IDS, MILESTONE_IDS, PRODUCT_MODELS, RESEARCH_IDS, STAFF, STANDARD_MODELS, SUPPLIER_IDS, WORKSHOP,
+  BRAND_COLORS, BRAND_EMBLEMS, CONVEYOR, ERA_IDS, REGION_IDS, START_YEARS, SUBSIDIARY_DESTINATIONS, SUBSIDIARY_PRODUCTS, TRANSPORT_MODES, ITEM_TYPES, LAND, LOAN_IDS, MACHINE_TYPES, POWER, ROLES, ROLE_EFFECTS, WEAR, SPECIALTIES, TECH_IDS, MILESTONE_IDS, PRODUCT_MODELS, RESEARCH_IDS, STAFF, STANDARD_MODELS, SUPPLIER_IDS, WORKSHOP,
   publishedDesignSchema,
 } from '@silicon-empire/game-data';
 import {
@@ -8,7 +8,7 @@ import {
 import { z } from 'zod';
 import type { World } from '@silicon-empire/simulation';
 
-export const SAVE_VERSION = 16;
+export const SAVE_VERSION = 17;
 const OLD_MAP = 64;
 export const MAX_WORKSHOP_NAME = 40;
 
@@ -532,7 +532,7 @@ const termsV16 = salesV15.shape.completed.element.extend({
 
 /** Version 16 (v0.13.0): career calendar, eras on sale and adopted, historical contracts. */
 const saveV16 = z.strictObject({
-  version: z.literal(SAVE_VERSION),
+  version: z.literal(16),
   ...header,
   world: z.strictObject({
     ...saveV15.shape.world.shape,
@@ -559,7 +559,7 @@ function migrateV15(value: unknown): z.input<typeof saveV16> | null {
   const { career, ...progress } = v15.data.world.progress;
   return {
     ...v15.data,
-    version: SAVE_VERSION,
+    version: 16,
     world: {
       ...v15.data.world,
       progress: career ? { ...progress, career: { ...career, startYear: 2017, released: 'modern', era: 'modern', retoolCents: 0 } } : progress,
@@ -567,7 +567,60 @@ function migrateV15(value: unknown): z.input<typeof saveV16> | null {
   };
 }
 
-const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9, migrateV10, migrateV11, migrateV12, migrateV13, migrateV14, migrateV15];
+const careerV16 = saveV16.shape.world.shape.progress.shape.career.unwrap();
+const region = z.enum(REGION_IDS);
+const subsidiaryProduct = z.enum(SUBSIDIARY_PRODUCTS);
+const abroadSchema = z.strictObject({
+  subsidiaries: z.array(z.strictObject({
+    region,
+    product: subsidiaryProduct.nullable(),
+    destination: z.enum(SUBSIDIARY_DESTINATIONS),
+    mode: z.enum(TRANSPORT_MODES),
+    dockId: z.int().positive().nullable(),
+    nextRun: z.int().positive().max(Number.MAX_SAFE_INTEGER),
+    idle: z.boolean(),
+  })).max(REGION_IDS.length),
+  shipments: z.array(z.strictObject({
+    id: z.int().positive().max(Number.MAX_SAFE_INTEGER),
+    region,
+    item: subsidiaryProduct,
+    units: z.int().positive().max(10_000),
+    destination: z.enum(['export', 'dock']),
+    dockId: z.int().positive().nullable(),
+    dueTick: z.int().positive().max(Number.MAX_SAFE_INTEGER),
+  })).max(10_000),
+  nextShipmentId: z.int().positive().max(Number.MAX_SAFE_INTEGER),
+  spentCents: count0,
+  revenueCents: count0,
+  imported: inventory,
+});
+
+/** Version 17 (v0.15.0): factories abroad and their shipments. */
+const saveV17 = z.strictObject({
+  version: z.literal(SAVE_VERSION),
+  ...header,
+  world: z.strictObject({
+    ...saveV16.shape.world.shape,
+    progress: z.strictObject({
+      ...saveV16.shape.world.shape.progress.shape,
+      career: careerV16.extend({ abroad: abroadSchema }).optional(),
+    }),
+  }),
+});
+
+/** Careers of earlier versions have no factory abroad yet. */
+function migrateV16(value: unknown): z.input<typeof saveV17> | null {
+  const v16 = saveV16.safeParse(value);
+  if (!v16.success) return null;
+  const { career, ...progress } = v16.data.world.progress;
+  return {
+    ...v16.data,
+    version: SAVE_VERSION,
+    world: { ...v16.data.world, progress: career ? { ...progress, career: { ...career, abroad: { subsidiaries: [], shipments: [], nextShipmentId: 1, spentCents: 0, revenueCents: 0, imported: {} } } } : progress },
+  };
+}
+
+const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9, migrateV10, migrateV11, migrateV12, migrateV13, migrateV14, migrateV15, migrateV16];
 
 function versionOf(value: unknown): unknown {
   return typeof value === 'object' && value !== null && 'version' in value ? value.version : undefined;
@@ -580,7 +633,7 @@ export function decodeSave(value: unknown): SaveRecord | null {
   if (typeof version === 'number' && Number.isInteger(version) && version >= 1) {
     for (const migrate of migrations.slice(version - 1)) current = migrate(current);
   }
-  const decoded = saveV16.safeParse(current);
+  const decoded = saveV17.safeParse(current);
   if (!decoded.success) return null;
 
   const { data } = decoded;

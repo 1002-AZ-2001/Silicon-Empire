@@ -477,9 +477,29 @@ describe('époques dans la sauvegarde', () => {
     expect(decodeSave(forge({ era: 'steam' }))).toBeNull();
     world = createWorld('career');
     const v15 = JSON.parse(JSON.stringify({ ...record, version: 15, world }));
-    for (const key of ['startYear', 'released', 'era', 'retoolCents']) delete v15.world.progress.career[key];
+    for (const key of ['startYear', 'released', 'era', 'retoolCents', 'abroad']) delete v15.world.progress.career[key];
     expect(decodeSave(v15)).toEqual({ ...record, world });
     expect(decodeSave(JSON.parse(JSON.stringify({ ...record, version: 15 })))).toEqual(record);
-    expect(SAVE_VERSION).toBe(16);
+    expect(SAVE_VERSION).toBe(17);
+  });
+});
+
+describe('usines à l’étranger dans la sauvegarde', () => {
+  it('restaure les usines et les expéditions, et relit une carrière v16 sans usine', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const fixture = JSON.parse(await readFile(new URL('../../../../tests/e2e/fixtures/career-world.json', import.meta.url), 'utf8'));
+    const decoded = decodeSave(fixture);
+    expect(decoded?.world.progress.career?.abroad.subsidiaries.map(subsidiary => subsidiary.region)).toEqual(['china', 'mexico']);
+    expect(decoded?.world.progress.career?.abroad.shipments).toHaveLength(1);
+    const forged = structuredClone(fixture);
+    forged.world.progress.career.abroad.subsidiaries[1].region = 'china';
+    expect(decodeSave(forged)).toBeNull();
+    const spent = structuredClone(fixture);
+    spent.world.progress.career.abroad.spentCents = 0;
+    expect(decodeSave(spent)).toBeNull();
+    const world = createWorld('career');
+    const v16 = JSON.parse(JSON.stringify({ ...record, version: 16, world }));
+    delete v16.world.progress.career.abroad;
+    expect(decodeSave(v16)).toEqual({ ...record, world });
   });
 });
