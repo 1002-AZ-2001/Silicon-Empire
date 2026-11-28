@@ -1,7 +1,7 @@
 import {
   CAREER, ERAS, ERA_IDS, LOANS, marketOfItem, LOAN_IDS, MARKET_PRICES, SPECIALTIES, STAFF, TECHNOLOGIES, TECH_IDS, dateAt, eraIndex, eraOfYear, instalment,
 } from '@silicon-empire/game-data';
-import type { EraId, ItemType, LoanId, Specialty, StartYear, TechId } from '@silicon-empire/game-data';
+import type { EraId, HouseChip, ItemType, LoanId, Specialty, StartYear, TechId } from '@silicon-empire/game-data';
 import { NO_ABROAD } from './abroad';
 import { advanceCompetition, createCompetition, recordSale } from './competition';
 import type { CompetitionState } from './competition';
@@ -43,6 +43,8 @@ export interface CareerState {
   readonly abroad: AbroadState;
   /** Markets, rivals and price indexes. */
   readonly competition: CompetitionState;
+  /** Parts replaced by the company's own chips in the PCs it assembles, in `HOUSE_CHIPS` order. */
+  readonly houseChips: readonly HouseChip[];
 }
 
 export function createCareer(tick = 0, startYear: StartYear = 2017): CareerState {
@@ -50,7 +52,7 @@ export function createCareer(tick = 0, startYear: StartYear = 2017): CareerState
   return {
     specialty: null, technologies: [], loans: [], borrowedCents: 0, repaidCents: 0, missed: 0, bankrupt: false,
     nextInstalment: tick + STAFF.payPeriodTicks, marketRevenueCents: 0, marketShipped: {},
-    startYear, released: era, era, retoolCents: 0, abroad: NO_ABROAD, competition: createCompetition(startYear, tick),
+    startYear, released: era, era, retoolCents: 0, abroad: NO_ABROAD, competition: createCompetition(startYear, tick), houseChips: [],
   };
 }
 

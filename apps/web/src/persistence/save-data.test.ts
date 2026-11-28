@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { parseBackup } from './backup';
 import { SAVE_VERSION, decodeSave } from './save-data';
 import type { Command, World } from '@silicon-empire/simulation';
-import type { ItemType, ProductModel } from '@silicon-empire/game-data';
+import type { ItemType, ProductModel, TechId } from '@silicon-empire/game-data';
 import type { SaveRecord } from './save-data';
 
 /** Saves before v15 (v0.12.0) have no roles. */
@@ -477,10 +477,10 @@ describe('époques dans la sauvegarde', () => {
     expect(decodeSave(forge({ era: 'steam' }))).toBeNull();
     world = createWorld('career');
     const v15 = JSON.parse(JSON.stringify({ ...record, version: 15, world }));
-    for (const key of ['startYear', 'released', 'era', 'retoolCents', 'abroad', 'competition']) delete v15.world.progress.career[key];
+    for (const key of ['startYear', 'released', 'era', 'retoolCents', 'abroad', 'competition', 'houseChips']) delete v15.world.progress.career[key];
     expect(decodeSave(v15)).toEqual({ ...record, world });
     expect(decodeSave(JSON.parse(JSON.stringify({ ...record, version: 15 })))).toEqual(record);
-    expect(SAVE_VERSION).toBe(18);
+    expect(SAVE_VERSION).toBe(19);
   });
 });
 
@@ -501,6 +501,7 @@ describe('usines à l’étranger dans la sauvegarde', () => {
     const v16 = JSON.parse(JSON.stringify({ ...record, version: 16, world }));
     delete v16.world.progress.career.abroad;
     delete v16.world.progress.career.competition;
+    delete v16.world.progress.career.houseChips;
     expect(decodeSave(v16)).toEqual({ ...record, world });
   });
 });
@@ -516,6 +517,35 @@ describe('concurrence dans la sauvegarde', () => {
     expect(decodeSave(forged)).toBeNull();
     const v17 = JSON.parse(JSON.stringify({ ...saved, version: 17 }));
     delete v17.world.progress.career.competition;
+    delete v17.world.progress.career.houseChips;
     expect(decodeSave(v17)).toEqual(saved);
+  });
+});
+
+describe('puces maison dans la sauvegarde', () => {
+  it('restaure les puces maison, rejette une puce inconnue et ouvre les marchés de puces d’une carrière v18', () => {
+    const base = createWorld('career', { startYear: 1995 });
+    const career = base.progress.career;
+    if (!career) throw new Error('carrière absente');
+    const world = {
+      ...base, capitalCents: 0,
+      progress: { ...base.progress, career: { ...career, specialty: 'passives' as const, technologies: ['passives', 'pcb', 'smt', 'computers', 'semiconductors'] as TechId[], borrowedCents: 37_000_000, houseChips: ['cpu' as const] } },
+    };
+    const saved: SaveRecord = { ...record, world };
+    expect(decodeSave(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+    const forged = JSON.parse(JSON.stringify(saved));
+    forged.world.progress.career.houseChips = ['ssd'];
+    expect(decodeSave(forged)).toBeNull();
+    const v18 = JSON.parse(JSON.stringify({ ...saved, version: 18 }));
+    const old = v18.world.progress.career;
+    old.houseChips = undefined;
+    delete old.houseChips;
+    for (const chip of ['chip-ram', 'chip-cpu', 'chip-gpu']) {
+      delete old.competition.prices[chip];
+      for (const rival of old.competition.rivals) delete rival.supply[chip];
+    }
+    const migrated = decodeSave(v18);
+    expect(migrated?.world.progress.career?.houseChips).toEqual([]);
+    expect(migrated?.world.progress.career?.competition).toEqual(career.competition);
   });
 });

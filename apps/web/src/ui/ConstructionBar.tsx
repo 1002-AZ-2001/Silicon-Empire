@@ -26,7 +26,8 @@ const MACHINE_CATEGORIES: Record<ToolCategory, readonly MachineType[]> = {
     'storage', 'receiving', 'conveyor', 'splitter', 'merger', 'shipping', 'warehouse', 'conveyor-fast', 'conveyor-express',
   ],
   production: [
-    'capacitor-press', 'pcb-etcher', 'coil-winder', 'smt-line', 'assembler', 'tester', 'packager', 'lab', 'headquarters',
+    'capacitor-press', 'pcb-etcher', 'coil-winder', 'smt-line', 'ram-fab', 'cpu-fab', 'gpu-fab', 'assembler', 'tester', 'packager', 'lab',
+    'headquarters',
   ],
   energy: ['grid-connection', 'generator'],
   rooms: ['wall', 'door', 'sofa', 'coffee', 'desk', 'workstation', 'air-filter', 'plant'],

@@ -1,14 +1,14 @@
 import {
-  CALENDAR, CAREER, CUSTOM_ITEMS, REGIONS, FLOOR_COST_CENTS, LOANS, SPECIALTIES, TECHNOLOGIES, FLOOR_TYPES, ITEMS, ITEM_TYPES, LAND, MACHINES, MAX_LINE_LENGTH, POWER, PURCHASE, ROLE_EFFECTS, STAFF, SUPPLIERS, UPGRADE_COSTS, WEAR,
+  CALENDAR, CAREER, CUSTOM_ITEMS, HOUSE_CHIPS, REGIONS, FLOOR_COST_CENTS, LOANS, SPECIALTIES, TECHNOLOGIES, FLOOR_TYPES, ITEMS, ITEM_TYPES, LAND, MACHINES, MAX_LINE_LENGTH, POWER, PURCHASE, ROLE_EFFECTS, STAFF, SUPPLIERS, UPGRADE_COSTS, WEAR,
   WORKSHOP, designParts, designPower, isLineType, marketOfModel, obsolescence, pcDesignSchema, recipeOf, saleOffer,
 } from '@silicon-empire/game-data';
 import type {
-  Direction, EraId, FloorType, RegionId, ItemType, StartYear, LineType, LoanId, MachineType, Specialty, TechId, UpgradeLevel, MilestoneId, PcDesign, ProductModel, PublishedDesign, ResearchId,
+  Direction, EraId, FloorType, HouseChip, RegionId, ItemType, StartYear, LineType, LoanId, MachineType, Specialty, TechId, UpgradeLevel, MilestoneId, PcDesign, ProductModel, PublishedDesign, ResearchId,
   SupplierId,
 } from '@silicon-empire/game-data';
 import { addItems, fitsInputStock, inventoryTotal, mergeInventories } from './inventory';
 import type { Inventory } from './inventory';
-import { createCareerProgress, createProgress, eraOf, milestoneAvailable, modelUnlocked, orderableItems, unlockedMachines } from './progress';
+import { chipsOf, createCareerProgress, createProgress, eraOf, milestoneAvailable, modelUnlocked, orderableItems, unlockedMachines } from './progress';
 import type { Progress } from './progress';
 import { NO_RESEARCH, capacityOf, researchAvailable, researchMachines, upgradeUnlocked } from './research';
 import type { ResearchState } from './research';
@@ -169,6 +169,7 @@ export type Command =
   | { readonly kind: 'buy-tech'; readonly tech: TechId }
   | { readonly kind: 'adopt-era'; readonly era: EraId }
   | { readonly kind: 'buy-factory'; readonly region: RegionId }
+  | { readonly kind: 'set-house-chips'; readonly chips: readonly HouseChip[] }
   | ({ readonly kind: 'set-subsidiary'; readonly region: RegionId } & SubsidiarySettings)
   | { readonly kind: 'select-milestone'; readonly milestone: MilestoneId | null }
   | { readonly kind: 'select-research'; readonly research: ResearchId | null }
@@ -485,7 +486,7 @@ export function checkOrder(world: World, id: number, item: ItemType, supplier: S
 /** A model switch keeps the existing stock and cannot change a running or finished batch. */
 export function checkProductModel(world: World, machine: Machine, model: ProductModel): ModelError | null {
   if (model === 'custom' && !world.design) return 'design-required';
-  const recipe = recipeOf(machine.type, model, world.design, eraOf(world.progress));
+  const recipe = recipeOf(machine.type, model, world.design, eraOf(world.progress), chipsOf(world.progress));
   if (!recipe) return 'not-a-producer';
   if (!modelUnlocked(world.progress, model)) return 'locked';
   if ((machine.model ?? 'office') === model) return null;
@@ -519,11 +520,33 @@ function withCareer(world: World, career: CareerState, capitalCents = world.capi
 
 /** Career commands: the specialty, loans, licences and eras. */
 type CareerCommand = Extract<Command, {
-  kind: 'choose-specialty' | 'take-loan' | 'repay-loan' | 'buy-tech' | 'adopt-era' | 'buy-factory' | 'set-subsidiary';
+  kind: 'choose-specialty' | 'take-loan' | 'repay-loan' | 'buy-tech' | 'adopt-era' | 'buy-factory' | 'set-subsidiary' | 'set-house-chips';
 }>;
 
 /** Settings of a factory abroad chosen by the player. */
 export type SubsidiarySettings = Pick<Subsidiary, 'product' | 'destination' | 'mode' | 'dockId'>;
+
+/** Chips a list allows: known, each once, in `HOUSE_CHIPS` order. */
+export function validHouseChips(chips: readonly HouseChip[]): boolean {
+  return chips.every((chip, index) => HOUSE_CHIPS.includes(chip) &&
+    (index === 0 || HOUSE_CHIPS.indexOf(chip) > HOUSE_CHIPS.indexOf(chips[index - 1] as HouseChip)));
+}
+
+/**
+ * Own chips need the semiconductor and computer licences. As for a model change, the stock waiting at
+ * every assembler must suit the new parts.
+ */
+export function checkHouseChips(world: World, chips: readonly HouseChip[]): CommandError | null {
+  const career = world.progress.career;
+  if (!career) return 'not-career';
+  if (!validHouseChips(chips)) return 'invalid-order';
+  if (chips.length > 0 && !(career.technologies.includes('semiconductors') && career.technologies.includes('computers'))) return 'locked';
+  for (const machine of world.machines) {
+    const recipe = machine.type === 'assembler' && recipeOf(machine.type, machine.model, world.design, career.era, chips);
+    if (recipe && !fitsInputStock(recipe, world.stocks[machine.id] ?? {})) return 'incompatible-inputs';
+  }
+  return null;
+}
 
 /** A factory can be bought with the licence, in an open region, once per region. */
 export function checkFactory(world: World, region: RegionId): CommandError | null {
@@ -565,6 +588,11 @@ export function checkEra(world: World, era: EraId): CommandError | null {
 
 function applyCareer(world: World, command: CareerCommand): CommandResult {
   const career = world.progress.career;
+  if (command.kind === 'set-house-chips') {
+    const error = checkHouseChips(world, command.chips);
+    if (error || !career) return { ok: false, reason: error ?? 'not-career' };
+    return { ok: true, machine: null, world: withCareer(world, { ...career, houseChips: [...command.chips] }) };
+  }
   if (command.kind === 'buy-factory') {
     const error = checkFactory(world, command.region);
     if (error || !career) return { ok: false, reason: error ?? 'not-career' };
@@ -639,7 +667,7 @@ export function applyCommand(world: World, command: Command): CommandResult {
   // A bankrupt company is frozen: the game is over.
   if (world.progress.career?.bankrupt) return { ok: false, reason: 'bankrupt' };
   if (command.kind === 'choose-specialty' || command.kind === 'take-loan' || command.kind === 'repay-loan' || command.kind === 'buy-tech' ||
-    command.kind === 'adopt-era' || command.kind === 'buy-factory' || command.kind === 'set-subsidiary') {
+    command.kind === 'adopt-era' || command.kind === 'buy-factory' || command.kind === 'set-subsidiary' || command.kind === 'set-house-chips') {
     return applyCareer(world, command);
   }
   if (command.kind === 'publish-design') {
@@ -672,7 +700,7 @@ export function applyCommand(world: World, command: Command): CommandResult {
     if (world.sales.active) return { ok: false, reason: 'sale-in-progress' };
     if (!modelUnlocked(world.progress, command.model)) return { ok: false, reason: 'locked' };
     if (!world.machines.some(machine => machine.type === 'shipping')) return { ok: false, reason: 'no-shipping-dock' };
-    const offer = saleOffer(command.model, world.design, eraOf(world.progress));
+    const offer = saleOffer(command.model, world.design, eraOf(world.progress), chipsOf(world.progress));
     if (!offer) return { ok: false, reason: 'design-required' };
     const terms = { ...offer, unitPriceCents: contractPrice(world, offer.unitPriceCents, command.model) };
     const sales = { ...world.sales, active: { terms, delivered: 0 } };

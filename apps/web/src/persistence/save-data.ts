@@ -1,5 +1,5 @@
 import {
-  BRAND_COLORS, BRAND_EMBLEMS, COMPETITION, CONVEYOR, ERA_IDS, MARKET_IDS, RIVAL_IDS, REGION_IDS, START_YEARS, SUBSIDIARY_DESTINATIONS, SUBSIDIARY_PRODUCTS, TRANSPORT_MODES, ITEM_TYPES, LAND, LOAN_IDS, MACHINE_TYPES, POWER, ROLES, ROLE_EFFECTS, WEAR, SPECIALTIES, TECH_IDS, MILESTONE_IDS, PRODUCT_MODELS, RESEARCH_IDS, STAFF, STANDARD_MODELS, SUPPLIER_IDS, WORKSHOP,
+  BRAND_COLORS, BRAND_EMBLEMS, COMPETITION, CONVEYOR, ERA_IDS, HOUSE_CHIPS, MARKET_DEMAND, MARKET_IDS, RIVALS, RIVAL_IDS, REGION_IDS, START_YEARS, SUBSIDIARY_DESTINATIONS, SUBSIDIARY_PRODUCTS, TRANSPORT_MODES, ITEM_TYPES, LAND, LOAN_IDS, MACHINE_TYPES, POWER, ROLES, ROLE_EFFECTS, WEAR, SPECIALTIES, TECH_IDS, MILESTONE_IDS, PRODUCT_MODELS, RESEARCH_IDS, STAFF, STANDARD_MODELS, SUPPLIER_IDS, WORKSHOP,
   publishedDesignSchema,
 } from '@silicon-empire/game-data';
 import {
@@ -8,7 +8,7 @@ import {
 import { z } from 'zod';
 import type { World } from '@silicon-empire/simulation';
 
-export const SAVE_VERSION = 18;
+export const SAVE_VERSION = 19;
 const OLD_MAP = 64;
 export const MAX_WORKSHOP_NAME = 40;
 
@@ -621,7 +621,8 @@ function migrateV16(value: unknown): z.input<typeof saveV17> | null {
 }
 
 const careerV17 = saveV17.shape.world.shape.progress.shape.career.unwrap();
-const market = z.enum(MARKET_IDS);
+/** Markets of v0.16.0, before the chip markets. */
+const market = z.enum(['capacitor-reel', 'bare-pcb', 'transformer', 'circuit-board', 'office', 'gaming', 'professional']);
 const marketUnits = z.partialRecord(market, count0);
 const competitionSchema = z.strictObject({
   prices: z.record(market, z.int().min(COMPETITION.minPercent).max(COMPETITION.maxPercent)),
@@ -639,7 +640,7 @@ const competitionSchema = z.strictObject({
 
 /** Version 18 (v0.16.0): markets, rivals and price indexes. */
 const saveV18 = z.strictObject({
-  version: z.literal(SAVE_VERSION),
+  version: z.literal(18),
   ...header,
   world: z.strictObject({
     ...saveV17.shape.world.shape,
@@ -655,25 +656,102 @@ function migrateV17(value: unknown): z.input<typeof saveV18> | null {
   const v17 = saveV17.safeParse(value);
   if (!v17.success) return null;
   const { career, ...progress } = v17.data.world.progress;
-  if (!career) return { ...v17.data, version: SAVE_VERSION, world: { ...v17.data.world, progress } };
+  if (!career) return { ...v17.data, version: 18, world: { ...v17.data.world, progress } };
   const competition = createCompetition(career.startYear, v17.data.world.tick);
   return {
     ...v17.data,
-    version: SAVE_VERSION,
+    version: 18,
     world: {
       ...v17.data.world,
       progress: {
         ...progress,
         career: {
           ...career,
-          competition: { ...competition, prices: { ...competition.prices }, rivals: competition.rivals.map(rival => ({ ...rival, supply: { ...rival.supply } })), news: [] },
+          // Version 18 knows only the markets of v0.16.0: chip markets arrive with the next migration.
+          competition: {
+            ...competition,
+            prices: Object.fromEntries(market.options.map(id => [id, competition.prices[id]])) as Record<(typeof market.options)[number], number>,
+            rivals: competition.rivals.map(rival => ({
+              ...rival, supply: Object.fromEntries(Object.entries(rival.supply).filter(([id]) => (market.options as readonly string[]).includes(id))),
+            })),
+            news: [],
+          },
         },
       },
     },
   };
 }
 
-const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9, migrateV10, migrateV11, migrateV12, migrateV13, migrateV14, migrateV15, migrateV16, migrateV17];
+const careerV18 = saveV18.shape.world.shape.progress.shape.career.unwrap();
+const allMarkets = z.enum(MARKET_IDS);
+const competitionV19 = competitionSchema.extend({
+  prices: z.record(allMarkets, z.int().min(COMPETITION.minPercent).max(COMPETITION.maxPercent)),
+  rivals: z.array(z.strictObject({ id: z.enum(RIVAL_IDS), supply: z.partialRecord(allMarkets, count0) })).max(RIVAL_IDS.length),
+  sold: z.partialRecord(allMarkets, count0),
+  lastSold: z.partialRecord(allMarkets, count0),
+  news: z.array(competitionSchema.shape.news.element.extend({ market: allMarkets.nullable() })).max(COMPETITION.maxNews),
+});
+const termsV19 = termsV16.extend({ chips: z.array(z.enum(HOUSE_CHIPS)).min(1).max(HOUSE_CHIPS.length).optional() });
+
+/** Version 19 (v0.17.0): chip markets, house chips in PCs and contracts with them. */
+const saveV19 = z.strictObject({
+  version: z.literal(SAVE_VERSION),
+  ...header,
+  world: z.strictObject({
+    ...saveV18.shape.world.shape,
+    progress: z.strictObject({
+      ...saveV18.shape.world.shape.progress.shape,
+      career: careerV18.extend({
+        competition: competitionV19,
+        houseChips: z.array(z.enum(HOUSE_CHIPS)).max(HOUSE_CHIPS.length),
+      }).optional(),
+    }),
+    sales: z.strictObject({
+      active: z.strictObject({ terms: termsV19, delivered: z.int().nonnegative() }).nullable(),
+      completed: z.array(termsV19),
+    }),
+  }),
+});
+
+/** Chip markets open at the reference price; rivals that sell chips start with their entry share. */
+function migrateV18(value: unknown): z.input<typeof saveV19> | null {
+  const v18 = saveV18.safeParse(value);
+  if (!v18.success) return null;
+  const { career, ...progress } = v18.data.world.progress;
+  if (!career) return { ...v18.data, version: SAVE_VERSION, world: { ...v18.data.world, progress } };
+  const chipMarkets = ['chip-ram', 'chip-cpu', 'chip-gpu'] as const;
+  const { competition } = career;
+  return {
+    ...v18.data,
+    version: SAVE_VERSION,
+    world: {
+      ...v18.data.world,
+      progress: {
+        ...progress,
+        career: {
+          ...career,
+          houseChips: [],
+          competition: {
+            ...competition,
+            prices: { ...competition.prices, 'chip-ram': 100, 'chip-cpu': 100, 'chip-gpu': 100 },
+            rivals: competition.rivals.map(rival => ({
+              ...rival,
+              supply: {
+                ...rival.supply,
+                ...Object.fromEntries(chipMarkets.flatMap(chip => {
+                  const share = RIVALS[rival.id].markets[chip];
+                  return share === undefined ? [] : [[chip, Math.round(MARKET_DEMAND[chip] * share / 100)]];
+                })),
+              },
+            })),
+          },
+        },
+      },
+    },
+  };
+}
+
+const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9, migrateV10, migrateV11, migrateV12, migrateV13, migrateV14, migrateV15, migrateV16, migrateV17, migrateV18];
 
 function versionOf(value: unknown): unknown {
   return typeof value === 'object' && value !== null && 'version' in value ? value.version : undefined;
@@ -686,7 +764,7 @@ export function decodeSave(value: unknown): SaveRecord | null {
   if (typeof version === 'number' && Number.isInteger(version) && version >= 1) {
     for (const migrate of migrations.slice(version - 1)) current = migrate(current);
   }
-  const decoded = saveV18.safeParse(current);
+  const decoded = saveV19.safeParse(current);
   if (!decoded.success) return null;
 
   const { data } = decoded;

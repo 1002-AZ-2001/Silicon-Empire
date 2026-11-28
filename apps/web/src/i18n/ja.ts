@@ -34,6 +34,9 @@ export const ja: Messages = {
     generator: { name: '発電機', short: '発電機' },
     workstation: { name: 'PCワークステーション', short: 'PC' },
     plant: { name: '観葉植物', short: '植物' },
+    'ram-fab': { name: 'メモリ工場', short: 'RAM工場' },
+    'cpu-fab': { name: 'プロセッサ工場', short: 'CPU工場' },
+    'gpu-fab': { name: 'グラフィックチップ工場', short: 'GPU工場' },
   },
   items: {
     'cpu-8c': 'K8 8コアプロセッサー',
@@ -94,6 +97,11 @@ export const ja: Messages = {
     'case-tower': 'タワーケース',
     'gpu-3d': '4MB 3Dアクセラレータ',
     'gpu-256m': '256MBグラフィックカード',
+    'silicon-wafer': 'シリコンウェハー',
+    'chip-substrate': 'チップ基板',
+    'chip-ram': '自社製メモリチップ',
+    'chip-cpu': '自社製プロセッサ',
+    'chip-gpu': '自社製グラフィックチップ',
   },
   menu: {
     language: '言語',
@@ -310,6 +318,7 @@ export const ja: Messages = {
     eraReleased: (name: string, year: number) => `${year}年：新しい時代の部品が発売されました（${name}）。`,
     factoryBought: (region: string) => `工場を購入しました：${region}。`,
     subsidiarySet: (region: string) => `工場の設定を保存しました：${region}。`,
+    houseChipsSet: '自社製チップを次のPCに設定しました。',
     lineBuilt: (count, price) => `コンベア ${count} 本を ${price} で建設しました。`,
     filterSet: item => `${item}を選んだ出口に仕分けます。`,
     filterCleared: 'フィルターを解除しました。',
@@ -589,7 +598,7 @@ export const ja: Messages = {
       unlocks: '解放',
       names: {
         passives: '受動部品', pcb: 'プリント基板', power: '電源',
-        smt: '基板実装（SMT）', computers: 'コンピューター組立', automation: '自動化', robotics: 'ロボティクス', global: '海外展開',
+        smt: '基板実装（SMT）', computers: 'コンピューター組立', automation: '自動化', robotics: 'ロボティクス', global: '海外展開', semiconductors: '半導体',
       },
     },
     market: {
@@ -700,6 +709,12 @@ export const ja: Messages = {
     noNews: 'まだ特にありません。',
     entry: (rival: string) => `${rival}があなたの市場に参入しました。`,
     priceWar: (rival: string, market: string) => `価格競争：${rival}が${market}市場に大量供給しています。`,
+  },
+  chips: {
+    title: 'PCに自社製チップ',
+    intro: '組立台でつくるすべての製品で、購入したプロセッサ、グラフィックカード、メモリを自社製チップに置き換えます。置き換える部品が組立台に残っていてはいけません。',
+    replaces: { cpu: 'プロセッサを置き換え', gpu: 'グラフィックカードを置き換え', ram: 'メモリを置き換え' },
+    apply: 'ラインに適用',
   },
   tutorial: {
     title: 'チュートリアル',

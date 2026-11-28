@@ -8,6 +8,7 @@ import type { MachineType } from './construction';
 export const POWER_USE_KW: Readonly<Partial<Record<MachineType, number>>> = {
   assembler: 10, tester: 8, packager: 6, lab: 20,
   'capacitor-press': 12, 'pcb-etcher': 15, 'coil-winder': 15, 'smt-line': 30,
+  'ram-fab': 35, 'cpu-fab': 50, 'gpu-fab': 55,
 };
 
 export interface PowerSource {
@@ -49,6 +50,9 @@ export const UPGRADE_COSTS: Readonly<Partial<Record<MachineType, Readonly<Record
   'pcb-etcher': { 2: 500_000, 3: 1_000_000 },
   'coil-winder': { 2: 550_000, 3: 1_100_000 },
   'smt-line': { 2: 1_200_000, 3: 2_400_000 },
+  'ram-fab': { 2: 800_000, 3: 1_600_000 },
+  'cpu-fab': { 2: 1_500_000, 3: 3_000_000 },
+  'gpu-fab': { 2: 1_800_000, 3: 3_600_000 },
 };
 
 export const WEAR = {

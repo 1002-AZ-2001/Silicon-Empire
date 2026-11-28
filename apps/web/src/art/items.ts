@@ -56,6 +56,11 @@ import eraCaseDesk from './items/case-desk.png';
 import eraCaseTower from './items/case-tower.png';
 import eraGpu3d from './items/gpu-3d.png';
 import eraGpu256m from './items/gpu-256m.png';
+import siliconWafer from './items/silicon-wafer.png';
+import chipSubstrate from './items/chip-substrate.png';
+import chipRam from './items/chip-ram.png';
+import chipCpu from './items/chip-cpu.png';
+import chipGpu from './items/chip-gpu.png';
 import type { ItemType } from '@silicon-empire/game-data';
 
 export const ITEM_ART: Record<ItemType, string> = {
@@ -117,4 +122,9 @@ export const ITEM_ART: Record<ItemType, string> = {
   'case-tower': eraCaseTower,
   'gpu-3d': eraGpu3d,
   'gpu-256m': eraGpu256m,
+  'silicon-wafer': siliconWafer,
+  'chip-substrate': chipSubstrate,
+  'chip-ram': chipRam,
+  'chip-cpu': chipCpu,
+  'chip-gpu': chipGpu,
 };

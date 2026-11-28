@@ -1,15 +1,16 @@
 import {
-  CALENDAR, CAREER, COMPONENT_RECIPES, ERAS, ERA_IDS, ITEM_TYPES, LOANS, LOAN_IDS, MACHINES, MARKET_PRICES, SPECIALTIES, TECHNOLOGIES, TECH_IDS,
+  CALENDAR, CAREER, COMPONENT_RECIPES, ERAS, HOUSE_CHIPS, HOUSE_CHIP_ITEMS, ERA_IDS, ITEM_TYPES, LOANS, LOAN_IDS, MACHINES, MARKET_PRICES, SPECIALTIES, TECHNOLOGIES, TECH_IDS,
   eraIndex, eraOfYear, instalment, isComponentMachine, obsolescence, ticksUntilYear,
 } from '@silicon-empire/game-data';
 import {
-  careerDate, checkEra, eraAdoptable, marketPercent, eraPartsOf, erasBehind, loanAvailable, monthlyDue, payoff, retoolCost, techAvailable, wholesalePrice,
+  careerDate, checkEra, checkHouseChips, eraAdoptable, marketPercent, eraPartsOf, erasBehind, loanAvailable, monthlyDue, payoff, retoolCost, techAvailable, wholesalePrice,
 } from '@silicon-empire/simulation';
+import { useState } from 'react';
 import { ITEM_ART } from '../art/items';
 import { MACHINE_ART } from '../art/machines';
 import { useI18n } from '../i18n';
 import { Dialog, gameTime } from './shared';
-import type { EraId, ItemType, Specialty, TechId } from '@silicon-empire/game-data';
+import type { EraId, HouseChip, ItemType, Specialty, TechId } from '@silicon-empire/game-data';
 import type { CareerState, World } from '@silicon-empire/simulation';
 import type { WorkshopControls } from '../game/controls';
 
@@ -166,6 +167,9 @@ export function TechPanel({ world, career, controls, onClose }: {
           );
         })}
       </ul>
+      {career.technologies.includes('semiconductors') && career.technologies.includes('computers') && (
+        <HouseChipsForm world={world} career={career} controls={controls} />
+      )}
     </Dialog>
   );
 }
@@ -238,6 +242,34 @@ export function EraPanel({ world, career, controls, onClose }: {
         })}
       </ul>
     </Dialog>
+  );
+}
+
+/** Own chips in the assembled PCs: one toggle per part, applied together. */
+function HouseChipsForm({ world, career, controls }: { world: World; career: CareerState; controls: WorkshopControls }) {
+  const { t } = useI18n();
+  const [chips, setChips] = useState<readonly HouseChip[]>(career.houseChips);
+  const error = checkHouseChips(world, chips);
+  const toggle = (chip: HouseChip, on: boolean) =>
+    setChips(current => HOUSE_CHIPS.filter(candidate => candidate === chip ? on : current.includes(candidate)));
+  return (
+    <section className="tier" aria-label={t.chips.title}>
+      <h3>{t.chips.title}</h3>
+      <p>{t.chips.intro}</p>
+      <div className="chip-toggles">
+        {HOUSE_CHIPS.map(chip => (
+          <label key={chip} className="sandbox-option">
+            <input type="checkbox" checked={chips.includes(chip)} onChange={event => toggle(chip, event.target.checked)} />
+            <span><ItemChip item={HOUSE_CHIP_ITEMS[chip]} /> {t.chips.replaces[chip]}</span>
+          </label>
+        ))}
+      </div>
+      {error && <p className="order-hint text-error">{t.errors[error]}</p>}
+      <button type="button" className="button button-primary" disabled={error !== null || chips.join() === career.houseChips.join()}
+        onClick={() => controls.setHouseChips(chips)}>
+        {t.chips.apply}
+      </button>
+    </section>
   );
 }
 

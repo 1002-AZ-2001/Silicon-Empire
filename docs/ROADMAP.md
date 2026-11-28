@@ -69,6 +69,8 @@ L’assembleur et le banc de test restent sans ports ni inventaire jusqu’à la
 
 **v0.16.0** ajoute les concurrents en carrière : marchés, rivaux fictifs, indice de prix mensuel et guerres de prix.
 
+**v0.17.0** ajoute les puces maison : licence Semi-conducteurs, fonderies de mémoire, de processeurs et de puces graphiques, marchés de puces et puces de l’entreprise dans les PC.
+
 Ordre retenu ensuite, une version par étape : carte du monde avec usines et transport, puces (semi-conducteurs) et chaîne complète jusqu’aux ordinateurs en carrière, une carte du monde pour ouvrir des usines dans d’autres pays, conception de composants maison (CPU, GPU, RAM, carte mère), concurrents simulés sur le marché. L’électricité, la maintenance et le confort de construction suivront.
 
 La version 0.2.0 publie la tranche 1 avec l’application de bureau (Windows, Debian, Arch, AppImage) et ses mises à jour. La version 0.2.1 publie la tranche 2.

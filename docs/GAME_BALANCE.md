@@ -10,6 +10,17 @@
 | Assemblage initial | 30 s simulées par PC |
 | Prix exemple Gaming X1 | 899 € |
 
+## Puces maison v0.17.0
+
+| Puce | Fonderie | Matières | Coût des matières | Durée Mk1 | Grossiste | Boutique |
+|---|---|---|---:|---:|---:|---:|
+| Mémoire | 15 000 € | 1 wafer + 1 substrat | 55 € | 15 s | 60 € | 75 € |
+| Processeur | 22 000 € | 2 wafers + 1 substrat | 95 € | 30 s | 160 € | 200 € |
+| Puce graphique | 25 000 € | 2 wafers + 2 substrats | 110 € | 30 s | 210 € | 260 € |
+
+- Un PC bureautique moderne avec processeur et mémoire maison coûte 70 € de pièces de moins : 220 € de processeur et de mémoire achetés contre 150 € de matières (95 € + 55 €), hors électricité et usure.
+- Marchés : 200 puces mémoire, 100 processeurs et 60 puces graphiques par mois.
+
 ## Concurrence v0.16.0
 
 | Marché | Demande / mois | Rivaux à l’entrée (part de la demande) |

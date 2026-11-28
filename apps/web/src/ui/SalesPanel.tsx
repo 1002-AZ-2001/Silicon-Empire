@@ -1,6 +1,6 @@
 import { CAREER, PRODUCT_MODELS, WORKSHOP, obsolescence, saleOffer } from '@silicon-empire/game-data';
 import {
-  contractPrice, eraOf, erasBehind, landSpent, modelUnlocked, rewardsEarned, salesAccounts, salesBonusPercent, techSpent,
+  chipsOf, contractPrice, eraOf, erasBehind, landSpent, modelUnlocked, rewardsEarned, salesAccounts, salesBonusPercent, techSpent,
 } from '@silicon-empire/simulation';
 import { useI18n } from '../i18n';
 import { MarketPrices } from './CareerPanels';
@@ -68,7 +68,7 @@ export function SalesPanel({ world, controls }: { world: World; controls: Worksh
               <li className="order-hint text-error">{t.eras.obsolete(100 - obsolescence(erasBehind(career)))}</li>
             )}
             {PRODUCT_MODELS.filter(model => modelUnlocked(world.progress, model)).map(model => {
-              const offer = saleOffer(model, world.design, eraOf(world.progress));
+              const offer = saleOffer(model, world.design, eraOf(world.progress), chipsOf(world.progress));
               if (!offer) return null;
               const terms = { ...offer, unitPriceCents: contractPrice(world, offer.unitPriceCents, model) };
               const name = offerName(terms, t);

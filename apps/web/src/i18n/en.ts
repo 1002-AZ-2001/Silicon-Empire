@@ -34,6 +34,9 @@ export const en: Messages = {
     generator: { name: 'Generator', short: 'Generator' },
     workstation: { name: 'Workstation', short: 'Workstation' },
     plant: { name: 'Green plant', short: 'Plant' },
+    'ram-fab': { name: 'Memory fab', short: 'RAM fab' },
+    'cpu-fab': { name: 'Processor fab', short: 'CPU fab' },
+    'gpu-fab': { name: 'Graphics chip fab', short: 'GPU fab' },
   },
   items: {
     'cpu-8c': 'K8 8-core processor',
@@ -94,6 +97,11 @@ export const en: Messages = {
     'case-tower': 'Tower case',
     'gpu-3d': '4 MB 3D accelerator',
     'gpu-256m': '256 MB graphics card',
+    'silicon-wafer': 'Silicon wafer',
+    'chip-substrate': 'Chip substrate',
+    'chip-ram': 'In-house memory chip',
+    'chip-cpu': 'In-house processor',
+    'chip-gpu': 'In-house graphics chip',
   },
   menu: {
     language: 'Language',
@@ -310,6 +318,7 @@ export const en: Messages = {
     eraReleased: (name: string, year: number) => `${year}: a new era is on sale, ${name}.`,
     factoryBought: (region: string) => `Factory bought: ${region}.`,
     subsidiarySet: (region: string) => `Factory settings saved: ${region}.`,
+    houseChipsSet: 'In-house chips saved for the next PCs.',
     lineBuilt: (count, price) => `${count} conveyors built for ${price}.`,
     filterSet: item => `${item} sorted to the chosen output.`,
     filterCleared: 'Filter removed.',
@@ -589,7 +598,7 @@ export const en: Messages = {
       unlocks: 'Unlocks',
       names: {
         passives: 'Passive components', pcb: 'Printed circuits', power: 'Power',
-        smt: 'Board assembly (SMT)', computers: 'Computer assembly', automation: 'Automation', robotics: 'Robotics', global: 'International expansion',
+        smt: 'Board assembly (SMT)', computers: 'Computer assembly', automation: 'Automation', robotics: 'Robotics', global: 'International expansion', semiconductors: 'Semiconductors',
       },
     },
     market: {
@@ -700,6 +709,12 @@ export const en: Messages = {
     noNews: 'Nothing to report yet.',
     entry: (rival: string) => `${rival} enters your markets.`,
     priceWar: (rival: string, market: string) => `Price war: ${rival} floods the ${market} market.`,
+  },
+  chips: {
+    title: 'In-house chips in PCs',
+    intro: 'Replace the bought processor, graphics card or memory with your own chips in everything your assembly benches build. The bench must hold none of the replaced parts.',
+    replaces: { cpu: 'replaces the processor', gpu: 'replaces the graphics card', ram: 'replaces the memory' },
+    apply: 'Apply to the lines',
   },
   tutorial: {
     title: 'Tutorial',
