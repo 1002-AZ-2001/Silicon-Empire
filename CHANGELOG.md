@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.17.0 — Puces maison
+
+- Licence de carrière **Semi-conducteurs** (150 000 €, après l’assemblage de cartes CMS) : wafers de silicium (40 €) et substrats de puce (15 €) à la boutique, et trois fonderies dans l’onglet Production.
+  - **Fonderie de mémoire** (15 000 €, 35 kW) : 1 wafer + 1 substrat → 1 puce mémoire en 15 s.
+  - **Fonderie de processeurs** (22 000 €, 50 kW) : 2 wafers + 1 substrat → 1 processeur en 30 s.
+  - **Fonderie de puces graphiques** (25 000 €, 55 kW) : 2 wafers + 2 substrats → 1 puce graphique en 30 s.
+  - Mk2 et Mk3 comme les autres machines de production.
+- Les puces se vendent au grossiste (60 €, 160 € et 210 €), sur trois **nouveaux marchés** avec rivaux : Helion et Xinhe sur la mémoire, Norrland sur les processeurs, Kaori sur les puces graphiques. Elles s’achètent aussi à la boutique, plus cher.
+- **Puces maison dans les PC** : avec les licences Semi-conducteurs et Ordinateurs, le panneau Technologies remplace le processeur, la carte graphique ou la mémoire achetés par les puces de l’entreprise dans tout ce qu’assemblent les établis, quelle que soit l’époque. L’établi doit être vide des pièces remplacées. Les contrats signés ensuite gardent cette nomenclature.
+- La sauvegarde v19 enregistre les puces maison, les marchés de puces et la nomenclature des contrats. Les carrières précédentes ouvrent les marchés de puces au prix de référence.
+
 ## 0.16.0 — Concurrents
 
 - **Marchés** de la carrière : bobines de condensateurs, circuits imprimés nus, transformateurs, cartes électroniques, et les PC bureautiques, gaming et professionnels des contrats. Chaque marché a une demande mensuelle.

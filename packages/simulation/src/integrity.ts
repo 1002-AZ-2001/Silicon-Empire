@@ -6,7 +6,7 @@ import {
 import type { ItemType, MarketId, MilestoneId, ResearchId, RivalId } from '@silicon-empire/game-data';
 import { addItems, fitsInputStock, inventoryTotal, mergeInventories } from './inventory';
 import type { Inventory } from './inventory';
-import { createProgress, eraOf, milestoneAvailable, milestoneDone, modelUnlocked, orderableItems, rewardsEarned, unlockedMachines } from './progress';
+import { chipsOf, createProgress, eraOf, milestoneAvailable, milestoneDone, modelUnlocked, orderableItems, rewardsEarned, unlockedMachines } from './progress';
 import type { Progress } from './progress';
 import { NO_RESEARCH, capacityOf, researchAvailable, researchPartsDone, upgradeUnlocked } from './research';
 import type { ResearchState } from './research';
@@ -18,7 +18,7 @@ import { careerDate, techAvailable, techSpent } from './career';
 import { supplyBounds } from './competition';
 import type { CareerState } from './career';
 import { landConnected, landSpent, ownsFootprint, ownsTile } from './land';
-import { fitsMap, footprintOf, landUnlocked, machineUnlocked } from './world';
+import { fitsMap, footprintOf, landUnlocked, machineUnlocked, validHouseChips } from './world';
 import type { Machine, World } from './world';
 
 /** Milestones were completed in an order the rules allow, and deliveries match the remaining costs. */
@@ -33,6 +33,10 @@ function checkCareer(career: CareerState, tick: number): boolean {
     eraIndex(career.era) < eraIndex(eraOfYear(career.startYear))) return false;
   if (!career.technologies.includes('computers') && career.era !== career.released) return false;
   if (!checkAbroad(career, tick) || !checkCompetition(career, tick)) return false;
+  if (!validHouseChips(career.houseChips) ||
+    (career.houseChips.length > 0 && !(career.technologies.includes('semiconductors') && career.technologies.includes('computers')))) {
+    return false;
+  }
   if (career.nextInstalment <= tick || career.nextInstalment - tick > STAFF.payPeriodTicks) return false;
   if (career.specialty === null ? career.technologies.length > 0 : career.technologies[0] !== career.specialty) return false;
   let replay: CareerState = { ...career, technologies: career.technologies.slice(0, 1) };
@@ -162,7 +166,7 @@ function checkUtilities(world: World): boolean {
   }
   return Object.entries(world.wear).every(([id, wear]) => {
     const machine = world.machines.find(candidate => String(candidate.id) === id);
-    return machine !== undefined && POWER_USE_KW[machine.type] !== undefined && recipeOf(machine.type, machine.model, world.design, eraOf(world.progress)) !== undefined &&
+    return machine !== undefined && POWER_USE_KW[machine.type] !== undefined && recipeOf(machine.type, machine.model, world.design, eraOf(world.progress), chipsOf(world.progress)) !== undefined &&
       Number.isInteger(wear) && wear > 0 && wear <= WEAR.breakdown;
   });
 }
@@ -259,7 +263,7 @@ export function checkIntegrity(world: World): boolean {
       (machine.level === 3 && !upgradeUnlocked(world.progress, world.research, machine.type, 2)))) {
       return false;
     }
-    if (machine.model && (!recipeOf(machine.type, machine.model, world.design, eraOf(world.progress)) || !modelUnlocked(world.progress, machine.model))) {
+    if (machine.model && (!recipeOf(machine.type, machine.model, world.design, eraOf(world.progress), chipsOf(world.progress)) || !modelUnlocked(world.progress, machine.model))) {
       return false;
     }
     previousId = machine.id;
@@ -292,7 +296,7 @@ export function checkIntegrity(world: World): boolean {
     const machine = machines.get(id);
     const total = inventoryTotal(stock);
     if (!machine || total === 0) return false;
-    const recipe = recipeOf(machine.type, machine.model, world.design, eraOf(world.progress));
+    const recipe = recipeOf(machine.type, machine.model, world.design, eraOf(world.progress), chipsOf(world.progress));
     if (recipe) {
       if (!fitsInputStock(recipe, stock)) return false;
     } else if (total > capacityOf(world.progress, world.research, machine.type)) {
@@ -303,7 +307,7 @@ export function checkIntegrity(world: World): boolean {
 
   for (const [id, state] of Object.entries(world.production)) {
     const machine = machines.get(id);
-    const recipe = machine && recipeOf(machine.type, machine.model, world.design, eraOf(world.progress));
+    const recipe = machine && recipeOf(machine.type, machine.model, world.design, eraOf(world.progress), chipsOf(world.progress));
     if (!recipe) return false;
     const rejected = recipe.rejection?.item;
     if (!state.batch && inventoryTotal(state.output) === 0) return false;

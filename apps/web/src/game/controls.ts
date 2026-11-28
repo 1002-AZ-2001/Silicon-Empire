@@ -1,6 +1,6 @@
 import { FLOOR_TYPES, LOANS, MACHINE_TYPES, PURCHASE, isLineType } from '@silicon-empire/game-data';
 import type {
-  EraId, FloorType, LineType, RegionId, LoanId, MilestoneId, ResearchId, PcDesign, ProductModel, Specialty, SupplierId, TechId,
+  EraId, FloorType, HouseChip, LineType, RegionId, LoanId, MilestoneId, ResearchId, PcDesign, ProductModel, Specialty, SupplierId, TechId,
 } from '@silicon-empire/game-data';
 import {
   FixedStepClock, cableChanges, cableCost, floorCost, lineCost, machineAt, repairCost, ownsTile, parcelOf, parcelPrice, payoff, purchaseCost, turnClockwise,
@@ -313,6 +313,8 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     career({ kind: 'buy-factory', region }, ({ t }) => t.feedback.factoryBought(t.world.regions[region]));
   const setSubsidiary = (region: RegionId, settings: SubsidiarySettings) =>
     career({ kind: 'set-subsidiary', region, ...settings }, ({ t }) => t.feedback.subsidiarySet(t.world.regions[region]));
+  const setHouseChips = (chips: readonly HouseChip[]) =>
+    career({ kind: 'set-house-chips', chips }, ({ t }) => t.feedback.houseChipsSet);
   const adoptEra = (era: EraId) =>
     career({ kind: 'adopt-era', era }, ({ t }) => t.feedback.eraAdopted(t.eras.names[era]));
   function repayLoan(offer: LoanId) {
@@ -467,7 +469,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
   }
 
   return {
-    store, clock, setSpeed, togglePause, order, checkout, setCartLots, buyParcel, hire, fire, assign, chooseSpecialty, takeLoan, repayLoan, buyTech, adoptEra, buyFactory, setSubsidiary, repair, setRestock, brand, configure, selectMilestone, selectResearch, upgrade, setProductModel,
+    store, clock, setSpeed, togglePause, order, checkout, setCartLots, buyParcel, hire, fire, assign, chooseSpecialty, takeLoan, repayLoan, buyTech, adoptEra, setHouseChips, buyFactory, setSubsidiary, repair, setRestock, brand, configure, selectMilestone, selectResearch, upgrade, setProductModel,
     startSale: (model: ProductModel) => changeSale(model), cancelSale: () => changeSale(),
     publishDesign,
     startLine, extendLine, cancelLine, finishLine,

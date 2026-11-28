@@ -43,6 +43,7 @@ export const MACHINE_TYPES = [
   'wall', 'door', 'sofa', 'coffee', 'desk', 'air-filter',
   'capacitor-press', 'pcb-etcher', 'coil-winder', 'smt-line',
   'grid-connection', 'generator', 'workstation', 'plant',
+  'ram-fab', 'cpu-fab', 'gpu-fab',
 ] as const;
 export type MachineType = (typeof MACHINE_TYPES)[number];
 
@@ -251,6 +252,19 @@ export const MACHINES = z.record(z.enum(MACHINE_TYPES), machineDefinition.readon
   generator: { width: 2, height: 2, costCents: 800_000, capacity: 0, ports: [] },
   /** Office computer: equips one office employee when it stands in an office. */
   workstation: { width: 1, height: 1, costCents: 150_000, capacity: 0, ports: [] },
+  /** Semiconductor fabs: wafers and substrates in, chips out. */
+  'ram-fab': {
+    width: 3, height: 2, costCents: 1_500_000, capacity: 0,
+    ports: [{ kind: 'input', side: 2, offset: 0 }, { kind: 'output', side: 0, offset: 1 }],
+  },
+  'cpu-fab': {
+    width: 3, height: 3, costCents: 2_200_000, capacity: 0,
+    ports: [{ kind: 'input', side: 2, offset: 0 }, { kind: 'input', side: 2, offset: 2 }, { kind: 'output', side: 0, offset: 1 }],
+  },
+  'gpu-fab': {
+    width: 3, height: 3, costCents: 2_500_000, capacity: 0,
+    ports: [{ kind: 'input', side: 2, offset: 0 }, { kind: 'input', side: 2, offset: 2 }, { kind: 'output', side: 0, offset: 1 }],
+  },
   /** Green plant: cheers up the staff when it stands in an office or a break room. */
   plant: { width: 1, height: 1, costCents: 8_000, capacity: 0, ports: [] },
 } satisfies Record<MachineType, z.input<typeof machineDefinition>>);

@@ -39,6 +39,9 @@ export const fr = {
     generator: { name: 'Groupe électrogène', short: 'Groupe' },
     workstation: { name: 'Poste informatique', short: 'Poste' },
     plant: { name: 'Plante verte', short: 'Plante' },
+    'ram-fab': { name: 'Fonderie de mémoire', short: 'Fonderie RAM' },
+    'cpu-fab': { name: 'Fonderie de processeurs', short: 'Fonderie CPU' },
+    'gpu-fab': { name: 'Fonderie de puces graphiques', short: 'Fonderie GPU' },
   } satisfies Record<MachineType, { name: string; short: string }> as Record<MachineType, { name: string; short: string }>,
   items: {
     'cpu-8c': 'Processeur 8 cœurs K8',
@@ -99,6 +102,11 @@ export const fr = {
     'case-tower': 'Boîtier tour',
     'gpu-3d': 'Accélérateur 3D 4 Mo',
     'gpu-256m': 'Carte graphique 256 Mo',
+    'silicon-wafer': 'Wafer de silicium',
+    'chip-substrate': 'Substrat de puce',
+    'chip-ram': 'Puce mémoire maison',
+    'chip-cpu': 'Processeur maison',
+    'chip-gpu': 'Puce graphique maison',
   } satisfies Record<ItemType, string> as Record<ItemType, string>,
   menu: {
     language: 'Langue',
@@ -318,6 +326,7 @@ export const fr = {
     eraReleased: (name: string, year: number) => `${year}\u2009: nouvelle époque en vente, ${name}.`,
     factoryBought: (region: string) => `Usine achetée\u2009: ${region}.`,
     subsidiarySet: (region: string) => `Usine réglée\u2009: ${region}.`,
+    houseChipsSet: 'Puces maison enregistrées pour les prochains PC.',
     lineBuilt: (count: number, price: string) => `${count} convoyeurs construits pour ${price}.`,
     filterSet: (item: string) => `${item} trié vers la sortie choisie.`,
     filterCleared: 'Filtre retiré.',
@@ -597,7 +606,7 @@ export const fr = {
       unlocks: 'Débloque',
       names: {
         passives: 'Composants passifs', pcb: 'Circuits imprimés', power: 'Énergie',
-        smt: 'Assemblage de cartes (CMS)', computers: 'Assemblage d’ordinateurs', automation: 'Automatisation', robotics: 'Robotique', global: 'Expansion internationale',
+        smt: 'Assemblage de cartes (CMS)', computers: 'Assemblage d’ordinateurs', automation: 'Automatisation', robotics: 'Robotique', global: 'Expansion internationale', semiconductors: 'Semi-conducteurs',
       },
     },
     market: {
@@ -708,6 +717,12 @@ export const fr = {
     noNews: 'Rien à signaler pour l’instant.',
     entry: (rival: string) => `${rival} arrive sur vos marchés.`,
     priceWar: (rival: string, market: string) => `Guerre des prix\u2009: ${rival} inonde le marché ${market}.`,
+  },
+  chips: {
+    title: 'Puces maison dans les PC',
+    intro: 'Remplacez le processeur, la carte graphique ou la mémoire achetés par vos propres puces dans tout ce que vos établis assemblent. L’établi doit être vide des pièces remplacées.',
+    replaces: { cpu: 'remplace le processeur', gpu: 'remplace la carte graphique', ram: 'remplace la mémoire' },
+    apply: 'Appliquer aux chaînes',
   },
   tutorial: {
     title: 'Tutoriel',

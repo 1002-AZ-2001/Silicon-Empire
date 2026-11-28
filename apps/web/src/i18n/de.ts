@@ -34,6 +34,9 @@ export const de: Messages = {
     generator: { name: 'Stromaggregat', short: 'Aggregat' },
     workstation: { name: 'Computerarbeitsplatz', short: 'Arbeitsplatz' },
     plant: { name: 'Grünpflanze', short: 'Pflanze' },
+    'ram-fab': { name: 'Speicherfabrik', short: 'RAM-Fab' },
+    'cpu-fab': { name: 'Prozessorfabrik', short: 'CPU-Fab' },
+    'gpu-fab': { name: 'Grafikchipfabrik', short: 'GPU-Fab' },
   },
   items: {
     'cpu-8c': 'Prozessor K8 mit 8 Kernen',
@@ -94,6 +97,11 @@ export const de: Messages = {
     'case-tower': 'Tower-Gehäuse',
     'gpu-3d': '3D-Beschleuniger 4 MB',
     'gpu-256m': 'Grafikkarte 256 MB',
+    'silicon-wafer': 'Siliziumwafer',
+    'chip-substrate': 'Chipträger',
+    'chip-ram': 'Eigener Speicherchip',
+    'chip-cpu': 'Eigener Prozessor',
+    'chip-gpu': 'Eigener Grafikchip',
   },
   menu: {
     language: 'Sprache',
@@ -310,6 +318,7 @@ export const de: Messages = {
     eraReleased: (name: string, year: number) => `${year}: neue Epoche im Handel, ${name}.`,
     factoryBought: (region: string) => `Werk gekauft: ${region}.`,
     subsidiarySet: (region: string) => `Werk eingestellt: ${region}.`,
+    houseChipsSet: 'Eigene Chips für die nächsten PCs gespeichert.',
     lineBuilt: (count, price) => `${count} Förderbänder für ${price} gebaut.`,
     filterSet: item => `${item} wird zum gewählten Ausgang sortiert.`,
     filterCleared: 'Filter entfernt.',
@@ -589,7 +598,7 @@ export const de: Messages = {
       unlocks: 'Schaltet frei',
       names: {
         passives: 'Passive Bauteile', pcb: 'Leiterplatten', power: 'Energie',
-        smt: 'Platinenbestückung (SMD)', computers: 'Computermontage', automation: 'Automatisierung', robotics: 'Robotik', global: 'Internationale Expansion',
+        smt: 'Platinenbestückung (SMD)', computers: 'Computermontage', automation: 'Automatisierung', robotics: 'Robotik', global: 'Internationale Expansion', semiconductors: 'Halbleiter',
       },
     },
     market: {
@@ -700,6 +709,12 @@ export const de: Messages = {
     noNews: 'Noch nichts zu melden.',
     entry: (rival: string) => `${rival} tritt in Ihre Märkte ein.`,
     priceWar: (rival: string, market: string) => `Preiskampf: ${rival} überschwemmt den Markt ${market}.`,
+  },
+  chips: {
+    title: 'Eigene Chips in PCs',
+    intro: 'Ersetzen Sie den gekauften Prozessor, die Grafikkarte oder den Speicher in allem, was Ihre Montageplätze bauen, durch eigene Chips. Der Montageplatz darf keine ersetzten Teile enthalten.',
+    replaces: { cpu: 'ersetzt den Prozessor', gpu: 'ersetzt die Grafikkarte', ram: 'ersetzt den Speicher' },
+    apply: 'Auf die Linien anwenden',
   },
   tutorial: {
     title: 'Tutorial',

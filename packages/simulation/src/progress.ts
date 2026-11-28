@@ -2,7 +2,7 @@ import {
   CAREER_START_MACHINES, ERAS, ERA_IDS, ERA_ITEMS, ITEMS, ITEM_TYPES, MACHINE_TYPES, MILESTONES, MILESTONE_IDS, STANDARD_MODELS, STARTING_ITEMS,
   STARTING_MACHINES, TECHNOLOGIES, TIERS, eraIndex, eraOfYear, recipeOf,
 } from '@silicon-empire/game-data';
-import type { EraId, ItemCategory, ItemType, MachineType, MilestoneId, ProductModel, StartYear } from '@silicon-empire/game-data';
+import type { EraId, HouseChip, ItemCategory, ItemType, MachineType, MilestoneId, ProductModel, StartYear } from '@silicon-empire/game-data';
 import { createCareer } from './career';
 import type { CareerState } from './career';
 import type { Inventory } from './inventory';
@@ -26,6 +26,11 @@ export function createProgress(sandbox: boolean): Progress {
 
 export function createCareerProgress(tick = 0, startYear?: StartYear): Progress {
   return { sandbox: false, completed: [], active: null, delivered: {}, career: createCareer(tick, startYear) };
+}
+
+/** The company's own chips in its PCs; none outside careers. */
+export function chipsOf(progress: Progress): readonly HouseChip[] {
+  return progress.career?.houseChips ?? [];
 }
 
 /** Era of the parts the assembly lines take: the modern one outside careers. */

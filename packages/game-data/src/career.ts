@@ -8,7 +8,7 @@ import type { ItemType } from './items';
 export const SPECIALTIES = ['passives', 'pcb', 'power'] as const;
 export type Specialty = (typeof SPECIALTIES)[number];
 
-export const TECH_IDS = [...SPECIALTIES, 'smt', 'computers', 'automation', 'robotics', 'global'] as const;
+export const TECH_IDS = [...SPECIALTIES, 'smt', 'computers', 'automation', 'robotics', 'global', 'semiconductors'] as const;
 export type TechId = (typeof TECH_IDS)[number];
 
 export interface Technology {
@@ -42,6 +42,11 @@ export const TECHNOLOGIES: Readonly<Record<TechId, Technology>> = {
   robotics: { costCents: 6_000_000, requires: ['automation', 'smt'], branches: 0, unlocks: { machines: [], items: [] } },
   /** Factories abroad, on the world map. */
   global: { costCents: 10_000_000, requires: ['smt'], branches: 0, unlocks: { machines: [], items: [] } },
+  /** Semiconductor fabs: in-house memory, processors and graphics chips. */
+  semiconductors: {
+    costCents: 15_000_000, requires: ['smt'], branches: 0,
+    unlocks: { machines: ['ram-fab', 'cpu-fab', 'gpu-fab'], items: ['silicon-wafer', 'chip-substrate', 'chip-ram', 'chip-cpu', 'chip-gpu'] },
+  },
 };
 
 /** Buildings open from the first day of a career. */
@@ -56,6 +61,9 @@ export const MARKET_PRICES: Readonly<Partial<Record<ItemType, number>>> = {
   'bare-pcb': 18_000,
   transformer: 24_000,
   'circuit-board': 90_000,
+  'chip-ram': 6_000,
+  'chip-cpu': 16_000,
+  'chip-gpu': 21_000,
 };
 
 export const LOAN_IDS = ['starter', 'growth', 'expansion'] as const;

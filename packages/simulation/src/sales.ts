@@ -1,4 +1,4 @@
-import { CALENDAR, COMPETITION, ERA_IDS, ROLE_EFFECTS, designPower, saleOffer } from '@silicon-empire/game-data';
+import { CALENDAR, COMPETITION, ERA_IDS, HOUSE_CHIPS, ROLE_EFFECTS, designPower, saleOffer } from '@silicon-empire/game-data';
 import { addItems } from './inventory';
 import type { ItemType, SaleTerms } from '@silicon-empire/game-data';
 import type { Inventory } from './inventory';
@@ -39,7 +39,10 @@ export function validSaleTerms(terms: SaleTerms): boolean {
     if (power.required > power.available) return false;
   } else if (terms.design) return false;
   if (terms.era !== undefined && (!HISTORICAL_ERAS.includes(terms.era) || terms.model === 'custom')) return false;
-  const offer = saleOffer(terms.model, terms.design, terms.era);
+  if (terms.chips !== undefined && (terms.chips.length === 0 || terms.model === 'custom' ||
+    !terms.chips.every((chip, index) => HOUSE_CHIPS.includes(chip) &&
+      (index === 0 || HOUSE_CHIPS.indexOf(chip) > HOUSE_CHIPS.indexOf(terms.chips?.[index - 1] ?? chip))))) return false;
+  const offer = saleOffer(terms.model, terms.design, terms.era, terms.chips);
   if (!offer) return false;
   // Career PCs sell below the catalogue price when rivals lower the market index, and lower still once
   // a later era is on sale; classic contracts keep the catalogue price, which the index never moves.

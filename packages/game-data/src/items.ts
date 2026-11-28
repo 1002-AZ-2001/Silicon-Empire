@@ -23,6 +23,8 @@ export const ITEM_TYPES = [
   'floppy-8in', 'hdd-10m', 'hdd-40m', 'hdd-4g', 'hdd-250g',
   'board-s100', 'board-isa8', 'board-isa16', 'board-agp', 'board-pcie',
   'psu-linear', 'psu-at', 'case-desk', 'case-tower', 'gpu-3d', 'gpu-256m',
+  // Semiconductors made in a career workshop.
+  'silicon-wafer', 'chip-substrate', 'chip-ram', 'chip-cpu', 'chip-gpu',
 ] as const;
 export type ItemType = (typeof ITEM_TYPES)[number];
 
@@ -198,4 +200,10 @@ export const ITEMS = z.record(z.enum(ITEM_TYPES), itemDefinition.readonly()).rea
   'case-tower': { category: 'case', manufacturer: 'Carrène', unitCostCents: 4_500 },
   'gpu-3d': { category: 'gpu', manufacturer: 'Voltrane', unitCostCents: 22_000 },
   'gpu-256m': { category: 'gpu', manufacturer: 'Voltrane', unitCostCents: 22_000 },
+  // Semiconductors: raw wafers and substrates, then chips made in the workshop or bought at a premium.
+  'silicon-wafer': { category: 'raw', manufacturer: 'Silexa', unitCostCents: 4_000 },
+  'chip-substrate': { category: 'raw', manufacturer: 'Silexa', unitCostCents: 1_500 },
+  'chip-ram': { category: 'component', manufacturer: 'Silicon Empire', unitCostCents: 7_500 },
+  'chip-cpu': { category: 'component', manufacturer: 'Silicon Empire', unitCostCents: 20_000 },
+  'chip-gpu': { category: 'component', manufacturer: 'Silicon Empire', unitCostCents: 26_000 },
 } satisfies Record<ItemType, z.input<typeof itemDefinition>>);

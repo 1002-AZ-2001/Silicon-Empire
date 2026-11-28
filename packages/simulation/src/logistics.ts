@@ -4,7 +4,7 @@ import {
 import type { Direction, EraId, ItemType, PortDefinition, Recipe, SubsidiaryProduct } from '@silicon-empire/game-data';
 import { addItems, inputRoom, inventoryTotal, mergeInventories, mostStocked } from './inventory';
 import type { Inventory } from './inventory';
-import { eraOf, milestoneDone, stillNeeded } from './progress';
+import { chipsOf, eraOf, milestoneDone, stillNeeded } from './progress';
 import type { Progress } from './progress';
 import { LEVELS, RESEARCH, ROLE_EFFECTS, WEAR } from '@silicon-empire/game-data';
 import { capacityOf, researchPartsDone, researchStillNeeded } from './research';
@@ -95,7 +95,7 @@ interface Links {
 }
 
 type Layout = Pick<World, 'machines' | 'columns' | 'rows' | 'design' | 'progress'>;
-const linkCache = new WeakMap<readonly Machine[], { design: World['design']; era: EraId; links: Links }>();
+const linkCache = new WeakMap<readonly Machine[], { design: World['design']; era: EraId; chips: string; links: Links }>();
 
 function isRouter(machine: Machine | undefined): machine is Machine & { type: 'splitter' | 'merger' } {
   return machine?.type === 'splitter' || machine?.type === 'merger';
@@ -149,7 +149,7 @@ function computeLinks(world: Layout): Links {
   });
 
   const outputs = world.machines.flatMap(machine => {
-    const recipe = recipeOf(machine.type, machine.model, world.design, eraOf(world.progress));
+    const recipe = recipeOf(machine.type, machine.model, world.design, eraOf(world.progress), chipsOf(world.progress));
     return portsOf(machine).flatMap(port => {
       if (port.kind === 'input') return [];
       const target = targetFrom(port.tile, port.side);
@@ -179,7 +179,7 @@ function computeLinks(world: Layout): Links {
   });
 
   const producers = world.machines.flatMap(machine => {
-    const recipe = recipeOf(machine.type, machine.model, world.design, eraOf(world.progress));
+    const recipe = recipeOf(machine.type, machine.model, world.design, eraOf(world.progress), chipsOf(world.progress));
     return recipe ? [{ id: machine.id, recipe }] : [];
   });
 
@@ -239,9 +239,10 @@ function neededItem(stock: Inventory, recipe: Recipe, machineStock: Inventory, i
 export function linksOf(world: Layout): Links {
   const cached = linkCache.get(world.machines);
   const era = eraOf(world.progress);
-  if (cached && cached.design === world.design && cached.era === era) return cached.links;
+  const chips = chipsOf(world.progress).join();
+  if (cached && cached.design === world.design && cached.era === era && cached.chips === chips) return cached.links;
   const links = computeLinks(world);
-  linkCache.set(world.machines, { design: world.design, era, links });
+  linkCache.set(world.machines, { design: world.design, era, chips, links });
   return links;
 }
 
@@ -268,7 +269,7 @@ export function canReceive(
   }
   if (machine.type === 'lab') return researchStillNeeded(world.research, item) > 0;
   const stock = world.stocks[id] ?? {};
-  const recipe = recipeOf(machine.type, machine.model, world.design, eraOf(world.progress));
+  const recipe = recipeOf(machine.type, machine.model, world.design, eraOf(world.progress), chipsOf(world.progress));
   if (recipe) return inputRoom(recipe, stock, item) > 0;
   return capacityOf(world.progress, world.research, machine.type) - inventoryTotal(stock) > 0;
 }

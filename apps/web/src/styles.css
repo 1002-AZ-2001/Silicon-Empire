@@ -1102,3 +1102,4 @@ kbd {
 .market-table td.market-high { color: var(--lime); }
 .market-table td.market-low { color: #ff8a7a; }
 @media (max-width: 640px) { .market-table { font-size: .75rem; } .market-table th, .market-table td { padding: 4px; } }
+.chip-toggles { display: grid; gap: 4px; margin: 6px 0; }

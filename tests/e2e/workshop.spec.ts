@@ -1139,7 +1139,8 @@ test('n’affiche pas les pièces historiques hors carrière', async ({ page }) 
   await page.getByRole('button', { name: 'Boutique', exact: true }).click();
   const shop = page.getByRole('dialog', { name: 'Boutique de composants' });
   await shop.getByLabel('Rechercher').fill('processeur');
-  await expect(shop.getByRole('listitem', { name: /^Processeur/ })).toHaveCount(1);
+  await expect(shop.getByRole('listitem', { name: 'Processeur 8 cœurs K8' })).toBeVisible();
+  await expect(shop.getByRole('listitem', { name: /^Processeur \d+ bits/ })).toHaveCount(0);
   await expect(page.getByLabel('Date', { exact: true })).toHaveCount(0);
 });
 
@@ -1193,4 +1194,21 @@ test('affiche les marchés, les rivaux et l’indice de prix dans la concurrence
   await expect(markets.getByRole('row', { name: 'Bureautique' })).toContainText('100');
   await expect(panel.getByRole('listitem', { name: 'Xinhe Electronics' })).toContainText('Depuis 1990');
   await expect(panel.getByText('Rien à signaler pour l’instant.')).toBeVisible();
+});
+
+test('bâtit une fonderie de processeurs et met les puces maison dans les PC', async ({ page }) => {
+  const saved = JSON.parse(await readFile(new URL('./fixtures/career-chips.json', import.meta.url), 'utf8'));
+  await resumeFixture(page, saved);
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: 'Pause' }).click();
+  await page.getByRole('tab', { name: 'Production' }).click();
+  const tools = page.getByRole('group', { name: 'Outils de construction' });
+  await expect(tools.getByRole('button', { name: /^Fonderie RAM/ })).toBeVisible();
+  await expect(tools.getByRole('button', { name: /^Fonderie GPU/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Technologies', exact: true }).click();
+  const tech = page.getByRole('dialog', { name: 'Technologies' });
+  const chips = tech.getByRole('region', { name: 'Puces maison dans les PC' });
+  await expect(chips.getByRole('checkbox', { name: /Processeur maison/ })).toBeChecked();
+  await chips.getByRole('checkbox', { name: /Puce mémoire maison/ }).check();
+  await chips.getByRole('button', { name: 'Appliquer aux chaînes' }).click();
+  await expect(page.getByText('Puces maison enregistrées pour les prochains PC.')).toBeVisible();
 });

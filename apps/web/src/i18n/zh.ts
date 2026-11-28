@@ -35,6 +35,9 @@ export const zh: Messages = {
     generator: { name: '发电机组', short: '发电机' },
     workstation: { name: '电脑工位', short: '工位' },
     plant: { name: '绿植', short: '绿植' },
+    'ram-fab': { name: '内存晶圆厂', short: '内存厂' },
+    'cpu-fab': { name: '处理器晶圆厂', short: 'CPU 厂' },
+    'gpu-fab': { name: '图形芯片晶圆厂', short: 'GPU 厂' },
   },
   items: {
     'cpu-8c': 'K8 八核处理器',
@@ -95,6 +98,11 @@ export const zh: Messages = {
     'case-tower': '立式机箱',
     'gpu-3d': '4 MB 3D 加速卡',
     'gpu-256m': '256 MB 显卡',
+    'silicon-wafer': '硅晶圆',
+    'chip-substrate': '芯片基板',
+    'chip-ram': '自研内存芯片',
+    'chip-cpu': '自研处理器',
+    'chip-gpu': '自研图形芯片',
   },
   menu: {
     language: '语言',
@@ -311,6 +319,7 @@ export const zh: Messages = {
     eraReleased: (name: string, year: number) => `${year} 年：新时代开始发售，${name}。`,
     factoryBought: (region: string) => `已购买工厂：${region}。`,
     subsidiarySet: (region: string) => `工厂设置已保存：${region}。`,
+    houseChipsSet: '已为后续电脑保存自研芯片设置。',
     lineBuilt: (count, price) => `已建造 ${count} 段传送带，花费 ${price}。`,
     filterSet: item => `${item}将送往所选出口。`,
     filterCleared: '已移除过滤器。',
@@ -590,7 +599,7 @@ export const zh: Messages = {
       unlocks: '解锁',
       names: {
         passives: '无源元件', pcb: '印刷电路', power: '电源',
-        smt: '电路板组装（SMT）', computers: '电脑组装', automation: '自动化', robotics: '机器人技术', global: '国际扩张',
+        smt: '电路板组装（SMT）', computers: '电脑组装', automation: '自动化', robotics: '机器人技术', global: '国际扩张', semiconductors: '半导体',
       },
     },
     market: {
@@ -701,6 +710,12 @@ export const zh: Messages = {
     noNews: '暂无消息。',
     entry: (rival: string) => `${rival} 进入了您的市场。`,
     priceWar: (rival: string, market: string) => `价格战：${rival} 正在向${market}市场大量倾销。`,
+  },
+  chips: {
+    title: '电脑中的自研芯片',
+    intro: '在装配台组装的所有产品中，用自研芯片替换外购的处理器、显卡或内存。装配台中不能留有被替换的零件。',
+    replaces: { cpu: '替换处理器', gpu: '替换显卡', ram: '替换内存' },
+    apply: '应用到生产线',
   },
   tutorial: {
     title: '教程',

@@ -65,6 +65,13 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - Les livraisons différées réservent la capacité du quai et débitent le capital à la commande. Elles entrent dans le stock et le registre des unités achetées au tick d’arrivée. Un quai qui attend des lots reste en place jusqu’à leur arrivée.
 - Le format v8 conserve les révisions, les délais et la réservation des stocks. Les commandes standard du format v7 gardent leurs conditions.
 
+## Puces maison (v0.17.0)
+
+- Données : objets `silicon-wafer`, `chip-substrate`, `chip-ram`, `chip-cpu`, `chip-gpu` ; machines `ram-fab`, `cpu-fab`, `gpu-fab` (recettes dans `COMPONENT_RECIPES`) ; licence `semiconductors` ; marchés `chip-*`.
+- `HOUSE_CHIPS` et `withHouseChips` : `recipeOf(type, modèle, design, époque, puces)` remplace, pour l’établi seulement, chaque pièce de catégorie processeur, carte graphique ou mémoire par la puce maison. `saleOffer` reçoit les puces et marque `chips` sur le contrat ; `validSaleTerms` les vérifie.
+- `career.houseChips` (ordre de `HOUSE_CHIPS`), commande `set-house-chips` (`checkHouseChips` : licences, liste valide, stock des établis compatible). `chipsOf(progress)` est passé avec `eraOf(progress)` à chaque calcul de recette ; le cache des liaisons logistiques en dépend.
+- Format v19 : `houseChips`, marchés de puces, `chips` des contrats. La migration v17 crée une concurrence limitée aux marchés de v0.16.0 ; la migration v18 ajoute les marchés de puces et l’offre d’entrée des rivaux qui les servent.
+
 ## Concurrence (v0.16.0)
 
 - `packages/game-data/src/competition.ts` : `MARKET_IDS`, `MARKET_DEMAND`, `RIVALS` (nom fictif, année d’entrée, parts, agressivité), `COMPETITION`.

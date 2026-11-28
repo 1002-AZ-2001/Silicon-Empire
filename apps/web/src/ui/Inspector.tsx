@@ -4,7 +4,7 @@ import {
   isComponentMachine,
 } from '@silicon-empire/game-data';
 import {
-  ROUTER_SIDES, batchTicks, eraOf, monthlyPowerBill, nextLevel, powerOf, powerUse, productionTicks, repairCost, wearOf, beltStatus, beltTarget, checkBuild, checkFloor, checkLine, checkParcel, checkOrder, checkProductModel, footprintOf,
+  ROUTER_SIDES, batchTicks, chipsOf, eraOf, monthlyPowerBill, nextLevel, powerOf, powerUse, productionTicks, repairCost, wearOf, beltStatus, beltTarget, checkBuild, checkFloor, checkLine, checkParcel, checkOrder, checkProductModel, footprintOf,
   floorCost, inventoryTotal, lineCost, modelUnlocked, operatorOf, orderCost, orderableItems, portConnections, portsOf,
   parcelPrice, productionStatus, rejectionFor, upgradeCost, roomOfMachine, routerLinks,
   upgradeUnlocked,
@@ -205,7 +205,7 @@ function PowerDetails({ world, machine, controls }: { world: World; machine: Mac
 function ProductionDetails({ world, machine, controls }: { world: World; machine: Machine; controls: WorkshopControls }) {
   const { t } = useI18n();
   const model = machine.model ?? 'office';
-  const recipe = recipeOf(machine.type, model, world.design, eraOf(world.progress));
+  const recipe = recipeOf(machine.type, model, world.design, eraOf(world.progress), chipsOf(world.progress));
   if (!recipe) return null;
   const options = PRODUCT_MODELS.filter(option => modelUnlocked(world.progress, option) && (option !== 'custom' || world.design))
     .map(value => ({ value, error: checkProductModel(world, machine, value) }));
@@ -478,7 +478,7 @@ function Logistics({ world, machine, controls }: { world: World; machine: Machin
     );
   }
   if (machine.type === 'splitter' || machine.type === 'merger') return <RouterDetails world={world} machine={machine} />;
-  if (recipeOf(machine.type, machine.model, world.design, eraOf(world.progress))) return <ProductionDetails world={world} machine={machine} controls={controls} />;
+  if (recipeOf(machine.type, machine.model, world.design, eraOf(world.progress), chipsOf(world.progress))) return <ProductionDetails world={world} machine={machine} controls={controls} />;
   if (definition.capacity === 0) return null;
 
   const stock = world.stocks[machine.id] ?? {};

@@ -6,12 +6,15 @@ import type { StandardModel } from './production';
  * company adds what it sells. Every month the price index of a market moves towards the level the
  * total supply allows, and rivals grow where prices are high and shrink where they are low.
  */
-export const MARKET_IDS = ['capacitor-reel', 'bare-pcb', 'transformer', 'circuit-board', 'office', 'gaming', 'professional'] as const;
+export const MARKET_IDS = [
+  'capacitor-reel', 'bare-pcb', 'transformer', 'circuit-board', 'office', 'gaming', 'professional', 'chip-ram', 'chip-cpu', 'chip-gpu',
+] as const;
 export type MarketId = (typeof MARKET_IDS)[number];
 
 /** Units the market buys per month at the reference price. */
 export const MARKET_DEMAND: Readonly<Record<MarketId, number>> = {
   'capacitor-reel': 300, 'bare-pcb': 300, transformer: 240, 'circuit-board': 120, office: 60, gaming: 30, professional: 20,
+  'chip-ram': 200, 'chip-cpu': 100, 'chip-gpu': 60,
 };
 
 /** Market of an item sold to the wholesaler, if any. */
@@ -38,11 +41,11 @@ export interface Rival {
 }
 
 export const RIVALS: Readonly<Record<RivalId, Rival>> = {
-  helion: { name: 'Helion Microdevices', entryYear: 1975, markets: { 'capacitor-reel': 30, 'bare-pcb': 25, transformer: 20 }, aggressiveness: 5 },
+  helion: { name: 'Helion Microdevices', entryYear: 1975, markets: { 'capacitor-reel': 30, 'bare-pcb': 25, transformer: 20, 'chip-ram': 30 }, aggressiveness: 5 },
   vortek: { name: 'Vortek Systems', entryYear: 1975, markets: { office: 35, gaming: 25 }, aggressiveness: 8 },
-  norrland: { name: 'Norrland Data', entryYear: 1983, markets: { office: 20, professional: 40, 'circuit-board': 20 }, aggressiveness: 4 },
-  kaori: { name: 'Kaori Denki', entryYear: 1986, markets: { 'circuit-board': 30, transformer: 25, gaming: 25 }, aggressiveness: 6 },
-  xinhe: { name: 'Xinhe Electronics', entryYear: 1990, markets: { 'capacitor-reel': 30, 'bare-pcb': 35, transformer: 20, office: 15 }, aggressiveness: 10 },
+  norrland: { name: 'Norrland Data', entryYear: 1983, markets: { office: 20, professional: 40, 'circuit-board': 20, 'chip-cpu': 30 }, aggressiveness: 4 },
+  kaori: { name: 'Kaori Denki', entryYear: 1986, markets: { 'circuit-board': 30, transformer: 25, gaming: 25, 'chip-gpu': 35 }, aggressiveness: 6 },
+  xinhe: { name: 'Xinhe Electronics', entryYear: 1990, markets: { 'capacitor-reel': 30, 'bare-pcb': 35, transformer: 20, office: 15, 'chip-ram': 25 }, aggressiveness: 10 },
 };
 
 export const COMPETITION = {
