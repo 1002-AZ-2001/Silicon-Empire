@@ -1,9 +1,9 @@
 import {
-  CAREER, CUSTOM_ITEMS, FLOOR_COST_CENTS, LOANS, SPECIALTIES, TECHNOLOGIES, FLOOR_TYPES, ITEMS, ITEM_TYPES, LAND, MACHINES, MAX_LINE_LENGTH, POWER, PURCHASE, ROLE_EFFECTS, STAFF, SUPPLIERS, UPGRADE_COSTS, WEAR,
+  CALENDAR, CAREER, CUSTOM_ITEMS, REGIONS, FLOOR_COST_CENTS, LOANS, SPECIALTIES, TECHNOLOGIES, FLOOR_TYPES, ITEMS, ITEM_TYPES, LAND, MACHINES, MAX_LINE_LENGTH, POWER, PURCHASE, ROLE_EFFECTS, STAFF, SUPPLIERS, UPGRADE_COSTS, WEAR,
   WORKSHOP, designParts, designPower, isLineType, obsolescence, pcDesignSchema, recipeOf, saleOffer,
 } from '@silicon-empire/game-data';
 import type {
-  Direction, EraId, FloorType, ItemType, StartYear, LineType, LoanId, MachineType, Specialty, TechId, UpgradeLevel, MilestoneId, PcDesign, ProductModel, PublishedDesign, ResearchId,
+  Direction, EraId, FloorType, RegionId, ItemType, StartYear, LineType, LoanId, MachineType, Specialty, TechId, UpgradeLevel, MilestoneId, PcDesign, ProductModel, PublishedDesign, ResearchId,
   SupplierId,
 } from '@silicon-empire/game-data';
 import { addItems, fitsInputStock, inventoryTotal, mergeInventories } from './inventory';
@@ -16,6 +16,8 @@ import type { Sales } from './sales';
 import { assignBaseOperators, createStaff, postAccepts, severance, staffRequired } from './staff';
 import type { Employee, StaffState } from './staff';
 import type { Floors } from './rooms';
+import { regionOpen, validSubsidiarySettings } from './abroad';
+import type { Subsidiary } from './abroad';
 import { eraAdoptable, erasBehind, loanAvailable, payoff, retoolCost, techAvailable } from './career';
 import type { CareerState } from './career';
 import { DEFAULT_COMPANY, roleUnlocked, salesBonusPercent, upgradeCost, validCompany } from './company';
@@ -166,6 +168,8 @@ export type Command =
   | { readonly kind: 'repay-loan'; readonly offer: LoanId }
   | { readonly kind: 'buy-tech'; readonly tech: TechId }
   | { readonly kind: 'adopt-era'; readonly era: EraId }
+  | { readonly kind: 'buy-factory'; readonly region: RegionId }
+  | ({ readonly kind: 'set-subsidiary'; readonly region: RegionId } & SubsidiarySettings)
   | { readonly kind: 'select-milestone'; readonly milestone: MilestoneId | null }
   | { readonly kind: 'select-research'; readonly research: ResearchId | null }
   | { readonly kind: 'upgrade'; readonly id: number }
@@ -198,7 +202,7 @@ type DesignError = 'design-invalid' | 'design-power' | 'design-in-use';
 export type CommandError = BuildError | OrderError | ModelError | SaleError | DesignError |
   'missing-machine' | 'not-a-splitter' | 'milestone-unavailable' | 'deliveries-pending' |
   'research-unavailable' | 'not-upgradable' | 'missing-candidate' | 'missing-employee' | 'staff-full' | 'not-staffed' |
-  'parcel-unavailable' | 'not-career' | 'specialty-chosen' | 'loan-unavailable' | 'tech-unavailable' | 'bankrupt' | 'era-unavailable' |
+  'parcel-unavailable' | 'not-career' | 'specialty-chosen' | 'loan-unavailable' | 'tech-unavailable' | 'bankrupt' | 'era-unavailable' | 'region-unavailable' | 'subsidiary-invalid' |
   'not-worn';
 
 export type CommandResult =
@@ -512,7 +516,34 @@ function withCareer(world: World, career: CareerState, capitalCents = world.capi
 }
 
 /** Career commands: the specialty, loans, licences and eras. */
-type CareerCommand = Extract<Command, { kind: 'choose-specialty' | 'take-loan' | 'repay-loan' | 'buy-tech' | 'adopt-era' }>;
+type CareerCommand = Extract<Command, {
+  kind: 'choose-specialty' | 'take-loan' | 'repay-loan' | 'buy-tech' | 'adopt-era' | 'buy-factory' | 'set-subsidiary';
+}>;
+
+/** Settings of a factory abroad chosen by the player. */
+export type SubsidiarySettings = Pick<Subsidiary, 'product' | 'destination' | 'mode' | 'dockId'>;
+
+/** A factory can be bought with the licence, in an open region, once per region. */
+export function checkFactory(world: World, region: RegionId): CommandError | null {
+  const career = world.progress.career;
+  if (!career) return 'not-career';
+  if (!career.technologies.includes('global') || !regionOpen(region, career.startYear, world.tick) ||
+    career.abroad.subsidiaries.some(subsidiary => subsidiary.region === region)) return 'region-unavailable';
+  if (world.capitalCents < REGIONS[region].factoryCostCents) return 'insufficient-funds';
+  return null;
+}
+
+export function checkSubsidiary(world: World, region: RegionId, settings: SubsidiarySettings): CommandError | null {
+  const career = world.progress.career;
+  if (!career) return 'not-career';
+  if (!career.abroad.subsidiaries.some(subsidiary => subsidiary.region === region)) return 'region-unavailable';
+  if (!validSubsidiarySettings(settings)) return 'subsidiary-invalid';
+  if (settings.product === 'pc-office-packaged' && !career.technologies.includes('computers')) return 'locked';
+  if (settings.dockId !== null && !world.machines.some(machine => machine.id === settings.dockId && machine.type === 'receiving')) {
+    return 'not-a-dock';
+  }
+  return null;
+}
 
 /**
  * Moving the assembly lines to a later era: the stock waiting at every assembler must suit the new
@@ -532,6 +563,24 @@ export function checkEra(world: World, era: EraId): CommandError | null {
 
 function applyCareer(world: World, command: CareerCommand): CommandResult {
   const career = world.progress.career;
+  if (command.kind === 'buy-factory') {
+    const error = checkFactory(world, command.region);
+    if (error || !career) return { ok: false, reason: error ?? 'not-career' };
+    const cost = REGIONS[command.region].factoryCostCents;
+    const subsidiary: Subsidiary = {
+      region: command.region, product: null, destination: 'local', mode: 'surface', dockId: null,
+      nextRun: world.tick + CALENDAR.monthTicks, idle: false,
+    };
+    const abroad = { ...career.abroad, subsidiaries: [...career.abroad.subsidiaries, subsidiary], spentCents: career.abroad.spentCents + cost };
+    return { ok: true, machine: null, world: withCareer(world, { ...career, abroad }, world.capitalCents - cost) };
+  }
+  if (command.kind === 'set-subsidiary') {
+    const settings: SubsidiarySettings = { product: command.product, destination: command.destination, mode: command.mode, dockId: command.dockId };
+    const error = checkSubsidiary(world, command.region, settings);
+    if (error || !career) return { ok: false, reason: error ?? 'not-career' };
+    const subsidiaries = career.abroad.subsidiaries.map(subsidiary => subsidiary.region === command.region ? { ...subsidiary, ...settings } : subsidiary);
+    return { ok: true, machine: null, world: withCareer(world, { ...career, abroad: { ...career.abroad, subsidiaries } }) };
+  }
   if (command.kind === 'adopt-era') {
     const error = checkEra(world, command.era);
     if (error || !career) return { ok: false, reason: error ?? 'not-career' };
@@ -588,7 +637,7 @@ export function applyCommand(world: World, command: Command): CommandResult {
   // A bankrupt company is frozen: the game is over.
   if (world.progress.career?.bankrupt) return { ok: false, reason: 'bankrupt' };
   if (command.kind === 'choose-specialty' || command.kind === 'take-loan' || command.kind === 'repay-loan' || command.kind === 'buy-tech' ||
-    command.kind === 'adopt-era') {
+    command.kind === 'adopt-era' || command.kind === 'buy-factory' || command.kind === 'set-subsidiary') {
     return applyCareer(world, command);
   }
   if (command.kind === 'publish-design') {

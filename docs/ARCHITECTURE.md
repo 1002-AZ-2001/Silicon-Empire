@@ -65,6 +65,13 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - Les livraisons différées réservent la capacité du quai et débitent le capital à la commande. Elles entrent dans le stock et le registre des unités achetées au tick d’arrivée. Un quai qui attend des lots reste en place jusqu’à leur arrivée.
 - Le format v8 conserve les révisions, les délais et la réservation des stocks. Les commandes standard du format v7 gardent leurs conditions.
 
+## Carte du monde (v0.15.0)
+
+- `packages/game-data/src/regions.ts` : `REGIONS` (ouverture, prix, taux, délais, fret, position sur la carte), `PRODUCT_LINES`, `PRODUCT_INPUTS`, `ABROAD`. Licence `global`.
+- `packages/simulation/src/abroad.ts` : `progress.career.abroad` (usines, expéditions, dépenses, recettes, unités importées). `advanceAbroad` est appelé par `step` après les échéances : production mensuelle payée en entier ou usine à l’arrêt, expéditions arrivées vendues au grossiste ou livrées à un quai (`DockAccess`), attente si le quai manque de place. Les coûts et prix (`unitCost`, `monthlyCost`, `homePrice`, `localPrice`) suivent l’époque équipée.
+- Commandes `buy-factory` (`checkFactory`) et `set-subsidiary` (`checkSubsidiary`). Intégrité : régions ouvertes et uniques, réglages valides, expéditions dans les délais, dépenses au moins égales au prix des usines ; le capital plafond compte les recettes à l’étranger, le capital engagé les dépenses, la conservation des unités les importations.
+- Interface : `apps/web/src/ui/WorldPanel.tsx` (carte SVG stylisée, fiche de région, réglages, expéditions). Format v17 : `career.abroad` ; la migration v16 ajoute un état vide.
+
 ## Décor et paysage (v0.14.0)
 
 - `apps/web/src/game/landscape.ts` : décor purement visuel, hors simulation. Une couronne de 8 tuiles autour du terrain (trottoir, route, champs) et des champs sur les parcelles non achetées. Les décors sont placés par un bruit pseudo-aléatoire de la tuile et dessinés avec des `Blitter` Phaser (une feuille de sprites par saison). La saison vient du mois : `careerDate` en carrière, `tick / CALENDAR.monthTicks` ailleurs. Le paysage est redessiné quand la saison ou les parcelles changent.

@@ -10,6 +10,29 @@
 | Assemblage initial | 30 s simulées par PC |
 | Prix exemple Gaming X1 | 899 € |
 
+## Carte du monde v0.15.0
+
+| Région | Ouverture | Usine | Salaires | Matériaux | Prix local | Bateau / avion | Fret bateau / avion |
+|---|---:|---:|---:|---:|---:|---|---|
+| Europe de l’Est | 1990 | 120 000 € | 30 % | 100 % | 75 % | 3 j (camion) / 1 j | 0,15 / 1,50 €/kg |
+| Amérique du Nord | 1975 | 200 000 € | 85 % | 100 % | 105 % | 12 j / 2 j | 0,20 / 3,00 €/kg |
+| Mexique | 1975 | 100 000 € | 15 % | 95 % | 70 % | 18 j / 2 j | 0,25 / 3,50 €/kg |
+| Brésil | 1975 | 100 000 € | 20 % | 105 % | 70 % | 20 j / 2 j | 0,25 / 3,50 €/kg |
+| Inde | 1991 | 100 000 € | 8 % | 95 % | 55 % | 25 j / 2 j | 0,25 / 3,00 €/kg |
+| Chine | 1980 | 150 000 € | 20 % | 85 % | 65 % | 34 j / 3 j | 0,30 / 3,50 €/kg |
+| Japon et Corée | 1975 | 250 000 € | 55 % | 90 % | 100 % | 36 j / 3 j | 0,30 / 4,00 €/kg |
+
+- Pourcentages par rapport à l’Europe de l’Ouest. Frais fixes : 3 000 € par mois aux salaires de l’Europe de l’Ouest, multipliés par le taux de la région.
+- Production mensuelle et main-d’œuvre (salaires de l’Europe de l’Ouest) : 100 bobines de condensateurs (30 €), 100 circuits nus (35 €), 80 transformateurs (40 €), 40 cartes électroniques (80 €), 30 PC bureautiques (60 €). Matériaux : matières premières au prix fournisseur, composants au prix du grossiste, pièces de PC de l’époque équipée.
+- Exemple : une usine chinoise de condensateurs vendus au grossiste de l’atelier coûte 7 210 € par mois, fret compris, et rapporte 14 000 € : 6 790 € de marge. L’usine (150 000 €) est remboursée en 22 mois de jeu, soit moins de 2 heures à ×1.
+- Poids : 2 kg par bobine, 1 kg par circuit ou carte, 3 kg par transformateur, 12 kg par PC emballé.
+
+Repères (ordres de grandeur, arrondis pour le jeu) :
+- Shanghai → Rotterdam : 32 jours au calendrier de Maersk, 30 à 40 jours selon les services ([Maersk, Asia–Europe](https://www.maersk.com/east-west-network/trans-suez/asia-europe), [Sino-Shipping](https://www.sino-shipping.com/de/versand-aus-china/laufzeiten/)). Shanghai → Los Angeles : 11 à 20 jours ([Flexport](https://www.flexport.com/rates/shanghai-china/los_angeles-ca-usa)). Les autres délais maritimes (Amérique du Nord, Mexique, Brésil, Inde) sont des estimations faites à partir des distances, sans source directe.
+- Conteneur de 40 pieds Shanghai → Rotterdam : environ 2 100 à 4 000 $ en 2025-2026 ([Drewry WCI](https://www.drewry.co.uk/supply-chain-advisors/supply-chain-expertise/world-container-index-assessed-by-drewry)), soit quelques dizaines de centimes par kilo. Fret aérien Chine → Europe du Nord : 3,52 $/kg fin décembre 2025 ([STAT Times, données Freightos](https://www.stattimes.com/amp/air-cargo/global-air-cargo-rates-ease-after-peak-season-freightos-data-shows-1357688)).
+- Salaires : la main-d’œuvre chinoise du textile est estimée à environ 7 $/h en 2024 ([preprints.org](https://www.preprints.org/manuscript/202610.0261/v1)), contre plusieurs dizaines de dollars en Europe de l’Ouest ([BLS](https://www.bls.gov/opub/ted/2009/mar/wk5/art01.htm), données anciennes). Les taux des autres régions sont des ordres de grandeur.
+- Zone économique spéciale de Shenzhen approuvée le 26 août 1980 ([Wikipédia](https://en.wikipedia.org/wiki/Shenzhen_Special_Economic_Zone)) ; réformes indiennes à partir du 1er juillet 1991 ([Wikipédia](https://en.wikipedia.org/wiki/Economic_liberalisation_in_India)).
+
 ## Décor v0.14.0
 
 | Élément | Prix | Effet |

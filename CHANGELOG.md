@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.0 — Carte du monde
+
+- Nouvelle licence de carrière **Expansion internationale** (100 000 €, après l’assemblage de cartes CMS) et panneau **Monde** : carte stylisée des 8 régions, liste des régions, fiche de chaque région, routes des usines vers l’atelier et expéditions en cours.
+- **Une usine par région** hors Europe de l’Ouest, où se trouve l’atelier : Europe de l’Est, Amérique du Nord, Mexique, Brésil, Inde, Chine, Japon et Corée. Les régions ouvrent avec l’histoire : Chine en 1980 (zone économique spéciale de Shenzhen), Europe de l’Est en 1990, Inde en 1991 (libéralisation) ; les autres sont ouvertes dès 1975.
+- Chaque région a ses **coûts** (salaires, matériaux, prix de l’usine), son **marché local** et ses **délais** : bateau (camion depuis l’Europe de l’Est) de 3 à 36 jours, avion de 1 à 3 jours. Un jour de calendrier dure 10 secondes simulées (un mois de 30 jours = 5 minutes).
+- Une usine fabrique chaque mois un produit au choix : bobines de condensateurs, circuits imprimés nus, transformateurs, cartes électroniques ou, avec la licence Ordinateurs, PC bureautiques emballés aux pièces de l’époque équipée. Le mois est payé en entier (frais fixes, matériaux, main-d’œuvre, fret) ou l’usine reste à l’arrêt.
+- Trois **débouchés** : le marché local, le grossiste de l’atelier à l’arrivée, ou un quai de réception de l’atelier pour alimenter les chaînes. Un quai trop plein fait attendre l’expédition ; un quai démoli renvoie la marchandise au grossiste.
+- La sauvegarde v17 enregistre les usines, les expéditions et les comptes à l’étranger. Les carrières précédentes commencent sans usine à l’étranger.
+
 ## 0.14.0 — Décor et paysage
 
 - **Paysage** autour de l’usine : un trottoir, une route à deux voies avec lampadaires et bancs, puis des champs plantés d’arbres, de sapins, de buissons, de rochers et de fleurs. Le décor est le même dans chaque partie (placement pseudo-aléatoire fixe).

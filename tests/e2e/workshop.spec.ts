@@ -1158,3 +1158,26 @@ test('propose le poste informatique et la plante dans l’aménagement, et pose 
   await clickTile(page, 30, 30);
   await expect(inspector(page)).toContainText('Plante verte');
 });
+
+test('ouvre la carte du monde, suit une expédition et achète une usine en Inde', async ({ page }) => {
+  const saved = JSON.parse(await readFile(new URL('./fixtures/career-world.json', import.meta.url), 'utf8'));
+  await resumeFixture(page, saved);
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: 'Pause' }).click();
+  await page.getByRole('button', { name: /^Monde/ }).click();
+  const panel = page.getByRole('dialog', { name: 'Monde' });
+  await expect(panel.getByRole('img', { name: 'Carte du monde' })).toBeVisible();
+  await expect(panel.getByRole('region', { name: 'Expéditions en cours' })).toContainText('100 × Bobine de condensateurs · Chine');
+  const regions = panel.getByRole('group', { name: 'Régions' });
+  await regions.getByRole('button', { name: 'Mexique' }).click();
+  await expect(panel.getByRole('region', { name: 'Mexique' })).toContainText('Usine possédée');
+  await regions.getByRole('button', { name: 'Inde' }).click();
+  const india = panel.getByRole('region', { name: 'Inde' });
+  await expect(india).toContainText('Bateau 25 j · avion 2 j');
+  await india.getByRole('button', { name: /^Acheter l’usine/ }).click();
+  await expect(page.getByText('Usine achetée : Inde.')).toBeVisible();
+  await india.getByLabel('Production').selectOption('circuit-board');
+  await india.getByLabel('Débouché').selectOption('export');
+  await india.getByLabel('Transport').selectOption('air');
+  await india.getByRole('button', { name: 'Appliquer' }).click();
+  await expect(page.getByText('Usine réglée : Inde.')).toBeVisible();
+});

@@ -19,6 +19,7 @@ import { StaffPanel } from './StaffPanel';
 import { TutorialCard, tutorialTarget, useTutorialHidden } from './Tutorial';
 import type { TutorialTarget } from './Tutorial';
 import { SalesPanel } from './SalesPanel';
+import { WorldPanel } from './WorldPanel';
 import { Dialog, Icon, gameTime } from './shared';
 import { useWorld } from './use-world';
 import type { World } from '@silicon-empire/simulation';
@@ -48,6 +49,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
   const bankOpen = useStore(controls.store, state => state.bankOpen);
   const techOpen = useStore(controls.store, state => state.techOpen);
   const eraOpen = useStore(controls.store, state => state.eraOpen);
+  const worldOpen = useStore(controls.store, state => state.worldOpen);
   const [tutorialHidden, setTutorialHidden] = useTutorialHidden(session.id);
   const career = world.progress.career;
   const target = tutorialTarget(world, tutorialHidden);
@@ -283,6 +285,10 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
             <button type="button" className={`button${highlight('technologies')}`} onClick={() => controls.store.setState({ techOpen: true })}>
               {t.workshop.technologies}
             </button>
+            <button type="button" className="button" onClick={() => controls.store.setState({ worldOpen: true })}>
+              {t.world.title}
+              {career.abroad.shipments.length > 0 && <small className="button-detail"> · {career.abroad.shipments.length}</small>}
+            </button>
             <button type="button" className="button" onClick={() => controls.store.setState({ eraOpen: true })}>
               {t.eras.title}
               {erasBehind(career) > 0 && career.technologies.includes('computers') && <small className="button-detail"> · {t.eras.newEra}</small>}
@@ -343,6 +349,9 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
       {career && !career.specialty && !career.bankrupt && <StarterPanel controls={controls} onMenu={openMenu} />}
       {career && bankOpen && (
         <BankPanel world={world} career={career} controls={controls} onClose={() => controls.store.setState({ bankOpen: false })} />
+      )}
+      {career && worldOpen && (
+        <WorldPanel world={world} career={career} controls={controls} onClose={() => controls.store.setState({ worldOpen: false })} />
       )}
       {career && eraOpen && (
         <EraPanel world={world} career={career} controls={controls} onClose={() => controls.store.setState({ eraOpen: false })} />

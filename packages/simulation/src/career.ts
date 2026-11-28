@@ -2,6 +2,8 @@ import {
   CAREER, ERAS, ERA_IDS, LOANS, LOAN_IDS, MARKET_PRICES, SPECIALTIES, STAFF, TECHNOLOGIES, TECH_IDS, dateAt, eraIndex, eraOfYear, instalment,
 } from '@silicon-empire/game-data';
 import type { EraId, ItemType, LoanId, Specialty, StartYear, TechId } from '@silicon-empire/game-data';
+import { NO_ABROAD } from './abroad';
+import type { AbroadState } from './abroad';
 import { addItems } from './inventory';
 import type { Inventory } from './inventory';
 
@@ -35,6 +37,8 @@ export interface CareerState {
   readonly era: EraId;
   /** Retooling licences paid to move to later eras. */
   readonly retoolCents: number;
+  /** Factories abroad and their shipments. */
+  readonly abroad: AbroadState;
 }
 
 export function createCareer(tick = 0, startYear: StartYear = 2017): CareerState {
@@ -42,7 +46,7 @@ export function createCareer(tick = 0, startYear: StartYear = 2017): CareerState
   return {
     specialty: null, technologies: [], loans: [], borrowedCents: 0, repaidCents: 0, missed: 0, bankrupt: false,
     nextInstalment: tick + STAFF.payPeriodTicks, marketRevenueCents: 0, marketShipped: {},
-    startYear, released: era, era, retoolCents: 0,
+    startYear, released: era, era, retoolCents: 0, abroad: NO_ABROAD,
   };
 }
 

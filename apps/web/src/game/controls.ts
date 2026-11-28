@@ -1,6 +1,6 @@
 import { FLOOR_TYPES, LOANS, MACHINE_TYPES, PURCHASE, isLineType } from '@silicon-empire/game-data';
 import type {
-  EraId, FloorType, LineType, LoanId, MilestoneId, ResearchId, PcDesign, ProductModel, Specialty, SupplierId, TechId,
+  EraId, FloorType, LineType, RegionId, LoanId, MilestoneId, ResearchId, PcDesign, ProductModel, Specialty, SupplierId, TechId,
 } from '@silicon-empire/game-data';
 import {
   FixedStepClock, cableChanges, cableCost, floorCost, lineCost, machineAt, repairCost, ownsTile, parcelOf, parcelPrice, payoff, purchaseCost, turnClockwise,
@@ -9,7 +9,7 @@ import { createStore } from 'zustand/vanilla';
 import type { Messages, Translator } from '../i18n';
 import type { ItemType, MachineType } from '@silicon-empire/game-data';
 import type {
-  Command, Company, LineTile, PurchaseLine, Rotation, RouterFilter, Simulation, Speed, Tile,
+  Command, Company, LineTile, PurchaseLine, Rotation, RouterFilter, Simulation, Speed, SubsidiarySettings, Tile,
 } from '@silicon-empire/simulation';
 
 /** Shop cart: lots per component, all from one supplier. Kept while the shop is closed. */
@@ -76,6 +76,7 @@ interface WorkshopUi {
   bankOpen: boolean;
   techOpen: boolean;
   eraOpen: boolean;
+  worldOpen: boolean;
   cart: Cart;
 }
 
@@ -126,6 +127,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     bankOpen: false,
     techOpen: false,
     eraOpen: false,
+    worldOpen: false,
     cart: EMPTY_CART,
   }));
   const clock = new FixedStepClock();
@@ -305,6 +307,10 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     career({ kind: 'take-loan', offer }, ({ t, money }) => t.feedback.loanTaken(money(LOANS[offer].principalCents)));
   const buyTech = (tech: TechId) =>
     career({ kind: 'buy-tech', tech }, ({ t }) => t.feedback.techBought(t.career.tech.names[tech]));
+  const buyFactory = (region: RegionId) =>
+    career({ kind: 'buy-factory', region }, ({ t }) => t.feedback.factoryBought(t.world.regions[region]));
+  const setSubsidiary = (region: RegionId, settings: SubsidiarySettings) =>
+    career({ kind: 'set-subsidiary', region, ...settings }, ({ t }) => t.feedback.subsidiarySet(t.world.regions[region]));
   const adoptEra = (era: EraId) =>
     career({ kind: 'adopt-era', era }, ({ t }) => t.feedback.eraAdopted(t.eras.names[era]));
   function repayLoan(offer: LoanId) {
@@ -459,7 +465,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
   }
 
   return {
-    store, clock, setSpeed, togglePause, order, checkout, setCartLots, buyParcel, hire, fire, assign, chooseSpecialty, takeLoan, repayLoan, buyTech, adoptEra, repair, setRestock, brand, configure, selectMilestone, selectResearch, upgrade, setProductModel,
+    store, clock, setSpeed, togglePause, order, checkout, setCartLots, buyParcel, hire, fire, assign, chooseSpecialty, takeLoan, repayLoan, buyTech, adoptEra, buyFactory, setSubsidiary, repair, setRestock, brand, configure, selectMilestone, selectResearch, upgrade, setProductModel,
     startSale: (model: ProductModel) => changeSale(model), cancelSale: () => changeSale(),
     publishDesign,
     startLine, extendLine, cancelLine, finishLine,

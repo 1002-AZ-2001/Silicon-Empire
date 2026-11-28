@@ -10,7 +10,9 @@ import { LEVELS, RESEARCH, ROLE_EFFECTS, WEAR } from '@silicon-empire/game-data'
 import { capacityOf, researchPartsDone, researchStillNeeded } from './research';
 import type { ResearchState } from './research';
 import { acceptsSale } from './sales';
-import { advanceCareer, marketPrice, sellToMarket, wholesalePrice } from './career';
+import { advanceAbroad } from './abroad';
+import type { DockAccess } from './abroad';
+import { advanceCareer, erasBehind, marketPrice, sellToMarket, wholesalePrice } from './career';
 import { managerMorale, researchBoost, restockItem, salesBonusPercent, technicianRepairs } from './company';
 import { advanceStaff, assignBaseOperators, operatorOf, staffRequired } from './staff';
 import { advanceUtilities, brokenDown, powerRatio, productionTicks } from './power';
@@ -581,6 +583,15 @@ export function step(world: World): World {
   if (progress.career) {
     let career;
     ({ career, capitalCents } = advanceCareer(progress.career, tick, capitalCents));
+    // Factories abroad: monthly production, then shipments reaching home.
+    const docks: DockAccess = {
+      space: id => world.machines.some(machine => machine.id === id && machine.type === 'receiving')
+        ? dockSpace({ ...world, stocks, deliveries }, id) : -1,
+      deliver: (id, item, units) => setStock(id, current => addItems(current, item, units)),
+    };
+    let abroad;
+    ({ abroad, capitalCents } = advanceAbroad(career.abroad, tick, capitalCents, { era: career.era, behind: erasBehind(career) }, docks));
+    if (abroad !== career.abroad) career = { ...career, abroad };
     if (career !== progress.career) progress = { ...progress, career };
   }
 

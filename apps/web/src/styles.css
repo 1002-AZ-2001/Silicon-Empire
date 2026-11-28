@@ -1070,3 +1070,26 @@ kbd {
 .restock-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; font-size: .8rem; }
 .restock-list label { display: flex; align-items: center; gap: 6px; }
 .restock-list img { width: 12px; height: 12px; image-rendering: pixelated; }
+
+/* World map */
+.world-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(260px, 2fr); gap: 14px; align-items: start; margin: 10px 0; }
+.world-map { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 4px; }
+.world-sea { fill: #0f2a33; }
+.world-land { fill: #2c4a3a; stroke: #3f6650; stroke-width: .3; }
+.world-route { stroke: var(--lime); stroke-width: .35; stroke-dasharray: 1.2 1; opacity: .75; }
+.world-route-air { stroke: #8cc8ff; stroke-dasharray: .4 .8; }
+.world-marker { cursor: pointer; }
+.world-marker circle { fill: #61706a; stroke: #101615; stroke-width: .4; }
+.world-marker text { fill: #e6eee8; font: 600 2.1px/1 Inter, system-ui, sans-serif; text-anchor: middle; paint-order: stroke; stroke: #101615; stroke-width: .5; }
+.world-home circle { fill: #f2c14e; }
+.world-owned circle { fill: var(--lime); }
+.world-open circle { fill: #8cc8ff; }
+.world-closed { opacity: .55; }
+.world-selected circle { stroke: #ffffff; stroke-width: .6; }
+.world-regions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.world-regions .button[aria-pressed="true"] { border-color: var(--lime); color: var(--lime); }
+.world-detail { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 4px; background: #121c19; }
+.world-detail header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.world-detail h3 { margin: 0; }
+.world-form { display: grid; gap: 8px; }
+@media (max-width: 860px) { .world-layout { grid-template-columns: 1fr; } }
