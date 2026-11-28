@@ -1,6 +1,6 @@
 import { CONVEYOR, ITEM_TYPES, LAND, MACHINE_TYPES, WORKSHOP, isConveyor, isLineType, recipeOf } from '@silicon-empire/game-data';
 import {
-  checkBuild, checkCables, checkFloor, checkLine, fitsMap, footprintOf, linksOf, machineAt, neighbour, portsOf, previewTarget, productionStatus,
+  checkBuild, checkCables, checkFloor, checkLine, fitsMap, siteOf, siteView, footprintOf, linksOf, machineAt, neighbour, portsOf, previewTarget, productionStatus,
   ownedBounds, parcelBounds, parcelForSale, parcelPrice, powerOf, roomsOf,
 } from '@silicon-empire/simulation';
 import Phaser from 'phaser';
@@ -11,7 +11,7 @@ import { currentTranslator } from '../i18n';
 import { floorOf, isBuildTool, isCableTool, isDrawTool } from './controls';
 import { createFloor } from './floor';
 import { Landscape, RING_TILES, preloadLandscape } from './landscape';
-import type { Direction, FloorType, RoomType } from '@silicon-empire/game-data';
+import type { Direction, FloorType, RegionId, RoomType } from '@silicon-empire/game-data';
 import type { Footprint, Machine, Placement, Simulation, Tile, World, WorldPort } from '@silicon-empire/simulation';
 import type { WorkshopControls } from './controls';
 
@@ -107,6 +107,25 @@ export class WorkshopScene extends Phaser.Scene {
   private landLabels!: Phaser.GameObjects.Container;
   private drawnParcels: World['parcels'] | null = null;
   private landscape!: Landscape;
+  private viewCache: { source: World; site: RegionId | null; view: World } | null = null;
+  private previousCache: { source: World; site: RegionId | null; view: World } | null = null;
+
+  /** The world shown on the map: the home workshop, or the view of the chosen site, reused while unchanged. */
+  private world(): World {
+    this.viewCache = this.viewOf(this.simulation.getSnapshot(), this.viewCache);
+    return this.viewCache.view;
+  }
+
+  private previousWorld(): World {
+    this.previousCache = this.viewOf(this.simulation.getPrevious(), this.previousCache);
+    return this.previousCache.view;
+  }
+
+  private viewOf(source: World, cache: { source: World; site: RegionId | null; view: World } | null) {
+    const site = this.controls.store.getState().site;
+    if (cache && cache.source === source && cache.site === site) return cache;
+    return { source, site, view: site && siteOf(source, site) ? siteView(source, site) : source };
+  }
   private cableLayer!: Phaser.GameObjects.Graphics;
   private drawnCables: World['cables'] | null = null;
   private readonly unitSprites = new Map<number, Phaser.GameObjects.Image>();
@@ -131,7 +150,7 @@ export class WorkshopScene extends Phaser.Scene {
   }
 
   create() {
-    const world = this.simulation.getSnapshot();
+    const world = this.world();
     createFloor(this, world.columns, world.rows);
     this.landscape = new Landscape(this, world.columns, world.rows);
     this.floorLayer = this.add.container(0, 0).setDepth(0.5);
@@ -154,10 +173,19 @@ export class WorkshopScene extends Phaser.Scene {
 
     const unsubscribeWorld = this.simulation.subscribe(cause => {
       if (cause !== 'command') return;
-      this.drawEquipment(this.simulation.getSnapshot());
+      this.drawEquipment(this.world());
       this.drawPreview();
     });
     const unsubscribeUi = this.controls.store.subscribe((state, previous) => {
+      if (state.site !== previous.site) {
+        // Another site: redraw everything for its layout and centre on its land.
+        this.drawnMachines = null;
+        this.drawnFloors = null;
+        this.drawnParcels = null;
+        this.drawnCables = null;
+        this.drawEquipment(this.world());
+        this.resetView();
+      }
       if (state.hover !== previous.hover || state.tool !== previous.tool || state.line !== previous.line ||
           state.rotation !== previous.rotation || state.selectedId !== previous.selectedId ||
           state.selectedParcel !== previous.selectedParcel) {
@@ -178,7 +206,7 @@ export class WorkshopScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number) {
-    this.landscape.update(this.simulation.getSnapshot());
+    this.landscape.update(this.world());
     this.drawUnits();
     this.drawLights();
     const hasKey = (keys: string[]) => Number(keys.some(key => this.keys.has(key)));
@@ -192,7 +220,7 @@ export class WorkshopScene extends Phaser.Scene {
   resetView() {
     if (!this.ready) return;
     // Centre on the owned land, not on the whole map.
-    const { x, y, width, height } = ownedBounds(this.simulation.getSnapshot());
+    const { x, y, width, height } = ownedBounds(this.world());
     this.center = { x: (x + width / 2) * TILE, y: (y + height / 2) * TILE };
     this.cameras.main.setZoom(1);
     this.controls.store.setState({ zoom: 1 });
@@ -219,7 +247,7 @@ export class WorkshopScene extends Phaser.Scene {
 
   private syncCamera() {
     const camera = this.cameras.main;
-    const { columns, rows } = this.simulation.getSnapshot();
+    const { columns, rows } = this.world();
     const clampAxis = (coordinate: number, size: number, viewport: number) => {
       const halfMap = size * TILE / 2;
       const range = Math.max(0, halfMap + MAP_MARGIN - viewport / (2 * camera.zoom));
@@ -522,7 +550,7 @@ export class WorkshopScene extends Phaser.Scene {
   /** Units are drawn between their previous and current tick positions. */
   /** Status light on each production machine: green working, amber waiting for parts, red output full. */
   private drawLights() {
-    const world = this.simulation.getSnapshot();
+    const world = this.world();
     if (world === this.litWorld) return;
     this.litWorld = world;
     this.statusLights.clear();
@@ -539,9 +567,9 @@ export class WorkshopScene extends Phaser.Scene {
   }
 
   private drawUnits() {
-    const world = this.simulation.getSnapshot();
+    const world = this.world();
     const current = this.positionsOf(world);
-    const previous = this.positionsOf(this.simulation.getPrevious());
+    const previous = this.positionsOf(this.previousWorld());
     const progress = this.controls.clock.progress;
     const belts = Object.values(world.belts);
 
@@ -588,7 +616,7 @@ export class WorkshopScene extends Phaser.Scene {
   private drawPreview() {
     this.outline.clear();
     this.ghost.setVisible(false);
-    const world = this.simulation.getSnapshot();
+    const world = this.world();
     const { tool, rotation, hover, selectedId, line } = this.controls.store.getState();
 
     const floor = floorOf(tool);

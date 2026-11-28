@@ -1,7 +1,7 @@
 import {
-  CAREER, ERAS, ERA_IDS, LOANS, marketOfItem, LOAN_IDS, MARKET_PRICES, SPECIALTIES, STAFF, TECHNOLOGIES, TECH_IDS, dateAt, eraIndex, eraOfYear, instalment,
+  CAREER, ERAS, ERA_IDS, LOANS, REGIONS, marketOfItem, LOAN_IDS, MARKET_PRICES, SPECIALTIES, STAFF, TECHNOLOGIES, TECH_IDS, dateAt, eraIndex, eraOfYear, instalment,
 } from '@silicon-empire/game-data';
-import type { EraId, HouseChip, ItemType, LoanId, Specialty, StartYear, TechId } from '@silicon-empire/game-data';
+import type { EraId, HouseChip, ItemType, RegionId, LoanId, Specialty, StartYear, TechId } from '@silicon-empire/game-data';
 import { NO_ABROAD } from './abroad';
 import { advanceCompetition, createCompetition, recordSale } from './competition';
 import type { CompetitionState } from './competition';
@@ -156,4 +156,14 @@ export function sellToMarket(career: CareerState, item: ItemType, bonusPercent =
     marketShipped: addItems(career.marketShipped, item, 1),
     competition: market ? recordSale(career.competition, market, 1) : career.competition,
   };
+}
+
+/** Price the local wholesaler pays for a unit at a site abroad: the reference price of the region. */
+export function localWholesalePrice(item: ItemType, region: RegionId): number {
+  return Math.floor((MARKET_PRICES[item] ?? 0) * REGIONS[region].marketPercent / 100);
+}
+
+/** Records one unit sold to a local wholesaler abroad: no home market is involved. */
+export function sellLocally(career: CareerState, item: ItemType, priceCents: number): CareerState {
+  return { ...career, marketRevenueCents: career.marketRevenueCents + priceCents, marketShipped: addItems(career.marketShipped, item, 1) };
 }

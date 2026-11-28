@@ -8,7 +8,7 @@ import {
 import { z } from 'zod';
 import type { World } from '@silicon-empire/simulation';
 
-export const SAVE_VERSION = 19;
+export const SAVE_VERSION = 20;
 const OLD_MAP = 64;
 export const MAX_WORKSHOP_NAME = 40;
 
@@ -358,7 +358,7 @@ function migrateV9(value: unknown): unknown {
   if (!v9.success) return null;
   const { staff } = withRequiredStaff({
     ...v9.data.world, staff: createStaff(v9.data.world.tick), floors: {}, parcels: [...LAND.initialParcels],
-    utilities: { enabled: false, cut: false, nextBill: 1, spentCents: 0 }, cables: [], wear: {}, company: DEFAULT_COMPANY,
+    utilities: { enabled: false, cut: false, nextBill: 1, spentCents: 0 }, cables: [], wear: {}, company: DEFAULT_COMPANY, sites: [],
   });
   // Roles arrive with v15: the v10 record keeps employees without one.
   const employees = staff.employees.map(employee => ({
@@ -695,7 +695,7 @@ const termsV19 = termsV16.extend({ chips: z.array(z.enum(HOUSE_CHIPS)).min(1).ma
 
 /** Version 19 (v0.17.0): chip markets, house chips in PCs and contracts with them. */
 const saveV19 = z.strictObject({
-  version: z.literal(SAVE_VERSION),
+  version: z.literal(19),
   ...header,
   world: z.strictObject({
     ...saveV18.shape.world.shape,
@@ -718,12 +718,12 @@ function migrateV18(value: unknown): z.input<typeof saveV19> | null {
   const v18 = saveV18.safeParse(value);
   if (!v18.success) return null;
   const { career, ...progress } = v18.data.world.progress;
-  if (!career) return { ...v18.data, version: SAVE_VERSION, world: { ...v18.data.world, progress } };
+  if (!career) return { ...v18.data, version: 19, world: { ...v18.data.world, progress } };
   const chipMarkets = ['chip-ram', 'chip-cpu', 'chip-gpu'] as const;
   const { competition } = career;
   return {
     ...v18.data,
-    version: SAVE_VERSION,
+    version: 19,
     world: {
       ...v18.data.world,
       progress: {
@@ -751,7 +751,40 @@ function migrateV18(value: unknown): z.input<typeof saveV19> | null {
   };
 }
 
-const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9, migrateV10, migrateV11, migrateV12, migrateV13, migrateV14, migrateV15, migrateV16, migrateV17, migrateV18];
+const worldV19 = saveV19.shape.world.shape;
+
+/** Version 20 (v0.18.0): buildable sites abroad, one per factory. */
+const saveV20 = z.strictObject({
+  version: z.literal(SAVE_VERSION),
+  ...header,
+  world: z.strictObject({
+    ...worldV19,
+    sites: z.array(z.strictObject({
+      region: z.enum(REGION_IDS),
+      machines: worldV19.machines,
+      stocks: worldV19.stocks,
+      belts: worldV19.belts,
+      routers: worldV19.routers,
+      production: worldV19.production,
+      floors: worldV19.floors,
+      parcels: worldV19.parcels,
+      cables: worldV19.cables,
+    })).max(REGION_IDS.length),
+  }),
+});
+
+/** Every factory bought before v0.18.0 gets its empty land. */
+function migrateV19(value: unknown): z.input<typeof saveV20> | null {
+  const v19 = saveV19.safeParse(value);
+  if (!v19.success) return null;
+  const factories = v19.data.world.progress.career?.abroad.subsidiaries ?? [];
+  const sites = factories.map(factory => ({
+    region: factory.region, machines: [], stocks: {}, belts: {}, routers: {}, production: {}, floors: {}, parcels: [...LAND.initialParcels], cables: [],
+  }));
+  return { ...v19.data, version: SAVE_VERSION, world: { ...v19.data.world, sites } };
+}
+
+const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9, migrateV10, migrateV11, migrateV12, migrateV13, migrateV14, migrateV15, migrateV16, migrateV17, migrateV18, migrateV19];
 
 function versionOf(value: unknown): unknown {
   return typeof value === 'object' && value !== null && 'version' in value ? value.version : undefined;
@@ -764,7 +797,7 @@ export function decodeSave(value: unknown): SaveRecord | null {
   if (typeof version === 'number' && Number.isInteger(version) && version >= 1) {
     for (const migrate of migrations.slice(version - 1)) current = migrate(current);
   }
-  const decoded = saveV19.safeParse(current);
+  const decoded = saveV20.safeParse(current);
   if (!decoded.success) return null;
 
   const { data } = decoded;

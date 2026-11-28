@@ -716,6 +716,12 @@ export const ja: Messages = {
     replaces: { cpu: 'プロセッサを置き換え', gpu: 'グラフィックカードを置き換え', ram: 'メモリを置き換え' },
     apply: 'ラインに適用',
   },
+  sites: {
+    label: '拠点',
+    home: '本社工房',
+    build: 'この拠点で建設',
+    prices: (percent: number) => `この拠点の資材価格：本国価格の${percent}%。`,
+  },
   tutorial: {
     title: 'チュートリアル',
     step: (step: number, total: number) => `ステップ ${step}/${total}`,

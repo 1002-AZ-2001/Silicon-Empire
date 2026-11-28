@@ -17,6 +17,8 @@ import { assignBaseOperators, createStaff, postAccepts, severance, staffRequired
 import type { Employee, StaffState } from './staff';
 import type { Floors } from './rooms';
 import { regionOpen, validSubsidiarySettings } from './abroad';
+import { HOME_ONLY_MACHINES, createSite, regionalMaterialPercent, siteOf, siteView, withSite } from './sites';
+import type { Site } from './sites';
 import type { Subsidiary } from './abroad';
 import { eraAdoptable, erasBehind, loanAvailable, payoff, retoolCost, techAvailable } from './career';
 import type { CareerState } from './career';
@@ -146,6 +148,10 @@ export interface World {
   /** Brand colour and emblem. */
   readonly company: Company;
   readonly ledger: Ledger;
+  /** Buildable factories abroad, in purchase order. */
+  readonly sites: readonly Site[];
+  /** Set only on the view of a site (`siteView`): the region whose layout this world shows. */
+  readonly region?: RegionId;
 }
 
 /** One tile of a conveyor line; the direction is the rotation. */
@@ -170,6 +176,7 @@ export type Command =
   | { readonly kind: 'adopt-era'; readonly era: EraId }
   | { readonly kind: 'buy-factory'; readonly region: RegionId }
   | { readonly kind: 'set-house-chips'; readonly chips: readonly HouseChip[] }
+  | { readonly kind: 'at-site'; readonly region: RegionId; readonly command: SiteCommand }
   | ({ readonly kind: 'set-subsidiary'; readonly region: RegionId } & SubsidiarySettings)
   | { readonly kind: 'select-milestone'; readonly milestone: MilestoneId | null }
   | { readonly kind: 'select-research'; readonly research: ResearchId | null }
@@ -186,6 +193,13 @@ export type Command =
   | { readonly kind: 'hire'; readonly candidate: number }
   | { readonly kind: 'fire'; readonly employee: number }
   | { readonly kind: 'assign'; readonly employee: number; readonly machine: number | null };
+
+/** Commands that change the layout of one site: the same as at the home workshop. */
+export const SITE_COMMAND_KINDS = [
+  'build', 'build-line', 'paint-floor', 'buy-parcel', 'lay-cable', 'remove-cable', 'repair', 'set-restock', 'configure',
+  'set-product-model', 'rotate', 'demolish', 'order', 'purchase', 'upgrade',
+] as const;
+export type SiteCommand = Extract<Command, { readonly kind: (typeof SITE_COMMAND_KINDS)[number] }>;
 
 /** One line of a shop order: `lots` lots of one component from one supplier. */
 export interface PurchaseLine {
@@ -259,6 +273,7 @@ export function createWorld(
     wear: {},
     company: DEFAULT_COMPANY,
     ledger: EMPTY_LEDGER,
+    sites: [],
   };
 }
 
@@ -441,17 +456,18 @@ export function volumeDiscount(lots: number): number {
 }
 
 /** Price of a shop line, supplier rate and volume discount included, rounded down to the cent. */
-export function purchaseLineCost({ item, supplier, lots }: PurchaseLine): number {
-  const percent = SUPPLIERS[supplier].pricePercent * (100 - volumeDiscount(lots));
-  return Math.floor((ITEMS[item].unitCostCents ?? 0) * PURCHASE.lotSize * lots * percent / 10_000);
+/** Price of a shop line; `regionPercent` is the local price of materials at a site abroad. */
+export function purchaseLineCost({ item, supplier, lots }: PurchaseLine, regionPercent = 100): number {
+  const percent = SUPPLIERS[supplier].pricePercent * (100 - volumeDiscount(lots)) * regionPercent;
+  return Math.floor((ITEMS[item].unitCostCents ?? 0) * PURCHASE.lotSize * lots * percent / 1_000_000);
 }
 
-export function purchaseCost(lines: readonly PurchaseLine[]): number {
-  return lines.reduce((total, line) => total + purchaseLineCost(line), 0);
+export function purchaseCost(lines: readonly PurchaseLine[], regionPercent = 100): number {
+  return lines.reduce((total, line) => total + purchaseLineCost(line, regionPercent), 0);
 }
 
-export function orderCost(item: ItemType, supplier: SupplierId = 'express'): number {
-  return purchaseLineCost({ item, supplier, lots: 1 });
+export function orderCost(item: ItemType, supplier: SupplierId = 'express', regionPercent = 100): number {
+  return purchaseLineCost({ item, supplier, lots: 1 }, regionPercent);
 }
 
 /** Units a receiving dock can still accept: capacity minus its stock and the lots it awaits. */
@@ -474,7 +490,7 @@ export function checkPurchase(world: World, id: number, lines: readonly Purchase
     if (!orderable.has(line.item)) return 'locked';
     lots += line.lots;
   }
-  if (world.capitalCents < purchaseCost(lines)) return 'insufficient-funds';
+  if (world.capitalCents < purchaseCost(lines, regionalMaterialPercent(world))) return 'insufficient-funds';
   if (lots * PURCHASE.lotSize > dockSpace(world, id)) return 'dock-full';
   return null;
 }
@@ -602,7 +618,9 @@ function applyCareer(world: World, command: CareerCommand): CommandResult {
       nextRun: world.tick + CALENDAR.monthTicks, idle: false,
     };
     const abroad = { ...career.abroad, subsidiaries: [...career.abroad.subsidiaries, subsidiary], spentCents: career.abroad.spentCents + cost };
-    return { ok: true, machine: null, world: withCareer(world, { ...career, abroad }, world.capitalCents - cost) };
+    // The factory comes with its own land to build on.
+    const bought = withCareer(world, { ...career, abroad }, world.capitalCents - cost);
+    return { ok: true, machine: null, world: { ...bought, sites: [...world.sites, createSite(command.region)] } };
   }
   if (command.kind === 'set-subsidiary') {
     const settings: SubsidiarySettings = { product: command.product, destination: command.destination, mode: command.mode, dockId: command.dockId };
@@ -666,6 +684,15 @@ function applyCareer(world: World, command: CareerCommand): CommandResult {
 export function applyCommand(world: World, command: Command): CommandResult {
   // A bankrupt company is frozen: the game is over.
   if (world.progress.career?.bankrupt) return { ok: false, reason: 'bankrupt' };
+  if (command.kind === 'at-site') {
+    // A site command runs on the view of the site, then the site takes the new layout.
+    if (world.region || !siteOf(world, command.region)) return { ok: false, reason: 'region-unavailable' };
+    const inner = command.command;
+    if (!(SITE_COMMAND_KINDS as readonly string[]).includes(inner.kind)) return { ok: false, reason: 'locked' };
+    if (inner.kind === 'build' && HOME_ONLY_MACHINES.includes(inner.type)) return { ok: false, reason: 'locked' };
+    const result = applyCommand(siteView(world, command.region), inner);
+    return result.ok ? { ok: true, machine: result.machine, world: withSite(world, result.world) } : result;
+  }
   if (command.kind === 'choose-specialty' || command.kind === 'take-loan' || command.kind === 'repay-loan' || command.kind === 'buy-tech' ||
     command.kind === 'adopt-era' || command.kind === 'buy-factory' || command.kind === 'set-subsidiary' || command.kind === 'set-house-chips') {
     return applyCareer(world, command);
@@ -959,7 +986,7 @@ export function applyCommand(world: World, command: Command): CommandResult {
     const lines = command.kind === 'purchase' ? command.lines : [{ item: command.item, supplier: command.supplier ?? 'express', lots: 1 }];
     const reason = checkPurchase(world, machine.id, lines);
     if (reason) return { ok: false, reason };
-    const cost = purchaseCost(lines);
+    const cost = purchaseCost(lines, regionalMaterialPercent(world));
     let stock = world.stocks[machine.id] ?? {};
     let purchased = world.ledger.purchased;
     const deliveries = [...world.deliveries];

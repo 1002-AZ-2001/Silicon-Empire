@@ -97,6 +97,7 @@ describe('schéma de sauvegarde', () => {
 
   it('migre une sauvegarde v0.2.0 avec ses unités en transit', () => {
     const v2 = JSON.parse(JSON.stringify({ ...inTransit, version: 2 }));
+    delete v2.world.sites;
     for (const key of ['routers', 'production', 'progress', 'sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels', 'utilities', 'cables', 'wear', 'company']) delete v2.world[key];
     Object.assign(v2.world, OLD_MAP);
     for (const key of ['produced', 'consumed', 'delivered']) delete v2.world.ledger[key];
@@ -106,6 +107,7 @@ describe('schéma de sauvegarde', () => {
 
   it('migre une sauvegarde v0.2.x en bac à sable et refuse ses champs v4', () => {
     const v3 = JSON.parse(JSON.stringify({ ...inTransit, version: 3 }));
+    delete v3.world.sites;
     for (const key of ['production', 'progress', 'sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels', 'utilities', 'cables', 'wear', 'company']) delete v3.world[key];
     Object.assign(v3.world, OLD_MAP);
     for (const key of ['produced', 'consumed', 'delivered']) delete v3.world.ledger[key];
@@ -119,7 +121,7 @@ describe('schéma de sauvegarde', () => {
     const world = runningAssembler('office');
     const { sales, design, deliveries } = world;
     const oldWorld: Record<string, unknown> = { ...world };
-    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels', 'utilities', 'cables', 'wear', 'company']) delete oldWorld[key];
+    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels', 'utilities', 'cables', 'wear', 'company', 'sites']) delete oldWorld[key];
     Object.assign(oldWorld, OLD_MAP);
     const legacy = { ...record, version: 4, world: oldWorld };
     const restored = decodeSave(legacy);
@@ -144,7 +146,7 @@ describe('schéma de sauvegarde', () => {
     const world = runningAssembler('gaming');
     const { sales, design, deliveries } = world;
     const oldWorld: Record<string, unknown> = { ...world };
-    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels', 'utilities', 'cables', 'wear', 'company']) delete oldWorld[key];
+    for (const key of ['sales', 'design', 'deliveries', 'research', 'staff', 'floors', 'parcels', 'utilities', 'cables', 'wear', 'company', 'sites']) delete oldWorld[key];
     Object.assign(oldWorld, OLD_MAP);
     const restored = decodeSave({ ...record, version: 5, world: oldWorld });
     expect(restored).toEqual({ ...record, world: asMigrated(world) });
@@ -259,6 +261,7 @@ describe('schéma de sauvegarde', () => {
     expect(decodeSave({ ...saved, world: { ...world, machines: world.machines.map(machine => ({ ...machine, level: 2 })) } })).toBeNull();
 
     const v8 = JSON.parse(JSON.stringify({ ...record, version: 8 }));
+    delete v8.world.sites;
     delete v8.world.research;
     delete v8.world.staff;
     delete v8.world.floors;
@@ -360,6 +363,7 @@ describe('personnel dans la sauvegarde', () => {
       },
     };
     delete legacyWorld.staff;
+    delete legacyWorld.sites;
     delete legacyWorld.floors;
     delete legacyWorld.parcels;
     for (const key of ['utilities', 'cables', 'wear', 'company']) delete legacyWorld[key];
@@ -379,6 +383,7 @@ describe('sols dans la sauvegarde', () => {
     expect(decodeSave({ ...saved, world: { ...world, floors: { 515: 'concrete' } } })).toBeNull();
     expect(decodeSave({ ...saved, world: { ...world, floors: { 99999: 'wood' } } })).toBeNull();
     const v10 = JSON.parse(JSON.stringify({ ...saved, version: 10 }));
+    delete v10.world.sites;
     withoutRoles(v10);
     delete v10.world.floors;
     delete v10.world.parcels;
@@ -398,6 +403,7 @@ describe('parcelles dans la sauvegarde', () => {
 
     const painted = run(createWorld(), { kind: 'paint-floor', tiles: [{ x: 3, y: 4 }, { x: 63, y: 63 }], floor: 'wood' });
     const v11 = JSON.parse(JSON.stringify({ ...record, version: 11, world: painted }));
+    delete v11.world.sites;
     withoutRoles(v11);
     delete v11.world.parcels;
     for (const key of ['utilities', 'cables', 'wear', 'company']) delete v11.world[key];
@@ -419,6 +425,7 @@ describe('carrière dans la sauvegarde', () => {
     expect(decodeSave({ ...saved, world: { ...world, progress: { ...world.progress, career: { ...career, missed: 3 } } } })).toBeNull();
     expect(decodeSave({ ...saved, world: { ...world, progress: { ...world.progress, career: { ...career, technologies: ['pcb'] } } } })).toBeNull();
     const v12 = JSON.parse(JSON.stringify({ ...record, version: 12 }));
+    delete v12.world.sites;
     withoutRoles(v12);
     for (const key of ['utilities', 'cables', 'wear', 'company']) delete v12.world[key];
     expect(decodeSave(v12)).toEqual({ ...record, world: asLegacy(record.world) });
@@ -436,6 +443,7 @@ describe('énergie et usure dans la sauvegarde', () => {
     expect(decodeSave({ ...saved, world: { ...world, wear: { 1: 999 } } })).toBeNull();
     expect(decodeSave({ ...saved, world: { ...world, cables: [99_999] } })).toBeNull();
     const v13 = JSON.parse(JSON.stringify({ ...record, version: 13 }));
+    delete v13.world.sites;
     withoutRoles(v13);
     for (const key of ['utilities', 'cables', 'wear', 'company']) delete v13.world[key];
     expect(decodeSave(v13)?.world).toMatchObject({ utilities: { enabled: false }, cables: [], wear: {} });
@@ -454,6 +462,7 @@ describe('rôles et entreprise dans la sauvegarde', () => {
     const forged = world.staff.employees.map(employee => ({ ...employee, role: 'pilot' }));
     expect(decodeSave({ ...saved, world: { ...world, staff: { ...world.staff, employees: forged } } })).toBeNull();
     const v14 = withoutRoles(JSON.parse(JSON.stringify({ ...saved, version: 14 })));
+    delete v14.world.sites;
     delete v14.world.company;
     delete v14.world.machines[0].restock;
     const migrated = decodeSave(v14);
@@ -477,10 +486,13 @@ describe('époques dans la sauvegarde', () => {
     expect(decodeSave(forge({ era: 'steam' }))).toBeNull();
     world = createWorld('career');
     const v15 = JSON.parse(JSON.stringify({ ...record, version: 15, world }));
+    delete v15.world.sites;
     for (const key of ['startYear', 'released', 'era', 'retoolCents', 'abroad', 'competition', 'houseChips']) delete v15.world.progress.career[key];
     expect(decodeSave(v15)).toEqual({ ...record, world });
-    expect(decodeSave(JSON.parse(JSON.stringify({ ...record, version: 15 })))).toEqual(record);
-    expect(SAVE_VERSION).toBe(19);
+    const plain = JSON.parse(JSON.stringify({ ...record, version: 15 }));
+    delete plain.world.sites;
+    expect(decodeSave(plain)).toEqual(record);
+    expect(SAVE_VERSION).toBe(20);
   });
 });
 
@@ -499,6 +511,7 @@ describe('usines à l’étranger dans la sauvegarde', () => {
     expect(decodeSave(spent)).toBeNull();
     const world = createWorld('career');
     const v16 = JSON.parse(JSON.stringify({ ...record, version: 16, world }));
+    delete v16.world.sites;
     delete v16.world.progress.career.abroad;
     delete v16.world.progress.career.competition;
     delete v16.world.progress.career.houseChips;
@@ -516,6 +529,7 @@ describe('concurrence dans la sauvegarde', () => {
     forged.world.progress.career.competition.prices.office = 500;
     expect(decodeSave(forged)).toBeNull();
     const v17 = JSON.parse(JSON.stringify({ ...saved, version: 17 }));
+    delete v17.world.sites;
     delete v17.world.progress.career.competition;
     delete v17.world.progress.career.houseChips;
     expect(decodeSave(v17)).toEqual(saved);
@@ -537,6 +551,7 @@ describe('puces maison dans la sauvegarde', () => {
     forged.world.progress.career.houseChips = ['ssd'];
     expect(decodeSave(forged)).toBeNull();
     const v18 = JSON.parse(JSON.stringify({ ...saved, version: 18 }));
+    delete v18.world.sites;
     const old = v18.world.progress.career;
     old.houseChips = undefined;
     delete old.houseChips;
@@ -547,5 +562,22 @@ describe('puces maison dans la sauvegarde', () => {
     const migrated = decodeSave(v18);
     expect(migrated?.world.progress.career?.houseChips).toEqual([]);
     expect(migrated?.world.progress.career?.competition).toEqual(career.competition);
+  });
+});
+
+describe('usines constructibles dans la sauvegarde', () => {
+  it('donne un terrain aux usines des anciennes sauvegardes et restaure les bâtiments d’un site', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const fixture = JSON.parse(await readFile(new URL('../../../../tests/e2e/fixtures/career-world.json', import.meta.url), 'utf8'));
+    const migrated = decodeSave(fixture);
+    expect(migrated?.world.sites.map(site => site.region)).toEqual(['china', 'mexico']);
+    if (!migrated) throw new Error('sauvegarde illisible');
+    const built = applyCommand(migrated.world, { kind: 'at-site', region: 'china', command: { kind: 'build', type: 'storage', x: 12, y: 12, rotation: 0 } });
+    if (!built.ok) throw new Error(built.reason);
+    const saved: SaveRecord = { ...migrated, world: built.world };
+    expect(decodeSave(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+    const forged = JSON.parse(JSON.stringify(saved));
+    forged.world.sites.reverse();
+    expect(decodeSave(forged)).toBeNull();
   });
 });

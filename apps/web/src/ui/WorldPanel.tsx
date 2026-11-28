@@ -186,6 +186,9 @@ export function WorldPanel({ world, career, controls, onClose }: {
               )}
               {subsidiary && (
                 <>
+                  <button type="button" className="button" onClick={() => { controls.selectSite(subsidiary.region); onClose(); }}>
+                    {t.sites.build}
+                  </button>
                   <p className={subsidiary.idle ? 'order-hint text-error' : 'placement-status'}>
                     {subsidiary.idle ? t.world.idle : t.world.nextRun(gameTime(subsidiary.nextRun - world.tick))}
                   </p>

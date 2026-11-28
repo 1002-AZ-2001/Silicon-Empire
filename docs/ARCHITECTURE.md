@@ -65,6 +65,14 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - Les livraisons différées réservent la capacité du quai et débitent le capital à la commande. Elles entrent dans le stock et le registre des unités achetées au tick d’arrivée. Un quai qui attend des lots reste en place jusqu’à leur arrivée.
 - Le format v8 conserve les révisions, les délais et la réservation des stocks. Les commandes standard du format v7 gardent leurs conditions.
 
+## Sites constructibles (v0.18.0)
+
+- `packages/simulation/src/sites.ts` : `world.sites` (région, machines, stocks, convoyeurs, routeurs, production, sols, parcelles, câbles). `siteView(world, region)` donne le monde vu depuis un site (champ `region`), et `withSite` y remet le terrain et les données communes. Le moteur tourne inchangé sur ces vues.
+- `step` fait avancer chaque site (`stepLayout(vue, false)`), puis l’atelier avec les calendriers de l’entreprise (`stepLayout(monde, true)`). Les livraisons sont traitées par le terrain du quai. La facture d’électricité additionne les sites.
+- Commande `at-site` (`SITE_COMMAND_KINDS`) : construction, lignes, sols, parcelles, câbles, réparations, réglages, achats, améliorations. `HOME_ONLY_MACHINES` : Direction et laboratoire. `regionalMaterialPercent` règle les prix des achats ; `localWholesalePrice` et `sellLocally` gèrent les ventes locales.
+- Intégrité : contrôles globaux, puis `checkLayout` pour l’atelier et chaque site (identifiants uniques partagés, capital engagé et unités détenues additionnés). Un site par usine, dans l’ordre d’achat.
+- Interface : `site` dans l’état des contrôles ; la scène, l’inspecteur, la barre de construction et la boutique reçoivent la vue du site. Format v20 : `sites` ; la migration v19 crée un terrain vide par usine.
+
 ## Puces maison (v0.17.0)
 
 - Données : objets `silicon-wafer`, `chip-substrate`, `chip-ram`, `chip-cpu`, `chip-gpu` ; machines `ram-fab`, `cpu-fab`, `gpu-fab` (recettes dans `COMPONENT_RECIPES`) ; licence `semiconductors` ; marchés `chip-*`.

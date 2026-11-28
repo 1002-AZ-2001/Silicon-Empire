@@ -717,6 +717,12 @@ export const zh: Messages = {
     replaces: { cpu: '替换处理器', gpu: '替换显卡', ram: '替换内存' },
     apply: '应用到生产线',
   },
+  sites: {
+    label: '地点',
+    home: '总部车间',
+    build: '在此地点建设',
+    prices: (percent: number) => `此地点的材料价格：本国价格的 ${percent}%。`,
+  },
   tutorial: {
     title: '教程',
     step: (step: number, total: number) => `第 ${step} 步，共 ${total} 步`,

@@ -1212,3 +1212,25 @@ test('bâtit une fonderie de processeurs et met les puces maison dans les PC', a
   await chips.getByRole('button', { name: 'Appliquer aux chaînes' }).click();
   await expect(page.getByText('Puces maison enregistrées pour les prochains PC.')).toBeVisible();
 });
+
+test('passe sur le site de l’usine en Chine, y construit puis revient à l’atelier', async ({ page }) => {
+  const saved = JSON.parse(await readFile(new URL('./fixtures/career-world.json', import.meta.url), 'utf8'));
+  await resumeFixture(page, saved);
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: 'Pause' }).click();
+  const homeEquipment = await equipment(page).innerText();
+  await page.getByRole('button', { name: /^Monde/ }).click();
+  const world = page.getByRole('dialog', { name: 'Monde' });
+  await world.getByRole('group', { name: 'Régions' }).getByRole('button', { name: 'Chine' }).click();
+  await world.getByRole('button', { name: 'Construire sur ce site' }).click();
+  await expect(page.getByLabel('Site')).toHaveValue('china');
+  await expect(page.getByRole('button', { name: /^Direction/ })).toHaveCount(0);
+  const before = await capital(page).innerText();
+  await page.getByRole('button', { name: /^Stockage/ }).click();
+  await clickTile(page, 30, 30);
+  await expect(capital(page)).not.toHaveText(before);
+  await page.keyboard.press('Escape');
+  await clickTile(page, 30, 30);
+  await expect(inspector(page)).toContainText('Casier de stockage');
+  await page.getByLabel('Site').selectOption('');
+  await expect(equipment(page)).toHaveText(homeEquipment);
+});
