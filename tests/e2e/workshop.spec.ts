@@ -1181,3 +1181,16 @@ test('ouvre la carte du monde, suit une expédition et achète une usine en Inde
   await india.getByRole('button', { name: 'Appliquer' }).click();
   await expect(page.getByText('Usine réglée : Inde.')).toBeVisible();
 });
+
+test('affiche les marchés, les rivaux et l’indice de prix dans la concurrence', async ({ page }) => {
+  const saved = JSON.parse(await readFile(new URL('./fixtures/career-world.json', import.meta.url), 'utf8'));
+  await resumeFixture(page, saved);
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: 'Pause' }).click();
+  await page.getByRole('button', { name: 'Concurrence', exact: true }).click();
+  const panel = page.getByRole('dialog', { name: 'Concurrence' });
+  const markets = panel.getByRole('table', { name: 'Marchés' });
+  await expect(markets.getByRole('row', { name: 'Bobine de condensateurs' })).toContainText('300');
+  await expect(markets.getByRole('row', { name: 'Bureautique' })).toContainText('100');
+  await expect(panel.getByRole('listitem', { name: 'Xinhe Electronics' })).toContainText('Depuis 1990');
+  await expect(panel.getByText('Rien à signaler pour l’instant.')).toBeVisible();
+});

@@ -28,7 +28,14 @@ function at(world: World, tick: number): World {
     tick,
     staff: { ...world.staff, nextPayday: world.staff.nextPayday + shift, nextPool: world.staff.nextPool + shift },
     utilities: { ...world.utilities, nextBill: world.utilities.nextBill + shift },
-    progress: { ...world.progress, career: { ...career, nextInstalment: career.nextInstalment + shift } },
+    progress: {
+      ...world.progress,
+      career: {
+        ...career, nextInstalment: career.nextInstalment + shift,
+        // Months always start on a multiple of the month length.
+        competition: { ...career.competition, nextMonth: (Math.floor(tick / CALENDAR.monthTicks) + 1) * CALENDAR.monthTicks },
+      },
+    },
   };
 }
 
@@ -114,10 +121,13 @@ describe('époques', () => {
     expect(erasBehind(career)).toBe(1);
     expect(orderableItems(world.progress).has('cpu-16bit')).toBe(true);
     expect(orderableItems(world.progress).has('cpu-8bit')).toBe(true);
-    expect(contractPrice(world, 65_000)).toBe(Math.ceil(65_000 * obsolescence(1) / 100));
+    const index = career.competition.prices.office;
+    expect(contractPrice(world, 65_000)).toBe(Math.ceil(65_000 * obsolescence(1) * index / 10_000));
     world = run(run(world, { kind: 'build', type: 'shipping', x: 20, y: 20, rotation: 0 }), { kind: 'start-sale', model: 'office' });
     const terms = world.sales.active?.terms;
-    expect(terms).toMatchObject({ era: '8bit', unitPriceCents: 55_250, unitMaterialCents: saleOffer('office', null, '8bit')?.unitMaterialCents });
+    expect(terms).toMatchObject({
+      era: '8bit', unitPriceCents: Math.ceil(65_000 * obsolescence(1) * index / 10_000), unitMaterialCents: saleOffer('office', null, '8bit')?.unitMaterialCents,
+    });
     expect(terms && validSaleTerms(terms)).toBe(true);
     expect(checkIntegrity(world)).toBe(true);
   });

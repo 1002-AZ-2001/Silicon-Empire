@@ -3,7 +3,7 @@ import {
   eraIndex, eraOfYear, instalment, isComponentMachine, obsolescence, ticksUntilYear,
 } from '@silicon-empire/game-data';
 import {
-  careerDate, checkEra, eraAdoptable, eraPartsOf, erasBehind, loanAvailable, monthlyDue, payoff, retoolCost, techAvailable, wholesalePrice,
+  careerDate, checkEra, eraAdoptable, marketPercent, eraPartsOf, erasBehind, loanAvailable, monthlyDue, payoff, retoolCost, techAvailable, wholesalePrice,
 } from '@silicon-empire/simulation';
 import { ITEM_ART } from '../art/items';
 import { MACHINE_ART } from '../art/machines';
@@ -252,7 +252,7 @@ export function MarketPrices({ career, bonus }: { career: CareerState; bonus: nu
           <li key={item}>
             <img src={ITEM_ART[item]} alt="" />
             <span>{t.items[item]} · {career.marketShipped[item] ?? 0}</span>
-            <strong>{money(wholesalePrice(item, bonus))}</strong>
+            <strong>{money(wholesalePrice(item, bonus, marketPercent(career, item)))} <small>{marketPercent(career, item)}&#8201;%</small></strong>
           </li>
         ))}
       </ul>

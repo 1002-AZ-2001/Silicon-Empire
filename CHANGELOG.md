@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.16.0 — Concurrents
+
+- **Marchés** de la carrière : bobines de condensateurs, circuits imprimés nus, transformateurs, cartes électroniques, et les PC bureautiques, gaming et professionnels des contrats. Chaque marché a une demande mensuelle.
+- Cinq **rivaux fictifs** entrent selon l’année : Helion Microdevices et Vortek Systems (1975), Norrland Data (1983), Kaori Denki (1986), Xinhe Electronics (1990). Chacun fournit une partie de la demande de ses marchés.
+- **Indice de prix** par marché, de 60 % à 130 % du prix de référence. Chaque mois, il se rapproche à moitié du niveau que permet l’offre totale (rivaux et ventes de l’entreprise) : il baisse quand le marché déborde, il monte quand il manque de produits. Les rivaux augmentent leur offre de 10 % quand l’indice atteint 105 % et la réduisent sous 90 %.
+- **Guerres de prix** : certains mois, un rival inonde un de ses marchés (+30 % de la demande) ; l’atelier affiche l’annonce. Les événements sont les mêmes dans chaque partie.
+- L’indice s’applique aux ventes au grossiste, aux nouveaux contrats de PC et aux marchandises des usines vendues au grossiste de l’atelier ; les ventes de l’entreprise comptent dans l’offre du mois. Les marchés locaux à l’étranger gardent le prix de référence.
+- Panneau **Concurrence** : demande, offre des rivaux, part de l’entreprise le mois dernier et indice de chaque marché ; rivaux et leurs volumes ; actualités. Le panneau Ventes affiche l’indice des prix du grossiste.
+- La sauvegarde v18 enregistre marchés, rivaux et actualités. Les carrières précédentes rencontrent les rivaux de leur année, aux prix de référence.
+
 ## 0.15.0 — Carte du monde
 
 - Nouvelle licence de carrière **Expansion internationale** (100 000 €, après l’assemblage de cartes CMS) et panneau **Monde** : carte stylisée des 8 régions, liste des régions, fiche de chaque région, routes des usines vers l’atelier et expéditions en cours.

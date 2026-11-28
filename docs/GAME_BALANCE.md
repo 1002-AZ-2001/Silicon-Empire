@@ -10,6 +10,22 @@
 | Assemblage initial | 30 s simulées par PC |
 | Prix exemple Gaming X1 | 899 € |
 
+## Concurrence v0.16.0
+
+| Marché | Demande / mois | Rivaux à l’entrée (part de la demande) |
+|---|---:|---|
+| Bobines de condensateurs | 300 | Helion 30 %, Xinhe 30 % |
+| Circuits imprimés nus | 300 | Helion 25 %, Xinhe 35 % |
+| Transformateurs | 240 | Helion 20 %, Kaori 25 %, Xinhe 20 % |
+| Cartes électroniques | 120 | Norrland 20 %, Kaori 30 % |
+| PC bureautiques | 60 | Vortek 35 %, Norrland 20 %, Xinhe 15 % |
+| PC gaming | 30 | Vortek 25 %, Kaori 25 % |
+| PC professionnels | 20 | Norrland 40 % |
+
+- Indice cible = 100 + 40 × (demande − offre) / demande, borné de 60 à 130 ; l’indice du mois est la moyenne de l’ancien et de la cible.
+- Exemple : 300 condensateurs demandés, 90 fournis par Helion en 1975 : la cible vaut 128 et l’indice passe à 114. Une presse Mk1 (25 bobines par mois) pèse peu ; dix presses Mk3 (750 par mois) font tomber l’indice vers 60.
+- Rivaux : +10 % d’offre dès 105, −10 % sous 90, entre 5 % et 80 % de la demande. Guerres de prix : 4 à 10 % de chance par mois et par rival.
+
 ## Carte du monde v0.15.0
 
 | Région | Ouverture | Usine | Salaires | Matériaux | Prix local | Bateau / avion | Fret bateau / avion |

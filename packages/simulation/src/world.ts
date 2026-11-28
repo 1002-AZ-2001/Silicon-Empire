@@ -1,6 +1,6 @@
 import {
   CALENDAR, CAREER, CUSTOM_ITEMS, REGIONS, FLOOR_COST_CENTS, LOANS, SPECIALTIES, TECHNOLOGIES, FLOOR_TYPES, ITEMS, ITEM_TYPES, LAND, MACHINES, MAX_LINE_LENGTH, POWER, PURCHASE, ROLE_EFFECTS, STAFF, SUPPLIERS, UPGRADE_COSTS, WEAR,
-  WORKSHOP, designParts, designPower, isLineType, obsolescence, pcDesignSchema, recipeOf, saleOffer,
+  WORKSHOP, designParts, designPower, isLineType, marketOfModel, obsolescence, pcDesignSchema, recipeOf, saleOffer,
 } from '@silicon-empire/game-data';
 import type {
   Direction, EraId, FloorType, RegionId, ItemType, StartYear, LineType, LoanId, MachineType, Specialty, TechId, UpgradeLevel, MilestoneId, PcDesign, ProductModel, PublishedDesign, ResearchId,
@@ -505,10 +505,12 @@ function withoutKey<T>(record: Readonly<Record<string, T>>, key: number): Readon
  * Price the customer pays per unit: the catalogue price, raised by salespeople and, in a career,
  * lowered for PCs of an era behind the latest one on sale.
  */
-export function contractPrice(world: World, catalogueCents: number): number {
+export function contractPrice(world: World, catalogueCents: number, model: ProductModel = 'office'): number {
   const career = world.progress.career;
   const percent = career ? obsolescence(erasBehind(career)) : 100;
-  return Math.ceil(catalogueCents * (100 + salesBonusPercent(world)) / 100 * percent / 100);
+  // Rivals move the price of PC contracts in a career.
+  const index = career && model !== 'custom' ? career.competition.prices[marketOfModel(model)] : 100;
+  return Math.ceil(catalogueCents * (100 + salesBonusPercent(world)) * percent * index / 1_000_000);
 }
 
 function withCareer(world: World, career: CareerState, capitalCents = world.capitalCents): World {
@@ -672,7 +674,7 @@ export function applyCommand(world: World, command: Command): CommandResult {
     if (!world.machines.some(machine => machine.type === 'shipping')) return { ok: false, reason: 'no-shipping-dock' };
     const offer = saleOffer(command.model, world.design, eraOf(world.progress));
     if (!offer) return { ok: false, reason: 'design-required' };
-    const terms = { ...offer, unitPriceCents: contractPrice(world, offer.unitPriceCents) };
+    const terms = { ...offer, unitPriceCents: contractPrice(world, offer.unitPriceCents, command.model) };
     const sales = { ...world.sales, active: { terms, delivered: 0 } };
     return { ok: true, world: { ...world, sales }, machine: null };
   }

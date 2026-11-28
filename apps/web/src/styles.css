@@ -1093,3 +1093,12 @@ kbd {
 .world-detail h3 { margin: 0; }
 .world-form { display: grid; gap: 8px; }
 @media (max-width: 860px) { .world-layout { grid-template-columns: 1fr; } }
+
+/* Competition */
+.market-table { width: 100%; border-collapse: collapse; margin: 10px 0 4px; font-size: .85rem; }
+.market-table th, .market-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; }
+.market-table th:first-child, .market-table tbody th { text-align: left; }
+.market-table thead th { color: var(--muted); font: 500 .68rem var(--mono); text-transform: uppercase; }
+.market-table td.market-high { color: var(--lime); }
+.market-table td.market-low { color: #ff8a7a; }
+@media (max-width: 640px) { .market-table { font-size: .75rem; } .market-table th, .market-table td { padding: 4px; } }
