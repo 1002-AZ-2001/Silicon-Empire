@@ -10,6 +10,12 @@
 | Assemblage initial | 30 s simulées par PC |
 | Prix exemple Gaming X1 | 899 € |
 
+## Sites constructibles v0.18.0
+
+- Achats sur un site : prix de la boutique × taux « Matériaux » de la région (tableau de la carte du monde). Ventes au quai d’expédition d’un site : prix du grossiste × taux « Prix local ».
+- Exemple en Chine : une bobine de condensateurs se vend 91 € sur place (65 % de 140 €), contre 140 € à l’atelier au prix de référence ; ses matières coûtent 59,50 € au lieu de 70 €. Le site est donc intéressant pour produire à bas coût, mais il faut encore rapatrier la production pour la vendre au prix de l’atelier (prochain volet) ou passer par la production gérée.
+- L’électricité des sites s’ajoute à la facture mensuelle de l’atelier, au même tarif.
+
 ## Puces maison v0.17.0
 
 | Puce | Fonderie | Matières | Coût des matières | Durée Mk1 | Grossiste | Boutique |

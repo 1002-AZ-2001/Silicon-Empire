@@ -716,6 +716,12 @@ export const de: Messages = {
     replaces: { cpu: 'ersetzt den Prozessor', gpu: 'ersetzt die Grafikkarte', ram: 'ersetzt den Speicher' },
     apply: 'Auf die Linien anwenden',
   },
+  sites: {
+    label: 'Standort',
+    home: 'Hauptwerkstatt',
+    build: 'An diesem Standort bauen',
+    prices: (percent: number) => `Materialpreise an diesem Standort: ${percent} % des Heimatpreises.`,
+  },
   tutorial: {
     title: 'Tutorial',
     step: (step: number, total: number) => `Schritt ${step} von ${total}`,

@@ -2,7 +2,7 @@ import {
   ERA_ITEMS, ITEMS, ITEM_CATEGORIES, ITEM_TYPES, MILESTONE_IDS, MILESTONES, PURCHASE, SUPPLIERS, SUPPLIER_IDS, eraOfYear,
 } from '@silicon-empire/game-data';
 import {
-  checkPurchase, dockSpace, isPcPart, orderCost, orderableItems, partYear, partsBetween, purchaseCost, purchaseLineCost, volumeDiscount,
+  checkPurchase, dockSpace, isPcPart, regionalMaterialPercent, orderCost, orderableItems, partYear, partsBetween, purchaseCost, purchaseLineCost, volumeDiscount,
 } from '@silicon-empire/simulation';
 import { useState } from 'react';
 import { useStore } from 'zustand';
@@ -46,8 +46,9 @@ export function ShopPanel({ world, controls, onClose }: { world: World; controls
   const orderable = orderableItems(world.progress);
   const lines = cartLines(cart);
   const lots = lines.reduce((total, line) => total + line.lots, 0);
-  const total = purchaseCost(lines);
-  const savings = lines.reduce((sum, line) => sum + listPrice(line.item, line.supplier, line.lots), 0) - total;
+  const regional = regionalMaterialPercent(world);
+  const total = purchaseCost(lines, regional);
+  const savings = lines.reduce((sum, line) => sum + Math.floor(listPrice(line.item, line.supplier, line.lots) * regional / 100), 0) - total;
   const free = dock ? dockSpace(world, dock.id) : 0;
   const error = dock ? checkPurchase(world, dock.id, lines) : null;
   const [query, setQuery] = useState('');
@@ -76,6 +77,7 @@ export function ShopPanel({ world, controls, onClose }: { world: World; controls
       actions={<button type="button" className="button" onClick={onClose}>{t.shop.close}</button>}
     >
       <p>{t.shop.intro}</p>
+      {world.region && <p className="tier-hint">{t.sites.prices(regional)}</p>}
       <p className="tier-hint">{[...PURCHASE.volumeDiscounts].reverse().map(tier => t.shop.tier(tier.lots, tier.percent)).join(' · ')}</p>
       <div className="shop-settings order-form">
         {dock ? (
@@ -129,8 +131,8 @@ export function ShopPanel({ world, controls, onClose }: { world: World; controls
                 <div>
                   <strong>{t.items[item]}</strong>
                   <small>{ITEMS[item].manufacturer}</small>
-                  <span>{t.shop.unitPrice(money(Math.floor(orderCost(item, cart.supplier) / PURCHASE.lotSize)))}</span>
-                  <span>{t.shop.lotPrice(PURCHASE.lotSize, money(orderCost(item, cart.supplier)))}</span>
+                  <span>{t.shop.unitPrice(money(Math.floor(orderCost(item, cart.supplier, regional) / PURCHASE.lotSize)))}</span>
+                  <span>{t.shop.lotPrice(PURCHASE.lotSize, money(orderCost(item, cart.supplier, regional)))}</span>
                 </div>
                 {locked
                   ? (
@@ -177,7 +179,7 @@ export function ShopPanel({ world, controls, onClose }: { world: World; controls
                       >+</button>
                     </span>
                     <strong>
-                      {money(purchaseLineCost(line))}
+                      {money(purchaseLineCost(line, regional))}
                       {discount > 0 && <small className="cart-discount"> {t.shop.discount(discount)}</small>}
                     </strong>
                     <button type="button" className="button" aria-label={t.shop.remove} onClick={() => controls.setCartLots(line.item, 0)}>×</button>

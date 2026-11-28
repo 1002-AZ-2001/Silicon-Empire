@@ -1,5 +1,5 @@
 import { FLOOR_COST_CENTS, MACHINES, MACHINE_TYPES, POWER, isComponentMachine } from '@silicon-empire/game-data';
-import { machineUnlocked } from '@silicon-empire/simulation';
+import { HOME_ONLY_MACHINES, machineUnlocked } from '@silicon-empire/simulation';
 import { useState } from 'react';
 import { useStore } from 'zustand';
 import { FLOOR_ART } from '../art/floors';
@@ -41,7 +41,9 @@ export function categoryOf(tool: Tool): ToolCategory | null {
 
 /** Unlocked tools sorted by category. Number keys follow that order over buildings: 1 to 9, then 0. */
 export function toolsFor(world: World): ToolEntry[] {
-  const machines = TOOL_CATEGORIES.flatMap(category => MACHINE_CATEGORIES[category]).filter(type => machineUnlocked(world, type));
+  // The headquarters and the laboratory only stand at the home workshop.
+  const machines = TOOL_CATEGORIES.flatMap(category => MACHINE_CATEGORIES[category])
+    .filter(type => machineUnlocked(world, type) && !(world.region && HOME_ONLY_MACHINES.includes(type)));
   const keyed = machines.map((tool, index) => ({ tool, key: index < 9 ? String(index + 1) : index === 9 ? '0' : null }));
   const extras: Record<ToolCategory, ToolEntry[]> = {
     logistics: [],

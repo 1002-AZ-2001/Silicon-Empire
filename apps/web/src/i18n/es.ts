@@ -716,6 +716,12 @@ export const es: Messages = {
     replaces: { cpu: 'sustituye el procesador', gpu: 'sustituye la tarjeta gráfica', ram: 'sustituye la memoria' },
     apply: 'Aplicar a las líneas',
   },
+  sites: {
+    label: 'Sitio',
+    home: 'Taller principal',
+    build: 'Construir en este sitio',
+    prices: (percent: number) => `Precio de los materiales en este sitio: ${percent} % del precio de origen.`,
+  },
   tutorial: {
     title: 'Tutorial',
     step: (step: number, total: number) => `Paso ${step} de ${total}`,

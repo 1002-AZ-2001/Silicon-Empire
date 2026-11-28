@@ -724,6 +724,12 @@ export const fr = {
     replaces: { cpu: 'remplace le processeur', gpu: 'remplace la carte graphique', ram: 'remplace la mémoire' },
     apply: 'Appliquer aux chaînes',
   },
+  sites: {
+    label: 'Site',
+    home: 'Atelier principal',
+    build: 'Construire sur ce site',
+    prices: (percent: number) => `Prix des matériaux de ce site : ${percent} % du prix d’origine.`,
+  },
   tutorial: {
     title: 'Tutoriel',
     step: (step: number, total: number) => `Étape ${step} sur ${total}`,

@@ -12,11 +12,12 @@ import type { ResearchState } from './research';
 import { acceptsSale } from './sales';
 import { advanceAbroad, marketOfProduct } from './abroad';
 import type { DockAccess } from './abroad';
-import { advanceCareer, erasBehind, marketPercent, marketPrice, sellToMarket, wholesalePrice } from './career';
+import { advanceCareer, erasBehind, localWholesalePrice, marketPercent, marketPrice, sellLocally, sellToMarket, wholesalePrice } from './career';
 import { recordSale } from './competition';
 import { managerMorale, researchBoost, restockItem, salesBonusPercent, technicianRepairs } from './company';
 import { advanceStaff, assignBaseOperators, operatorOf, staffRequired } from './staff';
-import { advanceUtilities, brokenDown, powerRatio, productionTicks } from './power';
+import { advanceUtilities, brokenDown, monthlyPowerBill, powerRatio, productionTicks } from './power';
+import { regionalMaterialPercent, siteView, withSite } from './sites';
 import { plantMorale, poolSizeOf, rejectionFor, staffRested } from './rooms';
 import { ROUTER_SIDES, dockSpace, footprintOf, orderCost } from './world';
 import type { BeltItem, Ledger, Machine, Placement, ProductionState, RouterState, Tile, World } from './world';
@@ -300,9 +301,20 @@ function batchOutput(recipe: Recipe, produced: Inventory, every: number | null):
  * finally the active milestone is completed if all its parts have arrived.
  * A unit that changed place during the tick does not move again before the next tick.
  */
+/**
+ * Advances the company by one tick: every site abroad moves its layout first, then the home
+ * workshop moves its own and runs the company calendars (research, bills, career, staff).
+ */
 export function step(world: World): World {
   // A bankrupt company is frozen: the game is over.
   if (world.progress.career?.bankrupt) return world;
+  let current = world;
+  for (const site of world.sites) current = withSite(current, stepLayout(siteView(current, site.region), false));
+  return stepLayout(current, true);
+}
+
+/** Moves one layout by one tick; `company` also runs the calendars shared by every site. */
+function stepLayout(world: World, company: boolean): World {
   const { lengthUnits, spacingUnits } = CONVEYOR;
   const links = linksOf(world);
   const machines = new Map(world.machines.map(machine => [machine.id, machine]));
@@ -370,6 +382,11 @@ export function step(world: World): World {
         delivered: { ...research.delivered, [active]: addItems(research.delivered[active] ?? {}, unit.item, 1) },
       };
       record({ delivered: addItems(ledger.delivered, unit.item, 1) });
+    } else if (machines.get(target.id)?.type === 'shipping' && progress.career && !acceptsSale(sales, unit.item) && world.region) {
+      // Abroad, a site sells to the local wholesaler at the local reference price.
+      const price = localWholesalePrice(unit.item, world.region);
+      capitalCents += price;
+      progress = { ...progress, career: sellLocally(progress.career, unit.item, price) };
     } else if (machines.get(target.id)?.type === 'shipping' && progress.career && !acceptsSale(sales, unit.item)) {
       // The wholesaler buys career components at the market price, one unit at a time.
       const bonus = salesBonusPercent(world);
@@ -396,9 +413,10 @@ export function step(world: World): World {
 
   const tick = world.tick + 1;
   let deliveries = world.deliveries;
-  if (deliveries.some(delivery => delivery.dueTick <= tick)) {
+  // Each layout receives the lots ordered for its own docks.
+  if (deliveries.some(delivery => delivery.dueTick <= tick && machines.has(delivery.dockId))) {
     deliveries = deliveries.filter(delivery => {
-      if (delivery.dueTick > tick) return true;
+      if (delivery.dueTick > tick || !machines.has(delivery.dockId)) return true;
       setStock(delivery.dockId, stock => addItems(stock, delivery.item, PURCHASE.lotSize));
       record({ purchased: addItems(ledger.purchased, delivery.item, PURCHASE.lotSize) });
       return false;
@@ -536,34 +554,37 @@ export function step(world: World): World {
     nextItemId += 1;
   }
 
-  // Research: the running analysis advances while a laboratory stands, then the next project whose
-  // parts have all arrived starts its analysis.
-  if (research.analysing && world.machines.some(machine => machine.type === 'lab')) {
-    // Equipped researchers each add one tick of analysis.
-    const remaining = Math.max(0, research.analysing.remaining - 1 - researchBoost(world));
-    research = remaining > 0
-      ? { ...research, analysing: { ...research.analysing, remaining } }
-      : { ...research, analysing: null, completed: [...research.completed, research.analysing.id] };
-  }
-  if (research.active && !research.analysing && researchPartsDone(research, research.active)) {
-    const started = research.active;
-    const delivered = { ...research.delivered };
-    delete delivered[started];
-    research = { ...research, active: null, delivered, analysing: { id: started, remaining: RESEARCH[started].ticks } };
-  }
+  // Company calendars run once per tick, with the home workshop.
+  if (company) {
+    // Research: the running analysis advances while a laboratory stands, then the next project whose
+    // parts have all arrived starts its analysis.
+    if (research.analysing && world.machines.some(machine => machine.type === 'lab')) {
+      // Equipped researchers each add one tick of analysis.
+      const remaining = Math.max(0, research.analysing.remaining - 1 - researchBoost(world));
+      research = remaining > 0
+        ? { ...research, analysing: { ...research.analysing, remaining } }
+        : { ...research, analysing: null, completed: [...research.completed, research.analysing.id] };
+    }
+    if (research.active && !research.analysing && researchPartsDone(research, research.active)) {
+      const started = research.active;
+      const delivered = { ...research.delivered };
+      delete delivered[started];
+      research = { ...research, active: null, delivered, analysing: { id: started, remaining: RESEARCH[started].ticks } };
+    }
 
-  if (progress.active && milestoneDone(progress, progress.active)) {
-    const done = progress.active;
-    const delivered = { ...progress.delivered };
-    delete delivered[done];
-    progress = { ...progress, completed: [...progress.completed, done], active: null, delivered };
-    capitalCents += MILESTONES[done].rewardCents;
-    if (!required && staffRequired(progress)) staff = assignBaseOperators(staff, world.machines);
-  }
+    if (progress.active && milestoneDone(progress, progress.active)) {
+      const done = progress.active;
+      const delivered = { ...progress.delivered };
+      delete delivered[done];
+      progress = { ...progress, completed: [...progress.completed, done], active: null, delivered };
+      capitalCents += MILESTONES[done].rewardCents;
+      if (!required && staffRequired(progress)) staff = assignBaseOperators(staff, world.machines);
+    }
 
-  // Technicians service the most worn machines.
-  if (world.utilities.enabled && tick % ROLE_EFFECTS.repairTicks === 0 && Object.keys(wear).length > 0) {
-    wear = technicianRepairs(world, wear);
+    // Technicians service the most worn machines.
+    if (world.utilities.enabled && tick % ROLE_EFFECTS.repairTicks === 0 && Object.keys(wear).length > 0) {
+      wear = technicianRepairs(world, wear);
+    }
   }
 
   // Storekeepers order one express lot of a missing item for their dock.
@@ -572,7 +593,7 @@ export function step(world: World): World {
       if (dock.type !== 'receiving' || !dock.restock || operatorOf(staff, dock.id)?.role !== 'storekeeper') continue;
       const stock = stocks[dock.id] ?? {};
       const item = restockItem(world, dock, stock);
-      const cost = item && orderCost(item);
+      const cost = item && orderCost(item, 'express', regionalMaterialPercent(world));
       if (!item || cost === undefined || capitalCents < cost || dockSpace({ ...world, stocks, deliveries }, dock.id) < PURCHASE.lotSize) continue;
       capitalCents -= cost;
       setStock(dock.id, current => addItems(current, item, PURCHASE.lotSize));
@@ -583,35 +604,40 @@ export function step(world: World): World {
     }
   }
 
-  const billed = advanceUtilities({ ...world, wear }, tick, capitalCents);
-  const { utilities } = billed;
-  capitalCents = billed.capitalCents;
+  let utilities = world.utilities;
+  if (company) {
+    // One electricity bill for every site.
+    const siteBills = world.sites.reduce((total, site) => total + monthlyPowerBill({ ...siteView(world, site.region), utilities: { ...world.utilities, cut: false } }), 0);
+    const billed = advanceUtilities({ ...world, wear }, tick, capitalCents, siteBills);
+    utilities = billed.utilities;
+    capitalCents = billed.capitalCents;
 
-  if (progress.career) {
-    let career;
-    ({ career, capitalCents } = advanceCareer(progress.career, tick, capitalCents));
-    // Factories abroad: monthly production, then shipments reaching home.
-    const docks: DockAccess = {
-      space: id => world.machines.some(machine => machine.id === id && machine.type === 'receiving')
-        ? dockSpace({ ...world, stocks, deliveries }, id) : -1,
-      deliver: (id, item, units) => setStock(id, current => addItems(current, item, units)),
-    };
-    let abroad;
-    let exported;
-    ({ abroad, capitalCents, sold: exported } = advanceAbroad(
-      career.abroad, tick, capitalCents, { era: career.era, behind: erasBehind(career), prices: career.competition.prices }, docks,
-    ));
-    if (abroad !== career.abroad) career = { ...career, abroad };
-    // Goods sold to the home wholesaler count on the home markets.
-    for (const [item, units] of Object.entries(exported) as [SubsidiaryProduct, number][]) {
-      career = { ...career, competition: recordSale(career.competition, marketOfProduct(item), units) };
+    if (progress.career) {
+      let career;
+      ({ career, capitalCents } = advanceCareer(progress.career, tick, capitalCents));
+      // Factories abroad: monthly production, then shipments reaching home.
+      const docks: DockAccess = {
+        space: id => world.machines.some(machine => machine.id === id && machine.type === 'receiving')
+          ? dockSpace({ ...world, stocks, deliveries }, id) : -1,
+        deliver: (id, item, units) => setStock(id, current => addItems(current, item, units)),
+      };
+      let abroad;
+      let exported;
+      ({ abroad, capitalCents, sold: exported } = advanceAbroad(
+        career.abroad, tick, capitalCents, { era: career.era, behind: erasBehind(career), prices: career.competition.prices }, docks,
+      ));
+      if (abroad !== career.abroad) career = { ...career, abroad };
+      // Goods sold to the home wholesaler count on the home markets.
+      for (const [item, units] of Object.entries(exported) as [SubsidiaryProduct, number][]) {
+        career = { ...career, competition: recordSale(career.competition, marketOfProduct(item), units) };
+      }
+      if (career !== progress.career) progress = { ...progress, career };
     }
-    if (career !== progress.career) progress = { ...progress, career };
-  }
 
-  ({ staff, capitalCents } = advanceStaff(staff, tick, capitalCents, () => ({
-    rested: staffRested({ ...world, staff }), poolSize: poolSizeOf(world), managerMorale: managerMorale({ ...world, staff }) + plantMorale(world),
-  })));
+    ({ staff, capitalCents } = advanceStaff(staff, tick, capitalCents, () => ({
+      rested: staffRested({ ...world, staff }), poolSize: poolSizeOf(world), managerMorale: managerMorale({ ...world, staff }) + plantMorale(world),
+    })));
+  }
 
   return {
     ...world, tick, capitalCents, belts, stocks, routers, production, progress, sales, deliveries, research, staff, ledger, nextItemId,

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.18.0 — Usines constructibles (premier volet)
+
+- Chaque **usine achetée à l’étranger** a désormais son propre **terrain** : 4 parcelles de départ sur une carte de 128 × 128 tuiles, avec parcelles à acheter, sols, câbles et paysage, comme l’atelier.
+- **Sélecteur de site** dans l’en-tête ; le bouton « Construire sur ce site » du panneau Monde y mène aussi. La carte, l’inspecteur, la barre de construction et la boutique travaillent sur le site affiché ; le titre de la carte indique le site.
+- On y construit tout ce que la carrière débloque, sauf la Direction et le laboratoire, qui restent à l’atelier. Capital, licences, personnel, électricité (une seule facture) et calendriers restent communs à l’entreprise ; les identifiants des machines et des unités sont uniques sur tous les sites.
+- **Prix locaux** : la boutique applique le prix des matériaux de la région (par exemple 85 % en Chine). Le quai d’expédition d’un site vend au **grossiste local** au prix de référence de la région (par exemple 65 % en Chine), sans peser sur les marchés et les rivaux de l’atelier.
+- La production gérée depuis le panneau Monde continue en parallèle.
+- La sauvegarde v20 enregistre les terrains des sites. Les usines déjà achetées reçoivent un terrain vide.
+- Prochain volet : transfert de marchandises entre un site et l’atelier par bateau ou avion, salaires et électricité régionaux.
+
 ## 0.17.0 — Puces maison
 
 - Licence de carrière **Semi-conducteurs** (150 000 €, après l’assemblage de cartes CMS) : wafers de silicium (40 €) et substrats de puce (15 €) à la boutique, et trois fonderies dans l’onglet Production.

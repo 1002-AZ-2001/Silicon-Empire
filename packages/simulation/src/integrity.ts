@@ -18,6 +18,7 @@ import { careerDate, techAvailable, techSpent } from './career';
 import { supplyBounds } from './competition';
 import type { CareerState } from './career';
 import { landConnected, landSpent, ownsFootprint, ownsTile } from './land';
+import { HOME_ONLY_MACHINES, layoutsOf } from './sites';
 import { fitsMap, footprintOf, landUnlocked, machineUnlocked, validHouseChips } from './world';
 import type { Machine, World } from './world';
 
@@ -152,21 +153,18 @@ function checkResearch(progress: Progress, research: ResearchState): boolean {
 }
 
 /** Bills, cables and wear are consistent with the layout and the land owned. */
-function checkUtilities(world: World): boolean {
+/** Electricity counters and calendar, and wear of machines standing on one of the layouts. */
+function checkUtilities(world: World, layouts: readonly World[]): boolean {
   const { utilities } = world;
   if (!Number.isSafeInteger(utilities.spentCents) || utilities.spentCents < 0) return false;
   // The bill calendar only runs while utilities are on.
   if (utilities.enabled && (utilities.nextBill <= world.tick || utilities.nextBill - world.tick > POWER.billPeriodTicks)) return false;
   if (!utilities.enabled && (utilities.cut || Object.keys(world.wear).length > 0)) return false;
-  let previous = -1;
-  for (const tile of world.cables) {
-    if (!Number.isInteger(tile) || tile <= previous || tile >= world.columns * world.rows ||
-      !ownsTile(world, { x: tile % world.columns, y: Math.floor(tile / world.columns) })) return false;
-    previous = tile;
-  }
   return Object.entries(world.wear).every(([id, wear]) => {
-    const machine = world.machines.find(candidate => String(candidate.id) === id);
-    return machine !== undefined && POWER_USE_KW[machine.type] !== undefined && recipeOf(machine.type, machine.model, world.design, eraOf(world.progress), chipsOf(world.progress)) !== undefined &&
+    const layout = layouts.find(candidate => candidate.machines.some(machine => String(machine.id) === id));
+    const machine = layout?.machines.find(candidate => String(candidate.id) === id);
+    return layout !== undefined && machine !== undefined && POWER_USE_KW[machine.type] !== undefined &&
+      recipeOf(machine.type, machine.model, world.design, eraOf(world.progress), chipsOf(world.progress)) !== undefined &&
       Number.isInteger(wear) && wear > 0 && wear <= WEAR.breakdown;
   });
 }
@@ -205,28 +203,165 @@ function checkStaff(world: World): boolean {
   return true;
 }
 
+/** Ids shared by every layout: machine and unit ids are unique across the company. */
+interface LayoutIds {
+  readonly machines: Set<number>;
+  readonly items: Set<number>;
+}
+
 /**
- * Checks the rules a well-formed world always respects: unique ids, no overlap, unlocked buildings,
- * capacities, belt spacing, production states, progression, conservation of units and booked capital.
+ * Checks one layout, the home workshop or a site: land, floors, cables, buildings, stocks, belts,
+ * routers and production. Returns the units it holds and the capital its buildings and land took.
  */
-export function checkIntegrity(world: World): boolean {
-  if (!checkProgress(world.progress, world.tick) || !checkResearch(world.progress, world.research) || !checkStaff(world)) return false;
+function checkLayout(world: World, ids: LayoutIds): { held: Inventory; bookedCents: number } | null {
   if (world.parcels.some((parcel, index) => !Number.isInteger(parcel) || parcel < 0 ||
     parcel >= LAND.gridColumns * LAND.gridRows || (index > 0 && parcel <= (world.parcels[index - 1] as number))) ||
-    !landConnected(world) || (world.parcels.length > LAND.initialParcels.length && !landUnlocked(world.progress))) return false;
-  if (!checkUtilities(world) || !validCompany(world.company)) return false;
+    !landConnected(world) || (world.parcels.length > LAND.initialParcels.length && !landUnlocked(world.progress))) return null;
+  let previousCable = -1;
+  for (const tile of world.cables) {
+    if (!Number.isInteger(tile) || tile <= previousCable || tile >= world.columns * world.rows ||
+      !ownsTile(world, { x: tile % world.columns, y: Math.floor(tile / world.columns) })) return null;
+    previousCable = tile;
+  }
   const restockable = orderableItems(world.progress);
   for (const machine of world.machines) {
     if (machine.restock === undefined) continue;
     if (machine.type !== 'receiving' || machine.restock.length === 0 || machine.restock.length > ROLE_EFFECTS.maxRestockItems ||
-      new Set(machine.restock).size !== machine.restock.length || machine.restock.some(item => !restockable.has(item))) return false;
+      new Set(machine.restock).size !== machine.restock.length || machine.restock.some(item => !restockable.has(item))) return null;
   }
   const tiles = world.columns * world.rows;
   for (const [key, floor] of Object.entries(world.floors)) {
     const index = Number(key);
     if (!Number.isInteger(index) || index < 0 || index >= tiles || String(index) !== key ||
-      !PAINTED_FLOORS.includes(floor) || !ownsTile(world, { x: index % world.columns, y: Math.floor(index / world.columns) })) return false;
+      !PAINTED_FLOORS.includes(floor) || !ownsTile(world, { x: index % world.columns, y: Math.floor(index / world.columns) })) return null;
   }
+  const unlocked = unlockedMachines(world.progress);
+  const occupiedTiles = new Set<number>();
+  const machines = new Map<string, Machine>();
+  let previousId = 0;
+  let bookedCents = landSpent(world);
+  if (world.machines.filter(machine => machine.type === 'headquarters').length > 1) return null;
+  if (world.region && world.machines.some(machine => HOME_ONLY_MACHINES.includes(machine.type))) return null;
+
+  for (const machine of world.machines) {
+    const footprint = footprintOf(machine);
+    if (machine.id <= previousId || machine.id >= world.nextMachineId || ids.machines.has(machine.id) || !fitsMap(world, footprint) ||
+      !ownsFootprint(world, footprint)) return null;
+    if (!unlocked.has(machine.type) && !machineUnlocked(world, machine.type)) return null;
+    if (machine.level !== undefined && ((machine.level !== 2 && machine.level !== 3) ||
+      !upgradeUnlocked(world.progress, world.research, machine.type, machine.level) ||
+      (machine.level === 3 && !upgradeUnlocked(world.progress, world.research, machine.type, 2)))) {
+      return null;
+    }
+    if (machine.model && (!recipeOf(machine.type, machine.model, world.design, eraOf(world.progress), chipsOf(world.progress)) || !modelUnlocked(world.progress, machine.model))) {
+      return null;
+    }
+    previousId = machine.id;
+    ids.machines.add(machine.id);
+    machines.set(String(machine.id), machine);
+    bookedCents += machine.paidCents;
+
+    for (let y = footprint.y; y < footprint.y + footprint.height; y++) {
+      for (let x = footprint.x; x < footprint.x + footprint.width; x++) {
+        const index = y * world.columns + x;
+        if (occupiedTiles.has(index)) return null;
+        occupiedTiles.add(index);
+      }
+    }
+  }
+
+  const orderable = orderableItems(world.progress);
+  const reserved = new Map<string, number>();
+  for (const delivery of world.deliveries) {
+    const id = String(delivery.dockId);
+    if (!machines.has(id)) continue;
+    const lead = SUPPLIERS[delivery.supplier].leadTicks;
+    if (machines.get(id)?.type !== 'receiving' || !orderable.has(delivery.item) ||
+      delivery.dueTick <= world.tick || delivery.dueTick - world.tick > lead) return null;
+    const units = (reserved.get(id) ?? 0) + PURCHASE.lotSize;
+    if (inventoryTotal(world.stocks[id] ?? {}) + units > capacityOf(world.progress, world.research, 'receiving')) return null;
+    reserved.set(id, units);
+  }
+
+  let held: Inventory = {};
+  for (const [id, stock] of Object.entries(world.stocks)) {
+    const machine = machines.get(id);
+    const total = inventoryTotal(stock);
+    if (!machine || total === 0) return null;
+    const recipe = recipeOf(machine.type, machine.model, world.design, eraOf(world.progress), chipsOf(world.progress));
+    if (recipe) {
+      if (!fitsInputStock(recipe, stock)) return null;
+    } else if (total > capacityOf(world.progress, world.research, machine.type)) {
+      return null;
+    }
+    held = mergeInventories(held, stock);
+  }
+
+  for (const [id, state] of Object.entries(world.production)) {
+    const machine = machines.get(id);
+    const recipe = machine && recipeOf(machine.type, machine.model, world.design, eraOf(world.progress), chipsOf(world.progress));
+    if (!recipe) return null;
+    const rejected = recipe.rejection?.item;
+    if (!state.batch && inventoryTotal(state.output) === 0) return null;
+    for (const item of ITEM_TYPES) {
+      const count = state.output[item] ?? 0;
+      if (count > PRODUCTION.outputCapacity || (count > 0 && item !== recipe.output && item !== rejected)) return null;
+    }
+    held = mergeInventories(held, state.output);
+    if (state.batch) {
+      const { item, remaining } = state.batch;
+      if (item !== recipe.output && item !== rejected) return null;
+      if (!Number.isInteger(remaining) || remaining < 0 || remaining > recipe.ticks) return null;
+      held = addItems(held, item, 1);
+    }
+  }
+
+  for (const [id, belt] of Object.entries(world.belts)) {
+    const type = machines.get(id)?.type;
+    if (!type || !isConveyor(type) || belt.length === 0) return null;
+    let ahead: number | null = null;
+    for (const unit of belt) {
+      if (ids.items.has(unit.id) || unit.id >= world.nextItemId) return null;
+      if (unit.position < 0 || unit.position >= CONVEYOR.lengthUnits || !Number.isInteger(unit.position)) return null;
+      if (ahead !== null && unit.position > ahead - CONVEYOR.spacingUnits) return null;
+      ids.items.add(unit.id);
+      ahead = unit.position;
+      held = addItems(held, unit.item, 1);
+    }
+  }
+
+  for (const [id, router] of Object.entries(world.routers)) {
+    const type = machines.get(id)?.type;
+    if (type !== 'splitter' && type !== 'merger') return null;
+    if (!Number.isInteger(router.cursor) || router.cursor < 0 || router.cursor > 2) return null;
+    if (!router.held && router.cursor === 0) return null;
+    if (router.held) {
+      if (ids.items.has(router.held.id) || router.held.id >= world.nextItemId) return null;
+      ids.items.add(router.held.id);
+      held = addItems(held, router.held.item, 1);
+    }
+  }
+  if (world.machines.some(machine => machine.filter && machine.type !== 'splitter')) return null;
+  return { held, bookedCents };
+}
+
+/** Sites: one per factory abroad, in the same order, each region once. */
+function checkSites(world: World): boolean {
+  if (world.region) return false;
+  const factories = world.progress.career?.abroad.subsidiaries.map(subsidiary => subsidiary.region) ?? [];
+  return world.sites.length === factories.length && world.sites.every((site, index) => site.region === factories[index]);
+}
+
+/**
+ * Checks the rules a well-formed world always respects: unique ids, no overlap, unlocked buildings,
+ * capacities, belt spacing, production states, progression, conservation of units and booked capital,
+ * on the home workshop and on every site abroad.
+ */
+export function checkIntegrity(world: World): boolean {
+  if (!checkProgress(world.progress, world.tick) || !checkResearch(world.progress, world.research) || !checkStaff(world)) return false;
+  if (!checkSites(world)) return false;
+  const layouts = layoutsOf(world);
+  if (!checkUtilities(world, layouts) || !validCompany(world.company)) return false;
   const { active, completed } = world.sales;
   if (active && (!validSaleTerms(active.terms) || !modelUnlocked(world.progress, active.terms.model) ||
     !Number.isInteger(active.delivered) || active.delivered < 0 || active.delivered >= active.terms.units)) return false;
@@ -240,117 +375,25 @@ export function checkIntegrity(world: World): boolean {
       ITEM_TYPES.some(item => parts[item] && !orderable.has(item))) return false;
   }
   const { revenueCents, shipped } = salesAccounts(world.sales);
-  const unlocked = unlockedMachines(world.progress);
-  const occupiedTiles = new Set<number>();
-  const machines = new Map<string, Machine>();
-  let previousId = 0;
   const career = world.progress.career;
   const capitalCeiling = (career ? CAREER.initialCapitalCents + career.borrowedCents + career.marketRevenueCents + career.abroad.revenueCents
     : WORKSHOP.initialCapitalCents) +
     rewardsEarned(world.progress) + revenueCents;
-  let bookedCapital = world.capitalCents + world.ledger.purchaseSpentCents + world.staff.paidCents + landSpent(world) +
+  let bookedCapital = world.capitalCents + world.ledger.purchaseSpentCents + world.staff.paidCents +
     (career ? career.repaidCents + techSpent(career) + career.retoolCents + career.abroad.spentCents : 0) + world.utilities.spentCents;
-  if (bookedCapital > capitalCeiling) return false;
-  if (world.machines.filter(machine => machine.type === 'headquarters').length > 1) return false;
 
-  for (const machine of world.machines) {
-    const footprint = footprintOf(machine);
-    if (machine.id <= previousId || machine.id >= world.nextMachineId || !fitsMap(world, footprint) ||
-      !ownsFootprint(world, footprint)) return false;
-    if (!unlocked.has(machine.type) && !machineUnlocked(world, machine.type)) return false;
-    if (machine.level !== undefined && ((machine.level !== 2 && machine.level !== 3) ||
-      !upgradeUnlocked(world.progress, world.research, machine.type, machine.level) ||
-      (machine.level === 3 && !upgradeUnlocked(world.progress, world.research, machine.type, 2)))) {
-      return false;
-    }
-    if (machine.model && (!recipeOf(machine.type, machine.model, world.design, eraOf(world.progress), chipsOf(world.progress)) || !modelUnlocked(world.progress, machine.model))) {
-      return false;
-    }
-    previousId = machine.id;
-    machines.set(String(machine.id), machine);
-    bookedCapital += machine.paidCents;
-    if (bookedCapital > capitalCeiling) return false;
-
-    for (let y = footprint.y; y < footprint.y + footprint.height; y++) {
-      for (let x = footprint.x; x < footprint.x + footprint.width; x++) {
-        const index = y * world.columns + x;
-        if (occupiedTiles.has(index)) return false;
-        occupiedTiles.add(index);
-      }
-    }
-  }
-
-  const reserved = new Map<string, number>();
-  for (const delivery of world.deliveries) {
-    const id = String(delivery.dockId);
-    const lead = SUPPLIERS[delivery.supplier].leadTicks;
-    if (machines.get(id)?.type !== 'receiving' || !orderable.has(delivery.item) ||
-      delivery.dueTick <= world.tick || delivery.dueTick - world.tick > lead) return false;
-    const units = (reserved.get(id) ?? 0) + PURCHASE.lotSize;
-    if (inventoryTotal(world.stocks[id] ?? {}) + units > capacityOf(world.progress, world.research, 'receiving')) return false;
-    reserved.set(id, units);
-  }
-
+  const ids: LayoutIds = { machines: new Set(), items: new Set() };
   let held: Inventory = {};
-  for (const [id, stock] of Object.entries(world.stocks)) {
-    const machine = machines.get(id);
-    const total = inventoryTotal(stock);
-    if (!machine || total === 0) return false;
-    const recipe = recipeOf(machine.type, machine.model, world.design, eraOf(world.progress), chipsOf(world.progress));
-    if (recipe) {
-      if (!fitsInputStock(recipe, stock)) return false;
-    } else if (total > capacityOf(world.progress, world.research, machine.type)) {
-      return false;
-    }
-    held = mergeInventories(held, stock);
+  for (const layout of layouts) {
+    const checked = checkLayout(layout, ids);
+    if (!checked) return false;
+    held = mergeInventories(held, checked.held);
+    bookedCapital += checked.bookedCents;
+    if (bookedCapital > capitalCeiling) return false;
   }
-
-  for (const [id, state] of Object.entries(world.production)) {
-    const machine = machines.get(id);
-    const recipe = machine && recipeOf(machine.type, machine.model, world.design, eraOf(world.progress), chipsOf(world.progress));
-    if (!recipe) return false;
-    const rejected = recipe.rejection?.item;
-    if (!state.batch && inventoryTotal(state.output) === 0) return false;
-    for (const item of ITEM_TYPES) {
-      const count = state.output[item] ?? 0;
-      if (count > PRODUCTION.outputCapacity || (count > 0 && item !== recipe.output && item !== rejected)) return false;
-    }
-    held = mergeInventories(held, state.output);
-    if (state.batch) {
-      const { item, remaining } = state.batch;
-      if (item !== recipe.output && item !== rejected) return false;
-      if (!Number.isInteger(remaining) || remaining < 0 || remaining > recipe.ticks) return false;
-      held = addItems(held, item, 1);
-    }
-  }
-
-  const itemIds = new Set<number>();
-  for (const [id, belt] of Object.entries(world.belts)) {
-    const type = machines.get(id)?.type;
-    if (!type || !isConveyor(type) || belt.length === 0) return false;
-    let ahead: number | null = null;
-    for (const unit of belt) {
-      if (itemIds.has(unit.id) || unit.id >= world.nextItemId) return false;
-      if (unit.position < 0 || unit.position >= CONVEYOR.lengthUnits || !Number.isInteger(unit.position)) return false;
-      if (ahead !== null && unit.position > ahead - CONVEYOR.spacingUnits) return false;
-      itemIds.add(unit.id);
-      ahead = unit.position;
-      held = addItems(held, unit.item, 1);
-    }
-  }
-
-  for (const [id, router] of Object.entries(world.routers)) {
-    const type = machines.get(id)?.type;
-    if (type !== 'splitter' && type !== 'merger') return false;
-    if (!Number.isInteger(router.cursor) || router.cursor < 0 || router.cursor > 2) return false;
-    if (!router.held && router.cursor === 0) return false;
-    if (router.held) {
-      if (itemIds.has(router.held.id) || router.held.id >= world.nextItemId) return false;
-      itemIds.add(router.held.id);
-      held = addItems(held, router.held.item, 1);
-    }
-  }
-  if (world.machines.some(machine => machine.filter && machine.type !== 'splitter')) return false;
+  // Every awaited lot is bound for a receiving dock of one of the layouts.
+  if (world.deliveries.some(delivery => !layouts.some(layout => layout.machines.some(machine =>
+    machine.id === delivery.dockId && machine.type === 'receiving')))) return false;
 
   const { purchased, produced, consumed, delivered, discarded } = world.ledger;
   const entered = [purchased, produced, world.progress.career?.abroad.imported ?? {}].reduce(mergeInventories, {});

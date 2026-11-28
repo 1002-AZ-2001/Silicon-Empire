@@ -34,6 +34,7 @@ describe('construction', () => {
       ledger: {
         purchased: {}, discarded: {}, purchaseSpentCents: 0, produced: {}, consumed: {}, delivered: {},
       },
+      sites: [],
     });
   });
 

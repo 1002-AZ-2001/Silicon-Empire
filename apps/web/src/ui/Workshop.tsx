@@ -1,4 +1,4 @@
-import { contentsOf, demolitionRefund, erasBehind, inventoryTotal, machineUnlocked, modelUnlocked, sameContents, Simulation } from '@silicon-empire/simulation';
+import { contentsOf, demolitionRefund, erasBehind, siteOf, siteView, inventoryTotal, machineUnlocked, modelUnlocked, sameContents, Simulation } from '@silicon-empire/simulation';
 import { CAREER, ERAS, MILESTONES, TIME } from '@silicon-empire/game-data';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
@@ -24,6 +24,7 @@ import { CompetitionPanel, newsText } from './CompetitionPanel';
 import { Dialog, Icon, gameTime } from './shared';
 import { useWorld } from './use-world';
 import type { World } from '@silicon-empire/simulation';
+import type { RegionId } from '@silicon-empire/game-data';
 
 const WorkshopViewport = lazy(() => import('../game/WorkshopViewport'));
 
@@ -54,6 +55,9 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
   const competitionOpen = useStore(controls.store, state => state.competitionOpen);
   const [tutorialHidden, setTutorialHidden] = useTutorialHidden(session.id);
   const career = world.progress.career;
+  // The map, the inspector, the construction bar and the shop work on the site shown.
+  const site = useStore(controls.store, state => state.site);
+  const view = site && siteOf(world, site) ? siteView(world, site) : world;
   const target = tutorialTarget(world, tutorialHidden);
   const highlight = (name: TutorialTarget) => target === name ? ' tutorial-target' : '';
   const previousCareer = useRef(career);
@@ -288,6 +292,15 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
             >{option === 0 ? t.workshop.pause : `×${option}`}</button>
           ))}
         </div>
+        {world.sites.length > 0 && (
+          <label className="site-select">
+            <span>{t.sites.label}</span>
+            <select value={site ?? ''} onChange={event => controls.selectSite(event.target.value === '' ? null : event.target.value as RegionId)}>
+              <option value="">{t.sites.home}</option>
+              {world.sites.map(candidate => <option key={candidate.region} value={candidate.region}>{t.world.regions[candidate.region]}</option>)}
+            </select>
+          </label>
+        )}
         <nav className="workshop-panels" aria-label={t.workshop.panels}>
         {career && (
           <>
@@ -348,13 +361,13 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
 
       <main className="workspace-grid">
         <Suspense fallback={<div className="map-panel map-loading" role="status">{t.workshop.loading}</div>}>
-          <WorkshopViewport simulation={simulation} controls={controls} name={session.name} />
+          <WorkshopViewport simulation={simulation} controls={controls} name={site ? `${session.name} · ${t.world.regions[site]}` : session.name} />
         </Suspense>
-        <Inspector controls={controls} world={world} />
+        <Inspector controls={controls} world={view} />
         {career && !tutorialHidden && !career.bankrupt && <TutorialCard world={world} onHide={() => setTutorialHidden(true)} />}
       </main>
 
-      <ConstructionBar controls={controls} world={world} onGuide={() => setGuideOpen(true)} highlight={target} />
+      <ConstructionBar controls={controls} world={view} onGuide={() => setGuideOpen(true)} highlight={target} />
 
       {guideOpen && <GuidePanel world={world} onClose={() => setGuideOpen(false)} />}
       {progressionOpen && (
@@ -378,7 +391,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
       {career?.bankrupt && <BankruptPanel name={session.name} career={career} onMenu={onMenu} />}
       {companyOpen && <CompanyPanel world={world} controls={controls} onClose={() => controls.store.setState({ companyOpen: false })} />}
       {staffOpen && <StaffPanel world={world} controls={controls} onClose={() => controls.store.setState({ staffOpen: false })} />}
-      {shopOpen && <ShopPanel world={world} controls={controls} onClose={() => controls.store.setState({ shopOpen: false })} />}
+      {shopOpen && <ShopPanel world={view} controls={controls} onClose={() => controls.store.setState({ shopOpen: false })} />}
       {researchOpen && (
         <ResearchPanel world={world} controls={controls} onClose={() => controls.store.setState({ researchOpen: false })} />
       )}

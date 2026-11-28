@@ -144,11 +144,14 @@ export function monthlyPowerBill(world: World): number {
 }
 
 /** Monthly bill day: paid in full, or the grid is cut until the next bill is paid. */
-export function advanceUtilities(world: World, tick: number, capitalCents: number): { utilities: World['utilities']; capitalCents: number } {
+/** Monthly bill: the home workshop's, plus `extraDue` for the sites abroad. */
+export function advanceUtilities(
+  world: World, tick: number, capitalCents: number, extraDue = 0,
+): { utilities: World['utilities']; capitalCents: number } {
   const { utilities } = world;
   if (!utilities.enabled || tick < utilities.nextBill) return { utilities, capitalCents };
   // The bill is computed as if the grid were connected, so that paying it lifts the cut.
-  const due = monthlyPowerBill({ ...world, utilities: { ...utilities, cut: false } });
+  const due = monthlyPowerBill({ ...world, utilities: { ...utilities, cut: false } }) + extraDue;
   const nextBill = utilities.nextBill + POWER.billPeriodTicks;
   if (capitalCents >= due) {
     return { utilities: { ...utilities, cut: false, nextBill, spentCents: utilities.spentCents + due }, capitalCents: capitalCents - due };
