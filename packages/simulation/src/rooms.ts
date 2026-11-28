@@ -19,6 +19,7 @@ export interface Room {
   readonly filters: number;
   /** Office computers; they equip office employees when the room is an office. */
   readonly workstations: number;
+  readonly plants: number;
   /** Every tile has the clean floor. */
   readonly clean: boolean;
 }
@@ -82,7 +83,7 @@ export function roomsOf(world: Pick<World, 'machines' | 'floors' | 'columns' | '
     found.push({ tiles, open });
   }
 
-  const counts = found.map(() => ({ sofas: 0, coffees: 0, desks: 0, filters: 0, workstations: 0 }));
+  const counts = found.map(() => ({ sofas: 0, coffees: 0, desks: 0, filters: 0, workstations: 0, plants: 0 }));
   for (const machine of world.machines) {
     if (!isFurniture(machine.type)) continue;
     const tiles = tilesOf(machine, columns);
@@ -93,6 +94,7 @@ export function roomsOf(world: Pick<World, 'machines' | 'floors' | 'columns' | '
     else if (machine.type === 'coffee') count.coffees += 1;
     else if (machine.type === 'desk') count.desks += 1;
     else if (machine.type === 'workstation') count.workstations += 1;
+    else if (machine.type === 'plant') count.plants += 1;
     else count.filters += 1;
   }
 
@@ -134,6 +136,12 @@ export function staffRested(world: World): boolean {
 export function poolSizeOf(world: World): number {
   const desks = roomsOf(world).rooms.reduce((total, room) => total + (room.type === 'office' ? room.desks : 0), 0);
   return Math.min(STAFF.maxPoolSize, STAFF.poolSize + Math.min(ROOMS.maxExtraCandidates, desks));
+}
+
+/** Morale added on a paid month by the plants of offices and break rooms. */
+export function plantMorale(world: World): number {
+  const plants = roomsOf(world).rooms.reduce((total, room) => total + (room.type === 'office' || room.type === 'break-room' ? room.plants : 0), 0);
+  return Math.min(ROOMS.maxPlantMorale, plants * ROOMS.plantMorale);
 }
 
 export function inCleanRoom(world: World, machine: Machine): boolean {

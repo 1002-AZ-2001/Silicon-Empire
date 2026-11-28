@@ -1142,3 +1142,19 @@ test('n’affiche pas les pièces historiques hors carrière', async ({ page }) 
   await expect(shop.getByRole('listitem', { name: /^Processeur/ })).toHaveCount(1);
   await expect(page.getByLabel('Date', { exact: true })).toHaveCount(0);
 });
+
+test('propose le poste informatique et la plante dans l’aménagement, et pose une plante', async ({ page }) => {
+  await page.goto('/');
+  await startWorkshop(page, 'Atelier Verdure');
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: 'Pause' }).click();
+  const tools = page.getByRole('group', { name: 'Outils de construction' });
+  await page.getByRole('tab', { name: 'Aménagement' }).click();
+  await expect(tools.getByRole('button', { name: /^Poste/ })).toBeVisible();
+  await tools.getByRole('button', { name: /^Plante/ }).click();
+  const before = await capital(page).innerText();
+  await clickTile(page, 30, 30);
+  await expect(capital(page)).not.toHaveText(before);
+  await page.keyboard.press('Escape');
+  await clickTile(page, 30, 30);
+  await expect(inspector(page)).toContainText('Plante verte');
+});

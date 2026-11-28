@@ -38,6 +38,7 @@ export const fr = {
     'grid-connection': { name: 'Raccordement au réseau', short: 'Réseau' },
     generator: { name: 'Groupe électrogène', short: 'Groupe' },
     workstation: { name: 'Poste informatique', short: 'Poste' },
+    plant: { name: 'Plante verte', short: 'Plante' },
   } satisfies Record<MachineType, { name: string; short: string }> as Record<MachineType, { name: string; short: string }>,
   items: {
     'cpu-8c': 'Processeur 8 cœurs K8',
@@ -536,6 +537,7 @@ export const fr = {
     },
     rested: (seats: number, staff: number) => `Salles de repos : ${seats} places pour ${staff} employé${staff > 1 ? 's' : ''}.`,
     extra: (extra: number) => `Bureaux : +${extra} candidat${extra > 1 ? 's' : ''} par vivier.`,
+    plants: (bonus: number) => `Plantes des bureaux et salles de repos\u2009: +${bonus} de moral à chaque paie.`,
   },
   land: {
     title: 'Parcelle',

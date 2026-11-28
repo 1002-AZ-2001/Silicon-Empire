@@ -25,4 +25,7 @@ export const ROOMS = {
   maxExtraCandidates: 3,
   /** A clean room (air filter and clean floor on every tile) divides professional rejects by this factor. */
   cleanRejectionFactor: 2,
+  /** Each plant in an office or a break room adds this much morale on a paid month, up to `maxPlantMorale`. */
+  plantMorale: 1,
+  maxPlantMorale: 4,
 } as const;

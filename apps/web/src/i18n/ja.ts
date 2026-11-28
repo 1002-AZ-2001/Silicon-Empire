@@ -33,6 +33,7 @@ export const ja: Messages = {
     'grid-connection': { name: '系統連系設備', short: '系統' },
     generator: { name: '発電機', short: '発電機' },
     workstation: { name: 'PCワークステーション', short: 'PC' },
+    plant: { name: '観葉植物', short: '植物' },
   },
   items: {
     'cpu-8c': 'K8 8コアプロセッサー',
@@ -528,6 +529,7 @@ export const ja: Messages = {
     },
     rested: (seats: number, staff: number) => `休憩室：座席${seats} / 従業員${staff}人。`,
     extra: (extra: number) => `オフィス：候補者 +${extra}人。`,
+    plants: (bonus: number) => `オフィスと休憩室の観葉植物：給料日ごとに士気 +${bonus}。`,
   },
   land: {
     title: '区画',

@@ -29,7 +29,7 @@ const MACHINE_CATEGORIES: Record<ToolCategory, readonly MachineType[]> = {
     'capacitor-press', 'pcb-etcher', 'coil-winder', 'smt-line', 'assembler', 'tester', 'packager', 'lab', 'headquarters',
   ],
   energy: ['grid-connection', 'generator'],
-  rooms: ['wall', 'door', 'sofa', 'coffee', 'desk', 'air-filter'],
+  rooms: ['wall', 'door', 'sofa', 'coffee', 'desk', 'workstation', 'air-filter', 'plant'],
 };
 
 export function categoryOf(tool: Tool): ToolCategory | null {

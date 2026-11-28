@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.14.0 — Décor et paysage
+
+- **Paysage** autour de l’usine : un trottoir, une route à deux voies avec lampadaires et bancs, puis des champs plantés d’arbres, de sapins, de buissons, de rochers et de fleurs. Le décor est le même dans chaque partie (placement pseudo-aléatoire fixe).
+- Les **parcelles pas encore achetées** deviennent des champs, sous un voile plus léger ; une parcelle achetée redevient un sol d’usine. Un **mur extérieur à fenêtres** borde l’usine du côté des parcelles voisines.
+- **Saisons** : l’herbe et les arbres suivent le mois du calendrier (neige et arbres nus de décembre à février, fleurs au printemps, vert l’été, feuilles rousses à l’automne). En carrière, le mois vient du calendrier de l’époque ; ailleurs, la partie commence en janvier.
+- **Plante verte** (80 €, onglet Aménagement) : chaque plante dans un bureau ou une salle de repos ajoute 1 point de moral à chaque paie, 4 au plus. Le panneau Personnel affiche ce bonus.
+- Correctif : le **poste informatique** de la v0.12.0 n’apparaissait dans aucun onglet de construction et ne pouvait pas être posé. Il est maintenant dans l’onglet Aménagement.
+- La caméra peut aller jusqu’à 8 tuiles au-delà du terrain pour montrer le paysage.
+
 ## 0.13.0 — Époques
 
 - **Année de départ** de la carrière, choisie au menu : 1975, 1985, 1995, 2005 ou 2017. Le **calendrier** avance d’un mois toutes les 5 minutes simulées (une période de paie) ; la date s’affiche dans l’en-tête. Les modes Classique et Bac à sable restent à l’époque moderne.

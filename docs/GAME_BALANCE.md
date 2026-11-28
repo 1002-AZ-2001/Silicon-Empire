@@ -10,6 +10,14 @@
 | Assemblage initial | 30 s simulées par PC |
 | Prix exemple Gaming X1 | 899 € |
 
+## Décor v0.14.0
+
+| Élément | Prix | Effet |
+|---|---:|---|
+| Plante verte (1 × 1) | 80 € | +1 de moral par paie et par plante dans un bureau ou une salle de repos, 4 au plus |
+
+Le bonus des plantes s’ajoute à celui des managers et de la salle de repos. Quatre plantes coûtent 320 € pour +4 de moral par mois : moins qu’un manager (+5, environ 1 500 € par mois), mais sans salaire.
+
 ## Époques v0.13.0
 
 Un mois de calendrier dure une période de paie (5 minutes simulées, 6 000 ticks) : une année dure une heure à ×1 et 12 minutes à ×5.
