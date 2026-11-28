@@ -8,15 +8,16 @@ import './styles.css';
 import { createSaveId } from './persistence/save-data';
 import { MainMenu } from './ui/MainMenu';
 import { Workshop } from './ui/Workshop';
+import type { StartYear } from '@silicon-empire/game-data';
 import type { GameMode } from '@silicon-empire/simulation';
 import type { WorkshopSession } from './ui/Workshop';
 
 function App() {
   const [session, setSession] = useState<WorkshopSession | null>(null);
 
-  function startWorkshop(name: string, mode: GameMode) {
+  function startWorkshop(name: string, mode: GameMode, startYear: StartYear) {
     const id = createSaveId();
-    setSession({ id, name, createdAt: Date.now(), savedAt: null, world: createWorld(mode, { utilities: true }) });
+    setSession({ id, name, createdAt: Date.now(), savedAt: null, world: createWorld(mode, { utilities: true, startYear }) });
   }
 
   return session

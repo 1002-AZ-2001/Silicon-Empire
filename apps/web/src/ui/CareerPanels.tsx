@@ -1,13 +1,15 @@
 import {
-  CAREER, COMPONENT_RECIPES, ITEM_TYPES, LOANS, LOAN_IDS, MACHINES, MARKET_PRICES, SPECIALTIES, TECHNOLOGIES, TECH_IDS, instalment,
-  isComponentMachine,
+  CALENDAR, CAREER, COMPONENT_RECIPES, ERAS, ERA_IDS, ITEM_TYPES, LOANS, LOAN_IDS, MACHINES, MARKET_PRICES, SPECIALTIES, TECHNOLOGIES, TECH_IDS,
+  eraIndex, eraOfYear, instalment, isComponentMachine, obsolescence, ticksUntilYear,
 } from '@silicon-empire/game-data';
-import { loanAvailable, monthlyDue, payoff, techAvailable, wholesalePrice } from '@silicon-empire/simulation';
+import {
+  careerDate, checkEra, eraAdoptable, eraPartsOf, erasBehind, loanAvailable, monthlyDue, payoff, retoolCost, techAvailable, wholesalePrice,
+} from '@silicon-empire/simulation';
 import { ITEM_ART } from '../art/items';
 import { MACHINE_ART } from '../art/machines';
 import { useI18n } from '../i18n';
 import { Dialog, gameTime } from './shared';
-import type { ItemType, Specialty, TechId } from '@silicon-empire/game-data';
+import type { EraId, ItemType, Specialty, TechId } from '@silicon-empire/game-data';
 import type { CareerState, World } from '@silicon-empire/simulation';
 import type { WorkshopControls } from '../game/controls';
 
@@ -159,6 +161,77 @@ export function TechPanel({ world, career, controls, onClose }: {
                 <button type="button" className="button button-primary" disabled={world.capitalCents < costCents} onClick={() => controls.buyTech(tech)}>
                   {t.career.tech.buy(money(costCents))}
                 </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </Dialog>
+  );
+}
+
+/** Month and year of the career calendar, in the interface language. */
+export function CareerDate({ career, tick }: { career: CareerState; tick: number }) {
+  const { locale } = useI18n();
+  const { year, month } = careerDate(career, tick);
+  const label = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, month, 1)));
+  return <>{label}</>;
+}
+
+function eraState(career: CareerState, era: EraId): 'adopted' | 'available' | 'past' | 'future' {
+  if (era === career.era) return 'adopted';
+  if (eraIndex(era) < eraIndex(career.era)) return 'past';
+  return eraIndex(era) <= eraIndex(career.released) ? 'available' : 'future';
+}
+
+export function EraPanel({ world, career, controls, onClose }: {
+  world: World; career: CareerState; controls: WorkshopControls; onClose: () => void;
+}) {
+  const { t, money } = useI18n();
+  const behind = erasBehind(career);
+  const computers = career.technologies.includes('computers');
+  return (
+    <Dialog wide title={t.eras.title} onDismiss={onClose}
+      actions={<button type="button" className="button" onClick={onClose}>{t.tutorial.close}</button>}
+    >
+      <p>{t.eras.intro}</p>
+      <p className="tier-hint">
+        <CareerDate career={career} tick={world.tick} /> · {t.eras.current(t.eras.names[career.era])}
+      </p>
+      {!computers && <p className="placement-status">{t.eras.followFree}</p>}
+      {behind > 0 && <p className="order-hint text-error">{t.eras.obsolete(100 - obsolescence(behind))}</p>}
+      <ul className="milestone-list">
+        {ERA_IDS.filter(era => eraIndex(era) >= eraIndex(eraOfYear(career.startYear))).map(era => {
+          const state = eraState(career, era);
+          const { year, models } = ERAS[era];
+          const cost = retoolCost(career, era);
+          const error = state === 'available' ? checkEra(world, era) : null;
+          return (
+            <li key={era} className={`milestone milestone-${state === 'adopted' ? 'completed' : state === 'future' ? 'locked' : 'available'}`}
+              aria-label={t.eras.names[era]}>
+              <header>
+                <h4>{t.eras.names[era]} · {year}</h4>
+                <span className="milestone-state">
+                  {state === 'future' ? t.eras.inYears(Math.ceil((ticksUntilYear(career.startYear, year) - world.tick) / (12 * CALENDAR.monthTicks)))
+                    : t.eras.states[state]}
+                </span>
+              </header>
+              <p>{t.eras.descriptions[era]}</p>
+              <dl className="milestone-rewards">
+                <div>
+                  <dt>{t.eras.parts}</dt>
+                  <dd>{eraPartsOf(era).map(item => <ItemChip key={item} item={item} />)}</dd>
+                </div>
+                <div><dt>{t.eras.models}</dt><dd>{models.map(model => t.production.models[model]).join(', ')}</dd></div>
+              </dl>
+              {state === 'available' && (
+                <>
+                  <button type="button" className="button button-primary" disabled={!eraAdoptable(career, era) || error !== null}
+                    onClick={() => controls.adoptEra(era)}>
+                    {t.eras.adopt(money(cost))}
+                  </button>
+                  {error && computers && <p className="order-hint text-error">{t.errors[error]}</p>}
+                </>
               )}
             </li>
           );

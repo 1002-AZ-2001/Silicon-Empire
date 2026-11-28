@@ -1,5 +1,5 @@
 import {
-  BRAND_COLORS, BRAND_EMBLEMS, CONVEYOR, ITEM_TYPES, LAND, LOAN_IDS, MACHINE_TYPES, POWER, ROLES, ROLE_EFFECTS, WEAR, SPECIALTIES, TECH_IDS, MILESTONE_IDS, PRODUCT_MODELS, RESEARCH_IDS, STAFF, STANDARD_MODELS, SUPPLIER_IDS, WORKSHOP,
+  BRAND_COLORS, BRAND_EMBLEMS, CONVEYOR, ERA_IDS, START_YEARS, ITEM_TYPES, LAND, LOAN_IDS, MACHINE_TYPES, POWER, ROLES, ROLE_EFFECTS, WEAR, SPECIALTIES, TECH_IDS, MILESTONE_IDS, PRODUCT_MODELS, RESEARCH_IDS, STAFF, STANDARD_MODELS, SUPPLIER_IDS, WORKSHOP,
   publishedDesignSchema,
 } from '@silicon-empire/game-data';
 import {
@@ -8,7 +8,7 @@ import {
 import { z } from 'zod';
 import type { World } from '@silicon-empire/simulation';
 
-export const SAVE_VERSION = 15;
+export const SAVE_VERSION = 16;
 const OLD_MAP = 64;
 export const MAX_WORKSHOP_NAME = 40;
 
@@ -482,7 +482,7 @@ const staffV14 = saveV14.shape.world.shape.staff;
 
 /** Version 15 (v0.12.0): roles, restock lists and the company brand. */
 const saveV15 = z.strictObject({
-  version: z.literal(SAVE_VERSION),
+  version: z.literal(15),
   ...header,
   world: z.strictObject({
     ...saveV14.shape.world.shape,
@@ -511,7 +511,7 @@ function migrateV14(value: unknown): z.input<typeof saveV15> | null {
   const drawn = candidatesFor(staff.pool, STAFF.maxPoolSize);
   return {
     ...v14.data,
-    version: SAVE_VERSION,
+    version: 15,
     world: {
       ...v14.data.world,
       staff: {
@@ -524,7 +524,50 @@ function migrateV14(value: unknown): z.input<typeof saveV15> | null {
   };
 }
 
-const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9, migrateV10, migrateV11, migrateV12, migrateV13, migrateV14];
+const careerV15 = saveV15.shape.world.shape.progress.shape.career.unwrap();
+const salesV15 = saveV15.shape.world.shape.sales;
+const termsV16 = salesV15.shape.completed.element.extend({
+  era: z.enum(ERA_IDS.filter((era): era is Exclude<typeof era, 'modern'> => era !== 'modern')).optional(),
+});
+
+/** Version 16 (v0.13.0): career calendar, eras on sale and adopted, historical contracts. */
+const saveV16 = z.strictObject({
+  version: z.literal(SAVE_VERSION),
+  ...header,
+  world: z.strictObject({
+    ...saveV15.shape.world.shape,
+    progress: z.strictObject({
+      ...saveV15.shape.world.shape.progress.shape,
+      career: careerV15.extend({
+        startYear: z.union(START_YEARS.map(year => z.literal(year))),
+        released: z.enum(ERA_IDS),
+        era: z.enum(ERA_IDS),
+        retoolCents: count0,
+      }).optional(),
+    }),
+    sales: z.strictObject({
+      active: z.strictObject({ terms: termsV16, delivered: z.int().nonnegative() }).nullable(),
+      completed: z.array(termsV16),
+    }),
+  }),
+});
+
+/** Careers of earlier versions run in the modern era, from 2017. */
+function migrateV15(value: unknown): z.input<typeof saveV16> | null {
+  const v15 = saveV15.safeParse(value);
+  if (!v15.success) return null;
+  const { career, ...progress } = v15.data.world.progress;
+  return {
+    ...v15.data,
+    version: SAVE_VERSION,
+    world: {
+      ...v15.data.world,
+      progress: career ? { ...progress, career: { ...career, startYear: 2017, released: 'modern', era: 'modern', retoolCents: 0 } } : progress,
+    },
+  };
+}
+
+const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9, migrateV10, migrateV11, migrateV12, migrateV13, migrateV14, migrateV15];
 
 function versionOf(value: unknown): unknown {
   return typeof value === 'object' && value !== null && 'version' in value ? value.version : undefined;
@@ -537,7 +580,7 @@ export function decodeSave(value: unknown): SaveRecord | null {
   if (typeof version === 'number' && Number.isInteger(version) && version >= 1) {
     for (const migrate of migrations.slice(version - 1)) current = migrate(current);
   }
-  const decoded = saveV15.safeParse(current);
+  const decoded = saveV16.safeParse(current);
   if (!decoded.success) return null;
 
   const { data } = decoded;

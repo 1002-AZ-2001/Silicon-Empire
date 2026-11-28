@@ -88,6 +88,8 @@ Branches : automatisation, logistique, CPU, GPU, RAM, stockage, réseau, énergi
 
 Époques envisagées : années 1980 (PC pionniers), 1990 (démocratisation et 3D), 2000 (multimédia, multicœurs), 2010 (SSD, cloud et virtualisation), 2020 (NVMe, IA), futur (photonique, quantique, architectures expérimentales). Obsolescence et demande évolutive. Le MVP utilise une époque moderne fictive unique.
 
+Réalisé en v0.13.0 (carrière) : année de départ 1975, 1985, 1995, 2005 ou 2017 ; un mois de calendrier par période de paie ; six époques de pièces (8 bits, 16 bits, 32 bits, 3D, 64 bits, moderne) ; rééquipement payant des chaînes ; obsolescence des contrats. Les modes Classique et Bac à sable restent à l’époque moderne. Restent à faire : demande évolutive selon l’époque, époques futures.
+
 ## 12. Infrastructure IT industrielle (après MVP)
 Baies, serveurs, switches, routeurs, pare-feu, hyperviseurs, NAS, ERP, supervision, sauvegardes, cybersécurité et redondance. Des bénéfices concrets : fiabilité, stocks, commandes automatisées, visibilité, temps d’arrêt réduit et productivité. Ne pas simuler des protocoles réseau réels dans les premières versions.
 

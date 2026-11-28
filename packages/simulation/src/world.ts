@@ -1,14 +1,14 @@
 import {
   CAREER, CUSTOM_ITEMS, FLOOR_COST_CENTS, LOANS, SPECIALTIES, TECHNOLOGIES, FLOOR_TYPES, ITEMS, ITEM_TYPES, LAND, MACHINES, MAX_LINE_LENGTH, POWER, PURCHASE, ROLE_EFFECTS, STAFF, SUPPLIERS, UPGRADE_COSTS, WEAR,
-  WORKSHOP, designParts, designPower, isLineType, pcDesignSchema, recipeOf, saleOffer,
+  WORKSHOP, designParts, designPower, isLineType, obsolescence, pcDesignSchema, recipeOf, saleOffer,
 } from '@silicon-empire/game-data';
 import type {
-  Direction, FloorType, ItemType, LineType, LoanId, MachineType, Specialty, TechId, UpgradeLevel, MilestoneId, PcDesign, ProductModel, PublishedDesign, ResearchId,
+  Direction, EraId, FloorType, ItemType, StartYear, LineType, LoanId, MachineType, Specialty, TechId, UpgradeLevel, MilestoneId, PcDesign, ProductModel, PublishedDesign, ResearchId,
   SupplierId,
 } from '@silicon-empire/game-data';
 import { addItems, fitsInputStock, inventoryTotal, mergeInventories } from './inventory';
 import type { Inventory } from './inventory';
-import { createCareerProgress, createProgress, milestoneAvailable, modelUnlocked, orderableItems, unlockedMachines } from './progress';
+import { createCareerProgress, createProgress, eraOf, milestoneAvailable, modelUnlocked, orderableItems, unlockedMachines } from './progress';
 import type { Progress } from './progress';
 import { NO_RESEARCH, capacityOf, researchAvailable, researchMachines, upgradeUnlocked } from './research';
 import type { ResearchState } from './research';
@@ -16,7 +16,7 @@ import type { Sales } from './sales';
 import { assignBaseOperators, createStaff, postAccepts, severance, staffRequired } from './staff';
 import type { Employee, StaffState } from './staff';
 import type { Floors } from './rooms';
-import { loanAvailable, payoff, techAvailable } from './career';
+import { eraAdoptable, erasBehind, loanAvailable, payoff, retoolCost, techAvailable } from './career';
 import type { CareerState } from './career';
 import { DEFAULT_COMPANY, roleUnlocked, salesBonusPercent, upgradeCost, validCompany } from './company';
 import type { Company } from './company';
@@ -165,6 +165,7 @@ export type Command =
   | { readonly kind: 'take-loan'; readonly offer: LoanId }
   | { readonly kind: 'repay-loan'; readonly offer: LoanId }
   | { readonly kind: 'buy-tech'; readonly tech: TechId }
+  | { readonly kind: 'adopt-era'; readonly era: EraId }
   | { readonly kind: 'select-milestone'; readonly milestone: MilestoneId | null }
   | { readonly kind: 'select-research'; readonly research: ResearchId | null }
   | { readonly kind: 'upgrade'; readonly id: number }
@@ -197,7 +198,7 @@ type DesignError = 'design-invalid' | 'design-power' | 'design-in-use';
 export type CommandError = BuildError | OrderError | ModelError | SaleError | DesignError |
   'missing-machine' | 'not-a-splitter' | 'milestone-unavailable' | 'deliveries-pending' |
   'research-unavailable' | 'not-upgradable' | 'missing-candidate' | 'missing-employee' | 'staff-full' | 'not-staffed' |
-  'parcel-unavailable' | 'not-career' | 'specialty-chosen' | 'loan-unavailable' | 'tech-unavailable' | 'bankrupt' |
+  'parcel-unavailable' | 'not-career' | 'specialty-chosen' | 'loan-unavailable' | 'tech-unavailable' | 'bankrupt' | 'era-unavailable' |
   'not-worn';
 
 export type CommandResult =
@@ -221,8 +222,13 @@ export interface Utilities {
   readonly spentCents: number;
 }
 
-/** `utilities` turns on electricity and wear; the game turns it on for new workshops. */
-export function createWorld(mode: GameMode = 'sandbox', { utilities = false } = {}): World {
+/**
+ * `utilities` turns on electricity and wear; the game turns it on for new workshops. `startYear` sets
+ * the calendar of a career, by default in the modern era.
+ */
+export function createWorld(
+  mode: GameMode = 'sandbox', { utilities = false, startYear }: { utilities?: boolean; startYear?: StartYear } = {},
+): World {
   return {
     columns: WORKSHOP.columns,
     rows: WORKSHOP.rows,
@@ -235,7 +241,7 @@ export function createWorld(mode: GameMode = 'sandbox', { utilities = false } = 
     belts: {},
     routers: {},
     production: {},
-    progress: mode === 'career' ? createCareerProgress() : createProgress(mode === 'sandbox'),
+    progress: mode === 'career' ? createCareerProgress(0, startYear) : createProgress(mode === 'sandbox'),
     sales: { active: null, completed: [] },
     design: null,
     deliveries: [],
@@ -475,7 +481,7 @@ export function checkOrder(world: World, id: number, item: ItemType, supplier: S
 /** A model switch keeps the existing stock and cannot change a running or finished batch. */
 export function checkProductModel(world: World, machine: Machine, model: ProductModel): ModelError | null {
   if (model === 'custom' && !world.design) return 'design-required';
-  const recipe = recipeOf(machine.type, model, world.design);
+  const recipe = recipeOf(machine.type, model, world.design, eraOf(world.progress));
   if (!recipe) return 'not-a-producer';
   if (!modelUnlocked(world.progress, model)) return 'locked';
   if ((machine.model ?? 'office') === model) return null;
@@ -491,15 +497,50 @@ function withoutKey<T>(record: Readonly<Record<string, T>>, key: number): Readon
   return copy;
 }
 
+/**
+ * Price the customer pays per unit: the catalogue price, raised by salespeople and, in a career,
+ * lowered for PCs of an era behind the latest one on sale.
+ */
+export function contractPrice(world: World, catalogueCents: number): number {
+  const career = world.progress.career;
+  const percent = career ? obsolescence(erasBehind(career)) : 100;
+  return Math.ceil(catalogueCents * (100 + salesBonusPercent(world)) / 100 * percent / 100);
+}
+
 function withCareer(world: World, career: CareerState, capitalCents = world.capitalCents): World {
   return { ...world, capitalCents, progress: { ...world.progress, career } };
 }
 
-/** Career commands: the specialty, loans and licences. */
-type CareerCommand = Extract<Command, { kind: 'choose-specialty' | 'take-loan' | 'repay-loan' | 'buy-tech' }>;
+/** Career commands: the specialty, loans, licences and eras. */
+type CareerCommand = Extract<Command, { kind: 'choose-specialty' | 'take-loan' | 'repay-loan' | 'buy-tech' | 'adopt-era' }>;
+
+/**
+ * Moving the assembly lines to a later era: the stock waiting at every assembler must suit the new
+ * parts, as for a model change. Testers and packagers keep their recipes.
+ */
+export function checkEra(world: World, era: EraId): CommandError | null {
+  const career = world.progress.career;
+  if (!career) return 'not-career';
+  if (!eraAdoptable(career, era)) return 'era-unavailable';
+  if (world.capitalCents < retoolCost(career, era)) return 'insufficient-funds';
+  for (const machine of world.machines) {
+    const recipe = machine.type === 'assembler' && recipeOf(machine.type, machine.model, world.design, era);
+    if (recipe && !fitsInputStock(recipe, world.stocks[machine.id] ?? {})) return 'incompatible-inputs';
+  }
+  return null;
+}
 
 function applyCareer(world: World, command: CareerCommand): CommandResult {
   const career = world.progress.career;
+  if (command.kind === 'adopt-era') {
+    const error = checkEra(world, command.era);
+    if (error || !career) return { ok: false, reason: error ?? 'not-career' };
+    const cost = retoolCost(career, command.era);
+    return {
+      ok: true, machine: null,
+      world: withCareer(world, { ...career, era: command.era, retoolCents: career.retoolCents + cost }, world.capitalCents - cost),
+    };
+  }
   if (command.kind === 'choose-specialty') {
     if (!career) return { ok: false, reason: 'not-career' };
     if (career.specialty !== null || !SPECIALTIES.includes(command.specialty)) return { ok: false, reason: 'specialty-chosen' };
@@ -546,7 +587,8 @@ function applyCareer(world: World, command: CareerCommand): CommandResult {
 export function applyCommand(world: World, command: Command): CommandResult {
   // A bankrupt company is frozen: the game is over.
   if (world.progress.career?.bankrupt) return { ok: false, reason: 'bankrupt' };
-  if (command.kind === 'choose-specialty' || command.kind === 'take-loan' || command.kind === 'repay-loan' || command.kind === 'buy-tech') {
+  if (command.kind === 'choose-specialty' || command.kind === 'take-loan' || command.kind === 'repay-loan' || command.kind === 'buy-tech' ||
+    command.kind === 'adopt-era') {
     return applyCareer(world, command);
   }
   if (command.kind === 'publish-design') {
@@ -579,9 +621,9 @@ export function applyCommand(world: World, command: Command): CommandResult {
     if (world.sales.active) return { ok: false, reason: 'sale-in-progress' };
     if (!modelUnlocked(world.progress, command.model)) return { ok: false, reason: 'locked' };
     if (!world.machines.some(machine => machine.type === 'shipping')) return { ok: false, reason: 'no-shipping-dock' };
-    const offer = saleOffer(command.model, world.design);
+    const offer = saleOffer(command.model, world.design, eraOf(world.progress));
     if (!offer) return { ok: false, reason: 'design-required' };
-    const terms = { ...offer, unitPriceCents: Math.ceil(offer.unitPriceCents * (100 + salesBonusPercent(world)) / 100) };
+    const terms = { ...offer, unitPriceCents: contractPrice(world, offer.unitPriceCents) };
     const sales = { ...world.sales, active: { terms, delivered: 0 } };
     return { ok: true, world: { ...world, sales }, machine: null };
   }

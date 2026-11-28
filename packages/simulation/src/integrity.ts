@@ -1,19 +1,19 @@
 import {
   CONVEYOR, ITEM_TYPES, MILESTONES, MILESTONE_IDS, PRODUCTION, PURCHASE, RESEARCH, RESEARCH_IDS, SKILL_LEVELS, STAFF, SUPPLIERS,
   WORKSHOP, FLOOR_TYPES, LAND, CAREER, POWER, POWER_USE_KW, ROLES, ROLE_EFFECTS, WEAR, LOANS, LOAN_IDS, MARKET_PRICES,
-  designParts, designPower, isConveyor, recipeOf, sameDesign,
+  START_YEARS, designParts, designPower, eraIndex, eraOfYear, isConveyor, recipeOf, sameDesign,
 } from '@silicon-empire/game-data';
 import type { ItemType, MilestoneId, ResearchId } from '@silicon-empire/game-data';
 import { addItems, fitsInputStock, inventoryTotal, mergeInventories } from './inventory';
 import type { Inventory } from './inventory';
-import { createProgress, milestoneAvailable, milestoneDone, modelUnlocked, orderableItems, rewardsEarned, unlockedMachines } from './progress';
+import { createProgress, eraOf, milestoneAvailable, milestoneDone, modelUnlocked, orderableItems, rewardsEarned, unlockedMachines } from './progress';
 import type { Progress } from './progress';
 import { NO_RESEARCH, capacityOf, researchAvailable, researchPartsDone, upgradeUnlocked } from './research';
 import type { ResearchState } from './research';
 import { salesAccounts, validSaleTerms } from './sales';
 import { candidatesFor, postAccepts } from './staff';
 import { validCompany } from './company';
-import { techAvailable, techSpent } from './career';
+import { careerDate, techAvailable, techSpent } from './career';
 import type { CareerState } from './career';
 import { landConnected, landSpent, ownsFootprint, ownsTile } from './land';
 import { fitsMap, footprintOf, landUnlocked, machineUnlocked } from './world';
@@ -25,6 +25,11 @@ function checkCareer(career: CareerState, tick: number): boolean {
   const counters = [career.borrowedCents, career.repaidCents, career.missed, career.marketRevenueCents];
   if (counters.some(value => !Number.isSafeInteger(value) || value < 0)) return false;
   if (career.missed >= CAREER.maxMissed !== career.bankrupt) return false;
+  if (!Number.isSafeInteger(career.retoolCents) || career.retoolCents < 0 || !START_YEARS.includes(career.startYear)) return false;
+  // The calendar decides the latest era on sale; the lines never go back before the start era.
+  if (career.released !== eraOfYear(careerDate(career, tick).year) || eraIndex(career.era) > eraIndex(career.released) ||
+    eraIndex(career.era) < eraIndex(eraOfYear(career.startYear))) return false;
+  if (!career.technologies.includes('computers') && career.era !== career.released) return false;
   if (career.nextInstalment <= tick || career.nextInstalment - tick > STAFF.payPeriodTicks) return false;
   if (career.specialty === null ? career.technologies.length > 0 : career.technologies[0] !== career.specialty) return false;
   let replay: CareerState = { ...career, technologies: career.technologies.slice(0, 1) };
@@ -102,7 +107,7 @@ function checkUtilities(world: World): boolean {
   }
   return Object.entries(world.wear).every(([id, wear]) => {
     const machine = world.machines.find(candidate => String(candidate.id) === id);
-    return machine !== undefined && POWER_USE_KW[machine.type] !== undefined && recipeOf(machine.type, machine.model, world.design) !== undefined &&
+    return machine !== undefined && POWER_USE_KW[machine.type] !== undefined && recipeOf(machine.type, machine.model, world.design, eraOf(world.progress)) !== undefined &&
       Number.isInteger(wear) && wear > 0 && wear <= WEAR.breakdown;
   });
 }
@@ -184,7 +189,7 @@ export function checkIntegrity(world: World): boolean {
   const capitalCeiling = (career ? CAREER.initialCapitalCents + career.borrowedCents + career.marketRevenueCents : WORKSHOP.initialCapitalCents) +
     rewardsEarned(world.progress) + revenueCents;
   let bookedCapital = world.capitalCents + world.ledger.purchaseSpentCents + world.staff.paidCents + landSpent(world) +
-    (career ? career.repaidCents + techSpent(career) : 0) + world.utilities.spentCents;
+    (career ? career.repaidCents + techSpent(career) + career.retoolCents : 0) + world.utilities.spentCents;
   if (bookedCapital > capitalCeiling) return false;
   if (world.machines.filter(machine => machine.type === 'headquarters').length > 1) return false;
 
@@ -198,7 +203,7 @@ export function checkIntegrity(world: World): boolean {
       (machine.level === 3 && !upgradeUnlocked(world.progress, world.research, machine.type, 2)))) {
       return false;
     }
-    if (machine.model && (!recipeOf(machine.type, machine.model, world.design) || !modelUnlocked(world.progress, machine.model))) {
+    if (machine.model && (!recipeOf(machine.type, machine.model, world.design, eraOf(world.progress)) || !modelUnlocked(world.progress, machine.model))) {
       return false;
     }
     previousId = machine.id;
@@ -231,7 +236,7 @@ export function checkIntegrity(world: World): boolean {
     const machine = machines.get(id);
     const total = inventoryTotal(stock);
     if (!machine || total === 0) return false;
-    const recipe = recipeOf(machine.type, machine.model, world.design);
+    const recipe = recipeOf(machine.type, machine.model, world.design, eraOf(world.progress));
     if (recipe) {
       if (!fitsInputStock(recipe, stock)) return false;
     } else if (total > capacityOf(world.progress, world.research, machine.type)) {
@@ -242,7 +247,7 @@ export function checkIntegrity(world: World): boolean {
 
   for (const [id, state] of Object.entries(world.production)) {
     const machine = machines.get(id);
-    const recipe = machine && recipeOf(machine.type, machine.model, world.design);
+    const recipe = machine && recipeOf(machine.type, machine.model, world.design, eraOf(world.progress));
     if (!recipe) return false;
     const rejected = recipe.rejection?.item;
     if (!state.batch && inventoryTotal(state.output) === 0) return false;

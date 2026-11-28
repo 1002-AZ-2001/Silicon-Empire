@@ -10,6 +10,30 @@
 | Assemblage initial | 30 s simulées par PC |
 | Prix exemple Gaming X1 | 899 € |
 
+## Époques v0.13.0
+
+Un mois de calendrier dure une période de paie (5 minutes simulées, 6 000 ticks) : une année dure une heure à ×1 et 12 minutes à ×5.
+
+| Époque | Année | Pièces du PC bureautique (prix unitaire) | Coût des pièces | Rééquipement |
+|---|---:|---|---:|---:|
+| Micro-ordinateurs 8 bits | 1975 | CPU 90 €, mémoire 4 Ko 130 €, disquettes 8" 110 €, carte S-100 60 €, alimentation linéaire 35 €, boîtier 45 € | 470 € | — |
+| PC 16 bits | 1983 | CPU 110 €, 640 Ko 110 €, disque 10 Mo 115 €, carte ISA 8 bits 55 €, alimentation linéaire, boîtier de bureau | 470 € | 20 000 € |
+| PC 32 bits | 1986 | CPU 150 €, 1 Mo 80 €, disque 40 Mo 95 €, carte ISA 16 bits 65 €, alimentation AT 35 €, boîtier tour 45 € | 470 € | 30 000 € |
+| Multimédia et 3D | 1997 | CPU 160 €, 32 Mo 60 €, disque 4 Go 70 €, carte AGP 95 €, alimentation AT, boîtier tour (+ accélérateur 3D 220 € en gaming) | 465 € | 40 000 € |
+| 64 bits double cœur | 2005 | CPU 170 €, 1 Go 45 €, disque 250 Go 60 €, carte PCI Express 105 €, alimentation 450 W, boîtier standard (+ carte 256 Mo 220 €) | 465 € | 50 000 € |
+| Ère moderne | 2017 | Catalogue existant | 470 € | 60 000 € |
+
+- Le coût des pièces d’un PC bureautique reste à 3 % près celui du PC moderne : le prix du contrat (650 €) garde la même marge quelle que soit l’époque. Le rééquipement est payé une fois par époque franchie.
+- Obsolescence : −15 % par époque de retard sur le prix des nouveaux contrats, plancher à 40 % du prix. Un contrat de 10 PC bureautiques d’une époque de retard paie 5 525 € au lieu de 6 500 €, soit 975 € de moins : le rééquipement à 20 000 € se rembourse en une vingtaine de contrats.
+- Gaming à partir de 1997 et professionnel à partir de 2005 : les modèles suivent l’arrivée des cartes 3D, puis des stations de travail 64 bits.
+
+Repères historiques (noms de fabricants fictifs dans le jeu) :
+- Altair 8800, janvier 1975 : processeur Intel 8080 à 2 MHz, bus S-100 ([Wikipédia, S-100 bus](https://en.wikipedia.org/wiki/S-100_bus), [Wikipédia, Altair 8800](https://en.wikipedia.org/wiki/Altair_8800)). Disquette 8 pouces lecture/écriture d’IBM en 1973 ([Wikipédia, History of the floppy disk](https://en.wikipedia.org/wiki/History_of_the_floppy_disk)).
+- IBM PC XT, 8 mars 1983 : 8088 à 4,77 MHz, disque dur 10 Mo de série ([Wikipédia, IBM Personal Computer XT](https://en.wikipedia.org/wiki/IBM_Personal_Computer_XT)).
+- Compaq Deskpro 386, septembre 1986 : premier PC à processeur 32 bits 80386, disque 40 Mo dans le modèle de base ([Wikipédia, Compaq Deskpro 386](https://en.wikipedia.org/wiki/Compaq_Deskpro_386)).
+- Pentium II 233 MHz, 7 mai 1997 ([Intel, communiqué du 7 mai 1997](https://www.intel.com/pressroom/archive/releases/1997/DP050797.HTM)) ; chipset 440LX avec AGP, août 1997 ([Intel, communiqué du 25 août 1997](https://www.intel.com/pressroom/archive/releases/1997/CS082597.HTM)) ; 3dfx Voodoo, accélérateur 3D de 4 Mo, 1996.
+- PCI Express sur les PC grand public avec les chipsets Intel 915/925, juin 2004 ([phys.org, juin 2004](https://phys.org/news/2004-06-intel-breakthrough-pc-technologies-digital.amp)) ; Athlon 64 X2 et Pentium D, mai 2005 ; GeForce 7800 GTX 256 Mo, 22 juin 2005 ([TechPowerUp](https://techpowerup.com/gpu-specs/geforce-7800-gtx.c127)).
+
 ## Rôles v0.12.0
 
 | Rôle | Salaire (% opérateur) | Fréquence au vivier | Effet | Plafond |

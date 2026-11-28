@@ -1,7 +1,8 @@
 import {
-  CAREER_START_MACHINES, ITEMS, MACHINE_TYPES, MILESTONES, MILESTONE_IDS, STARTING_ITEMS, STARTING_MACHINES, TECHNOLOGIES, TIERS,
+  CAREER_START_MACHINES, ERAS, ERA_IDS, ERA_ITEMS, ITEMS, ITEM_TYPES, MACHINE_TYPES, MILESTONES, MILESTONE_IDS, STANDARD_MODELS, STARTING_ITEMS,
+  STARTING_MACHINES, TECHNOLOGIES, TIERS, eraIndex, eraOfYear, recipeOf,
 } from '@silicon-empire/game-data';
-import type { ItemType, MachineType, MilestoneId, ProductModel } from '@silicon-empire/game-data';
+import type { EraId, ItemCategory, ItemType, MachineType, MilestoneId, ProductModel, StartYear } from '@silicon-empire/game-data';
 import { createCareer } from './career';
 import type { CareerState } from './career';
 import type { Inventory } from './inventory';
@@ -23,8 +24,51 @@ export function createProgress(sandbox: boolean): Progress {
   return { sandbox, completed: [], active: null, delivered: {} };
 }
 
-export function createCareerProgress(tick = 0): Progress {
-  return { sandbox: false, completed: [], active: null, delivered: {}, career: createCareer(tick) };
+export function createCareerProgress(tick = 0, startYear?: StartYear): Progress {
+  return { sandbox: false, completed: [], active: null, delivered: {}, career: createCareer(tick, startYear) };
+}
+
+/** Era of the parts the assembly lines take: the modern one outside careers. */
+export function eraOf(progress: Progress): EraId {
+  return progress.career?.era ?? 'modern';
+}
+
+const PC_PART_CATEGORIES: readonly ItemCategory[] = ['cpu', 'gpu', 'ram', 'storage', 'motherboard', 'power-supply', 'case'];
+
+export function isPcPart(item: ItemType): boolean {
+  return PC_PART_CATEGORIES.includes(ITEMS[item].category);
+}
+
+/** PC parts an era's assembly lines take, whatever the model. */
+export function eraPartsOf(era: EraId): readonly ItemType[] {
+  return ITEM_TYPES.filter(item => STANDARD_MODELS.some(model => (recipeOf('assembler', model, null, era)?.inputs[item] ?? 0) > 0));
+}
+
+const partsCache = new Map<string, readonly ItemType[]>();
+
+/**
+ * PC parts of the eras from `first` to `last`. A career sells the parts of every era from its start to
+ * the latest one on sale: older parts stay available, those of eras before the start never appear.
+ */
+export function partsBetween(first: EraId, last: EraId): readonly ItemType[] {
+  const key = `${first}:${last}`;
+  let parts = partsCache.get(key);
+  if (!parts) {
+    const eras = ERA_IDS.slice(eraIndex(first), eraIndex(last) + 1);
+    parts = ITEM_TYPES.filter(item => eras.some(era => eraPartsOf(era).includes(item)));
+    partsCache.set(key, parts);
+  }
+  return parts;
+}
+
+/** First era whose assembly lines take a part, if any. */
+export function eraOfPart(item: ItemType): EraId | undefined {
+  return ERA_IDS.find(era => eraPartsOf(era).includes(item));
+}
+
+export function partYear(item: ItemType): number | undefined {
+  const era = eraOfPart(item);
+  return era && ERAS[era].year;
 }
 
 function milestonesOf(tier: number): MilestoneId[] {
@@ -55,7 +99,9 @@ export function milestoneAvailable(progress: Progress, id: MilestoneId): boolean
 }
 
 export function modelUnlocked(progress: Progress, model: ProductModel): boolean {
-  if (progress.career) return model === 'office' && progress.career.technologies.includes('computers');
+  if (progress.career) {
+    return model !== 'custom' && progress.career.technologies.includes('computers') && ERAS[progress.career.era].models.includes(model);
+  }
   return model === 'office' || progress.sandbox ||
     progress.completed.some(id => MILESTONES[id].unlocks.models?.includes(model));
 }
@@ -68,12 +114,19 @@ export function unlockedMachines(progress: Progress): ReadonlySet<MachineType> {
   return new Set([...STARTING_MACHINES, ...progress.completed.flatMap(id => MILESTONES[id].unlocks.machines)]);
 }
 
-/** Items the receiving dock can order: bought from suppliers and unlocked. */
+/**
+ * Items the receiving dock can order: bought from suppliers and unlocked. In a career, the computers
+ * licence opens the PC parts of every era on sale; historical parts are never sold elsewhere.
+ */
 export function orderableItems(progress: Progress): ReadonlySet<ItemType> {
+  const { career } = progress;
   const unlocked = progress.sandbox
-    ? Object.keys(ITEMS) as ItemType[]
-    : progress.career
-      ? progress.career.technologies.flatMap(tech => TECHNOLOGIES[tech].unlocks.items)
+    ? ITEM_TYPES.filter(item => !(ERA_ITEMS as readonly ItemType[]).includes(item))
+    : career
+      ? [
+        ...career.technologies.flatMap(tech => TECHNOLOGIES[tech].unlocks.items).filter(item => !isPcPart(item)),
+        ...career.technologies.includes('computers') ? partsBetween(eraOfYear(career.startYear), career.released) : [],
+      ]
       : [...STARTING_ITEMS, ...progress.completed.flatMap(id => MILESTONES[id].unlocks.items)];
   return new Set(unlocked.filter(item => ITEMS[item].unitCostCents !== null));
 }

@@ -1,11 +1,11 @@
-import { contentsOf, demolitionRefund, inventoryTotal, machineUnlocked, modelUnlocked, sameContents, Simulation } from '@silicon-empire/simulation';
-import { CAREER, MILESTONES, TIME } from '@silicon-empire/game-data';
+import { contentsOf, demolitionRefund, erasBehind, inventoryTotal, machineUnlocked, modelUnlocked, sameContents, Simulation } from '@silicon-empire/simulation';
+import { CAREER, ERAS, MILESTONES, TIME } from '@silicon-empire/game-data';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import { createWorkshopControls } from '../game/controls';
 import { writeSave } from '../persistence/indexed-saves';
 import { SAVE_VERSION } from '../persistence/save-data';
-import { BankPanel, BankruptPanel, StarterPanel, TechPanel } from './CareerPanels';
+import { BankPanel, BankruptPanel, CareerDate, EraPanel, StarterPanel, TechPanel } from './CareerPanels';
 import { CompanyPanel, Emblem } from './CompanyPanel';
 import { ConstructionBar, getShortcut } from './ConstructionBar';
 import { DesignerPanel } from './DesignerPanel';
@@ -47,6 +47,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
   const companyOpen = useStore(controls.store, state => state.companyOpen);
   const bankOpen = useStore(controls.store, state => state.bankOpen);
   const techOpen = useStore(controls.store, state => state.techOpen);
+  const eraOpen = useStore(controls.store, state => state.eraOpen);
   const [tutorialHidden, setTutorialHidden] = useTutorialHidden(session.id);
   const career = world.progress.career;
   const target = tutorialTarget(world, tutorialHidden);
@@ -112,6 +113,16 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
       controls.store.setState({ feedback: { kind: 'success', message: ({ t: text, money: format }) => text.feedback.billPaid(format(paid)) } });
     }
   }, [world.utilities, controls]);
+
+  // Announce the eras going on sale.
+  const previousRelease = useRef(career?.released);
+  useEffect(() => {
+    const before = previousRelease.current;
+    previousRelease.current = career?.released;
+    if (!career || !before || career.released === before) return;
+    const era = career.released;
+    controls.store.setState({ feedback: { kind: 'success', message: ({ t: text }) => text.feedback.eraReleased(text.eras.names[era], ERAS[era].year) } });
+  }, [career, controls]);
 
   // Announce loan instalments in a career.
   useEffect(() => {
@@ -244,6 +255,12 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
             <span className="metric-label">{t.workshop.time}</span>
             <strong className="game-time" aria-label={t.workshop.time}>{gameTime(world.tick)}</strong>
           </div>
+          {career && (
+            <div className="metric">
+              <span className="metric-label">{t.eras.date}</span>
+              <strong className="career-date" aria-label={t.eras.date}><CareerDate career={career} tick={world.tick} /></strong>
+            </div>
+          )}
         </div>
         <div className="speed-control" role="group" aria-label={t.workshop.speed}>
           {TIME.speeds.map(option => (
@@ -265,6 +282,10 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
             </button>
             <button type="button" className={`button${highlight('technologies')}`} onClick={() => controls.store.setState({ techOpen: true })}>
               {t.workshop.technologies}
+            </button>
+            <button type="button" className="button" onClick={() => controls.store.setState({ eraOpen: true })}>
+              {t.eras.title}
+              {erasBehind(career) > 0 && career.technologies.includes('computers') && <small className="button-detail"> · {t.eras.newEra}</small>}
             </button>
           </>
         )}
@@ -322,6 +343,9 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
       {career && !career.specialty && !career.bankrupt && <StarterPanel controls={controls} onMenu={openMenu} />}
       {career && bankOpen && (
         <BankPanel world={world} career={career} controls={controls} onClose={() => controls.store.setState({ bankOpen: false })} />
+      )}
+      {career && eraOpen && (
+        <EraPanel world={world} career={career} controls={controls} onClose={() => controls.store.setState({ eraOpen: false })} />
       )}
       {career && techOpen && (
         <TechPanel world={world} career={career} controls={controls} onClose={() => controls.store.setState({ techOpen: false })} />

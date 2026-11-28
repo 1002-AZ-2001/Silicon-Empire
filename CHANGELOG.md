@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.13.0 — Époques
+
+- **Année de départ** de la carrière, choisie au menu : 1975, 1985, 1995, 2005 ou 2017. Le **calendrier** avance d’un mois toutes les 5 minutes simulées (une période de paie) ; la date s’affiche dans l’en-tête. Les modes Classique et Bac à sable restent à l’époque moderne.
+- Six **époques** de matériel, aux noms de fabricants fictifs, inspirées de l’histoire réelle du PC :
+  - 1975, micro-ordinateurs 8 bits : processeur 8 bits 2 MHz, mémoire 4 Ko, lecteur de disquettes 8 pouces, carte mère bus S-100, alimentation linéaire, boîtier de bureau ;
+  - 1983, PC 16 bits : processeur 4,77 MHz, mémoire 640 Ko, disque dur 10 Mo, carte mère ISA 8 bits ;
+  - 1986, PC 32 bits : processeur 16 MHz, mémoire 1 Mo, disque dur 40 Mo, carte mère ISA 16 bits, alimentation AT 200 W, boîtier tour ;
+  - 1997, multimédia et 3D : processeur 233 MHz, barrette 32 Mo, disque dur 4 Go, carte mère AGP, accélérateur 3D 4 Mo ;
+  - 2005, 64 bits double cœur : barrette 1 Go, disque dur 250 Go, carte mère PCI Express, carte graphique 256 Mo ;
+  - 2017, ère moderne : le catalogue existant.
+- 26 nouvelles pièces dans la boutique, avec leurs icônes pixel art. Les pièces d’une époque restent en vente ensuite. La boutique affiche l’année de mise en vente et trie les pièces d’une même catégorie par année. Les pièces historiques n’apparaissent qu’en carrière.
+- L’établi d’assemblage prend les pièces de l’**époque équipée**. Les modèles suivent l’époque : bureautique dès 1975, gaming dès 1997, professionnel (deux barrettes et deux disques) dès 2005. Les bancs de test et les emballeuses ne changent pas.
+- Panneau **Époques** : date, époque équipée, pièces et modèles de chaque époque, délai avant les suivantes. Sans licence Ordinateurs, l’entreprise suit gratuitement chaque nouvelle époque. Ensuite, **rééquiper les chaînes** coûte une licence par époque franchie (20 000 € à 60 000 €), et l’établi ne doit plus garder de pièces de l’ancienne époque.
+- **Obsolescence** : tant que les chaînes ont une ou plusieurs époques de retard, les nouveaux contrats paient 15 % de moins par époque (au plus −60 %). Un message annonce chaque nouvelle époque mise en vente.
+- Le panneau Ventes affiche le prix réel des contrats (commerciaux et obsolescence compris). Son calcul de l’investissement net retire aussi les factures d’électricité et le rééquipement.
+- La sauvegarde v16 enregistre l’année de départ, l’époque en vente, l’époque équipée et le rééquipement payé. Les carrières précédentes passent en 2017 à l’époque moderne : elles gagnent les modèles gaming et professionnel avec la licence Ordinateurs.
+
 ## 0.12.0 — Rôles des employés et menu Entreprise
 
 - Chaque candidat a un **rôle**. Le premier candidat de chaque vivier est toujours un opérateur ; le salaire dépend du rôle (de 90 % à 150 % de celui d’un opérateur de même niveau) et est arrondi à l’euro.
