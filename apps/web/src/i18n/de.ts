@@ -33,6 +33,7 @@ export const de: Messages = {
     'grid-connection': { name: 'Netzanschluss', short: 'Netz' },
     generator: { name: 'Stromaggregat', short: 'Aggregat' },
     workstation: { name: 'Computerarbeitsplatz', short: 'Arbeitsplatz' },
+    plant: { name: 'Grünpflanze', short: 'Pflanze' },
   },
   items: {
     'cpu-8c': 'Prozessor K8 mit 8 Kernen',
@@ -528,6 +529,7 @@ export const de: Messages = {
     },
     rested: (seats: number, staff: number) => `Pausenräume: ${seats} Plätze für ${staff} Beschäftigte.`,
     extra: (extra: number) => `Büros: +${extra} Bewerbung${extra > 1 ? 'en' : ''} pro Runde.`,
+    plants: (bonus: number) => `Pflanzen in Büros und Pausenräumen: +${bonus} Moral an jedem Zahltag.`,
   },
   land: {
     title: 'Parzelle',

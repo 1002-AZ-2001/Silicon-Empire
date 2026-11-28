@@ -34,6 +34,7 @@ export const zh: Messages = {
     'grid-connection': { name: '电网接入点', short: '电网' },
     generator: { name: '发电机组', short: '发电机' },
     workstation: { name: '电脑工位', short: '工位' },
+    plant: { name: '绿植', short: '绿植' },
   },
   items: {
     'cpu-8c': 'K8 八核处理器',
@@ -529,6 +530,7 @@ export const zh: Messages = {
     },
     rested: (seats: number, staff: number) => `休息室：${seats} 个座位 / ${staff} 名员工。`,
     extra: (extra: number) => `办公室：每批候选人 +${extra}。`,
+    plants: (bonus: number) => `办公室和休息室的绿植：每次发薪士气 +${bonus}。`,
   },
   land: {
     title: '地块',

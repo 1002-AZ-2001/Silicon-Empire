@@ -14,7 +14,7 @@ import { advanceCareer, marketPrice, sellToMarket, wholesalePrice } from './care
 import { managerMorale, researchBoost, restockItem, salesBonusPercent, technicianRepairs } from './company';
 import { advanceStaff, assignBaseOperators, operatorOf, staffRequired } from './staff';
 import { advanceUtilities, brokenDown, powerRatio, productionTicks } from './power';
-import { poolSizeOf, rejectionFor, staffRested } from './rooms';
+import { plantMorale, poolSizeOf, rejectionFor, staffRested } from './rooms';
 import { ROUTER_SIDES, dockSpace, footprintOf, orderCost } from './world';
 import type { BeltItem, Ledger, Machine, Placement, ProductionState, RouterState, Tile, World } from './world';
 
@@ -585,7 +585,7 @@ export function step(world: World): World {
   }
 
   ({ staff, capitalCents } = advanceStaff(staff, tick, capitalCents, () => ({
-    rested: staffRested({ ...world, staff }), poolSize: poolSizeOf(world), managerMorale: managerMorale({ ...world, staff }),
+    rested: staffRested({ ...world, staff }), poolSize: poolSizeOf(world), managerMorale: managerMorale({ ...world, staff }) + plantMorale(world),
   })));
 
   return {

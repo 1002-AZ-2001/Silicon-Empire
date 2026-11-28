@@ -1,7 +1,7 @@
 import { FLOOR_COST_CENTS, MACHINES, PROFESSIONAL_RECIPES, ROOMS, STAFF } from '@silicon-empire/game-data';
 import { describe, expect, it } from 'vitest';
 import {
-  applyCommand, breakRoomSeats, candidatesFor, checkIntegrity, createWorld, inCleanRoom, poolSizeOf, rejectionFor, roomOfMachine,
+  applyCommand, breakRoomSeats, candidatesFor, checkIntegrity, createWorld, inCleanRoom, plantMorale, poolSizeOf, rejectionFor, roomOfMachine,
   roomsOf, staffRested, step,
 } from '../src';
 import type { Command, LineTile, Tile, World } from '../src';
@@ -63,6 +63,25 @@ describe('pièces', () => {
     expect(paid.staff.employees[0]?.morale).toBe(STAFF.morale.initial + ROOMS.restedMorale.paid);
     const unpaid = ticks({ ...world, capitalCents: 0 }, STAFF.payPeriodTicks);
     expect(unpaid.staff.employees[0]?.morale).toBe(STAFF.morale.initial - ROOMS.restedMorale.unpaid);
+  });
+
+  it('remonte le moral d’un point par plante de bureau ou de salle de repos, dans la limite', () => {
+    let world = walledRoom();
+    world = run(world, { kind: 'build', type: 'plant', x: 11, y: 11, rotation: 0 });
+    expect(roomsOf(world).rooms[0]).toMatchObject({ type: 'empty', plants: 1 });
+    expect(plantMorale(world)).toBe(0);
+    world = run(world, { kind: 'build', type: 'desk', x: 12, y: 13, rotation: 0 });
+    expect(plantMorale(world)).toBe(ROOMS.plantMorale);
+    for (const x of [12, 13, 14]) world = run(world, { kind: 'build', type: 'plant', x, y: 11, rotation: 0 });
+    world = run(world, { kind: 'build', type: 'plant', x: 11, y: 12, rotation: 0 });
+    expect(roomsOf(world).rooms[0]?.plants).toBe(5);
+    expect(plantMorale(world)).toBe(ROOMS.maxPlantMorale);
+    const [candidate] = world.staff.candidates;
+    if (!candidate) throw new Error('vivier vide');
+    world = run(world, { kind: 'hire', candidate: candidate.id });
+    const paid = ticks(world, STAFF.payPeriodTicks);
+    expect(paid.staff.employees[0]?.morale).toBe(Math.min(100, STAFF.morale.initial + STAFF.morale.paid + ROOMS.maxPlantMorale));
+    expect(checkIntegrity(paid)).toBe(true);
   });
 
   it('agrandit le vivier d’un candidat par bureau, dans la limite', () => {

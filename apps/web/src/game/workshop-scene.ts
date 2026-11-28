@@ -10,6 +10,7 @@ import { CONVEYOR_EXPRESS_TURN_ART, CONVEYOR_FAST_TURN_ART, CONVEYOR_TURN_ART, M
 import { currentTranslator } from '../i18n';
 import { floorOf, isBuildTool, isCableTool, isDrawTool } from './controls';
 import { createFloor } from './floor';
+import { Landscape, RING_TILES, preloadLandscape } from './landscape';
 import type { Direction, FloorType, RoomType } from '@silicon-empire/game-data';
 import type { Footprint, Machine, Placement, Simulation, Tile, World, WorldPort } from '@silicon-empire/simulation';
 import type { WorkshopControls } from './controls';
@@ -17,7 +18,8 @@ import type { WorkshopControls } from './controls';
 export const MIN_ZOOM = 0.38;
 export const MAX_ZOOM = 2.5;
 export const ZOOM_STEP = 1.25;
-const MAP_MARGIN = 64;
+/** The camera can show the scenery around the land. */
+const MAP_MARGIN = RING_TILES * WORKSHOP.tileSize;
 const TILE = WORKSHOP.tileSize;
 const UP = ['w', 'z', 'arrowup'];
 const LEFT = ['a', 'q', 'arrowleft'];
@@ -104,6 +106,7 @@ export class WorkshopScene extends Phaser.Scene {
   private land!: Phaser.GameObjects.Graphics;
   private landLabels!: Phaser.GameObjects.Container;
   private drawnParcels: World['parcels'] | null = null;
+  private landscape!: Landscape;
   private cableLayer!: Phaser.GameObjects.Graphics;
   private drawnCables: World['cables'] | null = null;
   private readonly unitSprites = new Map<number, Phaser.GameObjects.Image>();
@@ -124,11 +127,13 @@ export class WorkshopScene extends Phaser.Scene {
     this.load.image('conveyor-fast-turn', CONVEYOR_FAST_TURN_ART);
     this.load.image('conveyor-express-turn', CONVEYOR_EXPRESS_TURN_ART);
     for (const [floor, art] of Object.entries(FLOOR_ART)) this.load.image(floorKey(floor), art);
+    preloadLandscape(this);
   }
 
   create() {
     const world = this.simulation.getSnapshot();
     createFloor(this, world.columns, world.rows);
+    this.landscape = new Landscape(this, world.columns, world.rows);
     this.floorLayer = this.add.container(0, 0).setDepth(0.5);
     this.roomTint = this.add.graphics().setDepth(0.6);
     this.cableLayer = this.add.graphics().setDepth(0.9);
@@ -173,6 +178,7 @@ export class WorkshopScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number) {
+    this.landscape.update(this.simulation.getSnapshot());
     this.drawUnits();
     this.drawLights();
     const hasKey = (keys: string[]) => Number(keys.some(key => this.keys.has(key)));
@@ -377,7 +383,7 @@ export class WorkshopScene extends Phaser.Scene {
     }
   }
 
-  /** Veil over the parcels not owned yet; parcels for sale show their price. */
+  /** Veil over the fields of the parcels not owned yet; parcels for sale show their price. */
   private drawLand(world: World) {
     if (world.parcels === this.drawnParcels) return;
     this.drawnParcels = world.parcels;
@@ -388,7 +394,8 @@ export class WorkshopScene extends Phaser.Scene {
     for (let parcel = 0; parcel < LAND.gridColumns * LAND.gridRows; parcel++) {
       if (world.parcels.includes(parcel)) continue;
       const { x, y, width, height } = parcelBounds(parcel);
-      this.land.fillStyle(0x0b100f, 0.62).fillRect(x * TILE, y * TILE, width * TILE, height * TILE);
+      // Light veil: the fields stay visible.
+      this.land.fillStyle(0x0b100f, 0.35).fillRect(x * TILE, y * TILE, width * TILE, height * TILE);
       if (!parcelForSale(world, parcel)) continue;
       this.land.lineStyle(2, 0xbde778, 0.7).strokeRect(x * TILE + 3, y * TILE + 3, width * TILE - 6, height * TILE - 6);
       this.landLabels.add(this.add.text(

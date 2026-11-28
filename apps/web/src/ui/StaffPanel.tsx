@@ -1,6 +1,6 @@
 import { OFFICE_ROLES, STAFF } from '@silicon-empire/game-data';
 import {
-  breakRoomSeats, equippedEmployees, machineUnlocked, payroll, poolSizeOf, postAccepts, roleUnlocked, severance, staffRequired,
+  breakRoomSeats, equippedEmployees, machineUnlocked, payroll, plantMorale, poolSizeOf, postAccepts, roleUnlocked, severance, staffRequired,
 } from '@silicon-empire/simulation';
 import { useI18n } from '../i18n';
 import { Dialog, gameTime } from './shared';
@@ -45,6 +45,7 @@ export function StaffPanel({ world, controls, onClose }: { world: World; control
       </dl>
       <p className="placement-status">{t.staff.nextPayday(gameTime(staff.nextPayday - world.tick))}</p>
       <p className="placement-status">{t.rooms.rested(breakRoomSeats(world), staff.employees.length)}</p>
+      {plantMorale(world) > 0 && <p className="placement-status">{t.rooms.plants(plantMorale(world))}</p>}
       {poolSizeOf(world) > STAFF.poolSize && <p className="placement-status">{t.rooms.extra(poolSizeOf(world) - STAFF.poolSize)}</p>}
 
       <section aria-label={t.staff.employees}>

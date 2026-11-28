@@ -65,6 +65,11 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - Les livraisons différées réservent la capacité du quai et débitent le capital à la commande. Elles entrent dans le stock et le registre des unités achetées au tick d’arrivée. Un quai qui attend des lots reste en place jusqu’à leur arrivée.
 - Le format v8 conserve les révisions, les délais et la réservation des stocks. Les commandes standard du format v7 gardent leurs conditions.
 
+## Décor et paysage (v0.14.0)
+
+- `apps/web/src/game/landscape.ts` : décor purement visuel, hors simulation. Une couronne de 8 tuiles autour du terrain (trottoir, route, champs) et des champs sur les parcelles non achetées. Les décors sont placés par un bruit pseudo-aléatoire de la tuile et dessinés avec des `Blitter` Phaser (une feuille de sprites par saison). La saison vient du mois : `careerDate` en carrière, `tick / CALENDAR.monthTicks` ailleurs. Le paysage est redessiné quand la saison ou les parcelles changent.
+- Meuble `plant` (`FURNITURE`) : `roomsOf` compte les plantes ; `plantMorale` s’ajoute au moral des managers à la paie (`ROOMS.plantMorale`, `ROOMS.maxPlantMorale`). Pas de nouveau format de sauvegarde : le type de bâtiment s’ajoute à l’énumération existante.
+
 ## Époques (v0.13.0)
 
 - `packages/game-data/src/eras.ts` : `ERA_IDS`, `ERAS` (année, prix du rééquipement, pièces, modèles), `START_YEARS`, `CALENDAR`, `dateAt`, `eraOfYear`, `obsolescence`, `eraAssembly`. `recipeOf(type, model, design, era)` prend les pièces de l’époque pour l’établi ; les autres machines gardent leur recette. `saleOffer(model, design, era)` calcule le coût des pièces de l’époque et marque `era` sur les contrats historiques.
