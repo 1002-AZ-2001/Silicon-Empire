@@ -1,7 +1,7 @@
 import {
   CONVEYOR, ITEM_TYPES, MILESTONES, MILESTONE_IDS, PRODUCTION, PURCHASE, RESEARCH, RESEARCH_IDS, SKILL_LEVELS, STAFF, SUPPLIERS,
   WORKSHOP, FLOOR_TYPES, LAND, CAREER, POWER, POWER_USE_KW, ROLES, ROLE_EFFECTS, WEAR, LOANS, LOAN_IDS, MARKET_PRICES,
-  ABROAD, CALENDAR, COMPETITION, MARKET_IDS, REGIONS, RIVALS, RIVAL_IDS, START_YEARS, SUBSIDIARY_PRODUCTS, TRANSPORT_MODES, designParts, designPower, eraIndex, eraOfYear, isConveyor, recipeOf, sameDesign,
+  ABROAD, CALENDAR, COMPETITION, TRANSFER, MARKET_IDS, REGIONS, RIVALS, RIVAL_IDS, START_YEARS, SUBSIDIARY_PRODUCTS, TRANSPORT_MODES, designParts, designPower, eraIndex, eraOfYear, isConveyor, recipeOf, sameDesign,
 } from '@silicon-empire/game-data';
 import type { ItemType, MarketId, MilestoneId, ResearchId, RivalId } from '@silicon-empire/game-data';
 import { addItems, fitsInputStock, inventoryTotal, mergeInventories } from './inventory';
@@ -18,7 +18,9 @@ import { careerDate, techAvailable, techSpent } from './career';
 import { supplyBounds } from './competition';
 import type { CareerState } from './career';
 import { landConnected, landSpent, ownsFootprint, ownsTile } from './land';
-import { HOME_ONLY_MACHINES, layoutsOf } from './sites';
+import { HOME_ONLY_MACHINES, allMachines, layoutsOf } from './sites';
+import { MAX_TRANSFER_TICKS, placeOf, validRoute } from './transfers';
+import type { Place } from './transfers';
 import { fitsMap, footprintOf, landUnlocked, machineUnlocked, validHouseChips } from './world';
 import type { Machine, World } from './world';
 
@@ -196,7 +198,7 @@ function checkStaff(world: World): boolean {
       !Number.isInteger(employee.morale) || employee.morale < 1 || employee.morale > 100) return false;
     previousId = employee.id;
     if (employee.machineId === null) continue;
-    const machine = world.machines.find(candidate => candidate.id === employee.machineId);
+    const machine = allMachines(world).find(candidate => candidate.id === employee.machineId);
     if (!machine || !postAccepts(employee.role, machine.type) || operated.has(machine.id)) return false;
     operated.add(machine.id);
   }
@@ -291,7 +293,7 @@ function checkLayout(world: World, ids: LayoutIds): { held: Inventory; bookedCen
     const recipe = recipeOf(machine.type, machine.model, world.design, eraOf(world.progress), chipsOf(world.progress));
     if (recipe) {
       if (!fitsInputStock(recipe, stock)) return null;
-    } else if (total > capacityOf(world.progress, world.research, machine.type)) {
+    } else if (total > (machine.type === 'shipping' && machine.route ? TRANSFER.dockCapacity : capacityOf(world.progress, world.research, machine.type))) {
       return null;
     }
     held = mergeInventories(held, stock);
@@ -342,7 +344,25 @@ function checkLayout(world: World, ids: LayoutIds): { held: Inventory; bookedCen
     }
   }
   if (world.machines.some(machine => machine.filter && machine.type !== 'splitter')) return null;
+  if (world.machines.some(machine => machine.route && (machine.type !== 'shipping' || !validRoute(machine.route) ||
+    machine.route.to === placeOf(world.region)))) return null;
   return { held, bookedCents };
+}
+
+/** Transfers between existing sites, with valid ids, quantities and arrival ticks; routes towards existing sites. */
+function checkTransfers(world: World): boolean {
+  const { list, nextId, spentCents } = world.transfers;
+  if (!Number.isSafeInteger(spentCents) || spentCents < 0 || !Number.isSafeInteger(nextId) || nextId < 1) return false;
+  const places = new Set<Place>(['home', ...world.sites.map(site => site.region)]);
+  let previous = 0;
+  for (const transfer of list) {
+    if (transfer.id <= previous || transfer.id >= nextId || !places.has(transfer.from) || !places.has(transfer.to) ||
+      transfer.from === transfer.to || !ITEM_TYPES.includes(transfer.item) || !Number.isSafeInteger(transfer.units) || transfer.units < 1 ||
+      !Number.isSafeInteger(transfer.dockId) || transfer.dockId < 1 ||
+      transfer.dueTick <= world.tick || transfer.dueTick - world.tick > MAX_TRANSFER_TICKS) return false;
+    previous = transfer.id;
+  }
+  return allMachines(world).every(machine => !machine.route || places.has(machine.route.to));
 }
 
 /** Sites: one per factory abroad, in the same order, each region once. */
@@ -379,11 +399,13 @@ export function checkIntegrity(world: World): boolean {
   const capitalCeiling = (career ? CAREER.initialCapitalCents + career.borrowedCents + career.marketRevenueCents + career.abroad.revenueCents
     : WORKSHOP.initialCapitalCents) +
     rewardsEarned(world.progress) + revenueCents;
-  let bookedCapital = world.capitalCents + world.ledger.purchaseSpentCents + world.staff.paidCents +
+  if (!checkTransfers(world)) return false;
+  let bookedCapital = world.capitalCents + world.ledger.purchaseSpentCents + world.staff.paidCents + world.transfers.spentCents +
     (career ? career.repaidCents + techSpent(career) + career.retoolCents + career.abroad.spentCents : 0) + world.utilities.spentCents;
 
   const ids: LayoutIds = { machines: new Set(), items: new Set() };
-  let held: Inventory = {};
+  // Goods between two sites are still the company's.
+  let held: Inventory = world.transfers.list.reduce<Inventory>((total, transfer) => addItems(total, transfer.item, transfer.units), {});
   for (const layout of layouts) {
     const checked = checkLayout(layout, ids);
     if (!checked) return false;

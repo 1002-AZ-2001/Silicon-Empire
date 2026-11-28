@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.19.0 — Usines constructibles (deuxième volet)
+
+- **Routes entre sites** : dans l’inspecteur, un quai d’expédition peut être relié à un quai de réception d’un autre site (atelier ou usine à l’étranger), par bateau ou par avion. Il rassemble alors jusqu’à 40 unités et les envoie une fois par jour, fret payé au départ.
+  - Délai : la plus longue des deux étapes jusqu’à l’atelier (par exemple 34 jours en bateau ou 3 jours en avion entre l’atelier et la Chine). Fret : poids × tarif de la région la plus chère (par exemple 0,30 € ou 3,50 € par kilo pour la Chine).
+  - À l’arrivée, la marchandise entre au quai de réception ; un quai plein la fait attendre, un quai démoli la fait perdre.
+  - Le panneau Monde liste les transferts en cours et le fret payé.
+- **Salaires régionaux** : un employé affecté à une machine d’un site est payé au taux de salaire de la région (20 % en Chine) ; les employés de l’atelier, de bureau ou sans poste restent au tarif d’origine.
+- **Électricité régionale** : la facture de chaque site suit le prix industriel de sa région (55 % en Amérique du Nord et en Inde, 67 % en Chine…).
+- **Personnel sur les sites** : on affecte un opérateur ou un magasinier à une machine d’un site depuis l’inspecteur du site ou le panneau Personnel, qui indique le site de chaque poste. Les techniciens réparent toutes les machines de l’entreprise.
+- La sauvegarde v21 enregistre les routes des quais et les transferts en cours.
+
 ## 0.18.0 — Usines constructibles (premier volet)
 
 - Chaque **usine achetée à l’étranger** a désormais son propre **terrain** : 4 parcelles de départ sur une carte de 128 × 128 tuiles, avec parcelles à acheter, sols, câbles et paysage, comme l’atelier.

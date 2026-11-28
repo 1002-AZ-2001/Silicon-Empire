@@ -1234,3 +1234,27 @@ test('passe sur le site de l’usine en Chine, y construit puis revient à l’a
   await page.getByLabel('Site').selectOption('');
   await expect(equipment(page)).toHaveText(homeEquipment);
 });
+
+test('relie un quai d’expédition de l’atelier à un quai de réception en Chine', async ({ page }) => {
+  const saved = JSON.parse(await readFile(new URL('./fixtures/career-world.json', import.meta.url), 'utf8'));
+  await resumeFixture(page, saved);
+  await page.getByRole('group', { name: 'Vitesse de simulation' }).getByRole('button', { name: 'Pause' }).click();
+  await page.getByLabel('Site').selectOption('china');
+  await page.getByRole('button', { name: /^Réception/ }).click();
+  await clickTile(page, 30, 30);
+  await page.keyboard.press('Escape');
+  await page.getByLabel('Site').selectOption('');
+  await page.getByRole('button', { name: /^Expédition/ }).click();
+  await clickTile(page, 40, 33);
+  await page.keyboard.press('Escape');
+  await clickTile(page, 40, 33);
+  const route = inspector(page);
+  await expect(route.getByText('Sans route : le quai vend au grossiste.')).toBeVisible();
+  await expect(route.getByLabel('Destination')).toHaveValue('china');
+  await route.getByRole('combobox', { name: 'Transport' }).selectOption('air');
+  await route.getByRole('button', { name: 'Enregistrer la route' }).click();
+  await expect(page.getByText('Route enregistrée.')).toBeVisible();
+  await expect(route).toContainText('Route vers Chine');
+  await page.getByRole('button', { name: /^Monde/ }).click();
+  await expect(page.getByRole('region', { name: 'Transferts entre sites' })).toContainText('Aucun transfert en route.');
+});

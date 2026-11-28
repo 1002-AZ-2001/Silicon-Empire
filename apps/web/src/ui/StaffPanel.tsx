@@ -1,6 +1,6 @@
 import { OFFICE_ROLES, STAFF } from '@silicon-empire/game-data';
 import {
-  breakRoomSeats, equippedEmployees, machineUnlocked, payroll, plantMorale, poolSizeOf, postAccepts, roleUnlocked, severance, staffRequired,
+  allMachines, breakRoomSeats, equippedEmployees, machineUnlocked, placeOfMachine, regionalPayroll, plantMorale, poolSizeOf, postAccepts, roleUnlocked, severance, staffRequired,
 } from '@silicon-empire/simulation';
 import { useI18n } from '../i18n';
 import { Dialog, gameTime } from './shared';
@@ -40,7 +40,7 @@ export function StaffPanel({ world, controls, onClose }: { world: World; control
       <p>{t.staff.intro}</p>
       <p className="tier-hint">{staffRequired(world.progress) ? t.staff.required : t.staff.optional}</p>
       <dl className="machine-stats staff-summary">
-        <div><dt>{t.staff.payroll}</dt><dd>{t.staff.perMonth(money(payroll(staff)))}</dd></div>
+        <div><dt>{t.staff.payroll}</dt><dd>{t.staff.perMonth(money(regionalPayroll(world)))}</dd></div>
         <div><dt>{t.staff.paidTotal}</dt><dd>{money(staff.paidCents)}</dd></div>
       </dl>
       <p className="placement-status">{t.staff.nextPayday(gameTime(staff.nextPayday - world.tick))}</p>
@@ -74,9 +74,14 @@ export function StaffPanel({ world, controls, onClose }: { world: World; control
                       onChange={event => controls.assign(employee.id, event.target.value === '' ? null : Number(event.target.value))}
                     >
                       <option value="">{t.staff.unassigned}</option>
-                      {world.machines.filter(machine => postAccepts(employee.role, machine.type)).map(machine => (
-                        <option key={machine.id} value={machine.id}>{machineLabel(t, machine)}</option>
-                      ))}
+                      {allMachines(world).filter(machine => postAccepts(employee.role, machine.type)).map(machine => {
+                        const place = placeOfMachine(world, machine.id);
+                        return (
+                          <option key={machine.id} value={machine.id}>
+                            {machineLabel(t, machine)}{place === 'home' ? '' : ` · ${t.world.regions[place]}`}
+                          </option>
+                        );
+                      })}
                     </select>
                   </label>
                 ) : OFFICE_ROLES.includes(employee.role) ? (

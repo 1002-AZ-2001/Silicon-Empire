@@ -10,7 +10,7 @@ import { createStore } from 'zustand/vanilla';
 import type { Messages, Translator } from '../i18n';
 import type { ItemType, MachineType } from '@silicon-empire/game-data';
 import type {
-  Command, Company, LineTile, PurchaseLine, Rotation, RouterFilter, SiteCommand, Simulation, Speed, SubsidiarySettings, Tile, World,
+  Command, Company, LineTile, Place, PurchaseLine, Rotation, Route, RouterFilter, SiteCommand, Simulation, Speed, SubsidiarySettings, Tile, World,
 } from '@silicon-empire/simulation';
 
 /** Shop cart: lots per component, all from one supplier. Kept while the shop is closed. */
@@ -331,6 +331,16 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     career({ kind: 'set-subsidiary', region, ...settings }, ({ t }) => t.feedback.subsidiarySet(t.world.regions[region]));
   const setHouseChips = (chips: readonly HouseChip[]) =>
     career({ kind: 'set-house-chips', chips }, ({ t }) => t.feedback.houseChipsSet);
+  /** Routes a shipping dock of `from` towards a receiving dock of another site, or removes its route. */
+  function setRoute(from: Place, id: number, route: Route | null) {
+    const result = simulation.dispatch({ kind: 'set-route', from, id, route });
+    store.setState({
+      feedback: result.ok
+        ? { kind: 'success', message: ({ t }) => route ? t.feedback.routeSet : t.feedback.routeRemoved }
+        : { kind: 'error', message: errorMessage(result.reason) },
+    });
+    return result.ok;
+  }
   /** Shows a site abroad on the map, or the home workshop. */
   function selectSite(site: RegionId | null) {
     store.setState({ site, selectedId: null, selectedParcel: null, demolitionId: null, line: null, tool: 'inspect' });
@@ -489,7 +499,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
   }
 
   return {
-    store, clock, setSpeed, togglePause, order, checkout, setCartLots, buyParcel, hire, fire, assign, chooseSpecialty, takeLoan, repayLoan, buyTech, adoptEra, selectSite, setHouseChips, buyFactory, setSubsidiary, repair, setRestock, brand, configure, selectMilestone, selectResearch, upgrade, setProductModel,
+    store, clock, setSpeed, togglePause, order, checkout, setCartLots, buyParcel, hire, fire, assign, chooseSpecialty, takeLoan, repayLoan, buyTech, adoptEra, selectSite, setRoute, setHouseChips, buyFactory, setSubsidiary, repair, setRestock, brand, configure, selectMilestone, selectResearch, upgrade, setProductModel,
     startSale: (model: ProductModel) => changeSale(model), cancelSale: () => changeSale(),
     publishDesign,
     startLine, extendLine, cancelLine, finishLine,

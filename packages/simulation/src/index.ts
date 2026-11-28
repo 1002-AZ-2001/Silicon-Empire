@@ -15,3 +15,4 @@ export * from './power';
 export * from './company';
 export * from './competition';
 export * from './sites';
+export * from './transfers';

@@ -1,6 +1,6 @@
 import { LAND, REGIONS } from '@silicon-empire/game-data';
 import type { MachineType, RegionId } from '@silicon-empire/game-data';
-import type { World } from './world';
+import type { Machine, World } from './world';
 
 /**
  * Buildable factory abroad: its own land and layout, next to the home workshop. Capital, career,
@@ -75,4 +75,29 @@ export function layoutsOf(world: World): World[] {
 /** Price of materials bought at a site, in percent of the home price. */
 export function regionalMaterialPercent(world: World): number {
   return world.region ? REGIONS[world.region].materialPercent : 100;
+}
+
+/** A layout by place: the home workshop itself, or the view of a site. */
+export function layoutAt(world: World, place: RegionId | 'home'): World | undefined {
+  if (place === 'home') return world;
+  return siteOf(world, place) ? siteView(world, place) : undefined;
+}
+
+/** Every building of the company, home workshop first. */
+export function allMachines(world: World): readonly Machine[] {
+  return [...world.machines, ...world.sites.flatMap(site => site.machines)];
+}
+
+/** Place of a building: the site whose layout holds it, else the home workshop. */
+export function placeOfMachine(world: World, id: number): RegionId | 'home' {
+  return world.sites.find(site => site.machines.some(machine => machine.id === id))?.region ?? 'home';
+}
+
+/** Monthly salaries: each employee at the wages of the site where they work; office and free staff at home wages. */
+export function regionalPayroll(world: World): number {
+  return world.staff.employees.reduce((total, employee) => {
+    const place = employee.machineId === null ? 'home' : placeOfMachine(world, employee.machineId);
+    const percent = place === 'home' ? 100 : REGIONS[place].wagePercent;
+    return total + Math.ceil(employee.salaryCents * percent / 100);
+  }, 0);
 }

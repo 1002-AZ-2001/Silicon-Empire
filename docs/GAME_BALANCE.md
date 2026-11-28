@@ -10,6 +10,20 @@
 | Assemblage initial | 30 s simulées par PC |
 | Prix exemple Gaming X1 | 899 € |
 
+## Transferts et coûts régionaux v0.19.0
+
+| Région | Électricité industrielle (% de l’Europe de l’Ouest) |
+|---|---:|
+| Europe de l’Ouest, Europe de l’Est, Japon et Corée | 100 % |
+| Brésil | 85 % |
+| Chine | 67 % |
+| Mexique | 65 % |
+| Amérique du Nord, Inde | 55 % |
+
+- Repères 2024 (AIE, cités par [Dawn](https://www.dawn.com/news/1896102/pakistans-industry-paying-double-power-costs-of-us-china-india)) : 6,3 c$/kWh aux États-Unis et en Inde, 7,7 c$ en Chine, 11,5 c$ en moyenne dans l’Union européenne. En Allemagne, le prix modélisé pour l’industrie sans réductions était de 16,77 c€/kWh en 2024 ([SMARD](https://www.smard.de/page/en/topic-article/213922/216044)). Les taux du Mexique, du Brésil, de l’Europe de l’Est, du Japon et de la Corée sont des estimations.
+- Transferts : départ quotidien, au plus 40 unités par quai. Poids : PC 12 kg, boîtier 6 kg, matières premières et alimentations 2 kg, composants 1 kg (2 kg pour une bobine de condensateurs, 3 kg pour un transformateur). Exemple : 40 transformateurs de Chine vers l’atelier coûtent 36 € de fret en bateau (120 kg × 0,30 €) et 420 € en avion (120 kg × 3,50 €).
+- Salaires : un opérateur à 1 000 € par mois coûte 200 € en Chine, 80 € en Inde.
+
 ## Sites constructibles v0.18.0
 
 - Achats sur un site : prix de la boutique × taux « Matériaux » de la région (tableau de la carte du monde). Ventes au quai d’expédition d’un site : prix du grossiste × taux « Prix local ».

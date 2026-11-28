@@ -179,6 +179,8 @@ export interface StaffEffects {
   /** Every employee has a seat in a break room. */
   readonly rested: boolean;
   readonly poolSize: number;
+  /** Salaries due this payday, at the wages of the sites where people work. */
+  readonly payrollCents: number;
 }
 
 export function advanceStaff(
@@ -190,7 +192,7 @@ export function advanceStaff(
     next = { ...next, pool, candidates: candidatesFor(pool, effects().poolSize), nextPool: staff.nextPool + STAFF.poolRefreshTicks };
   }
   if (tick >= staff.nextPayday) {
-    const due = payroll(next);
+    const due = effects().payrollCents;
     const paid = capitalCents >= due;
     const { paid: rested, unpaid: drop } = effects().rested ? ROOMS.restedMorale : STAFF.morale;
     const raise = rested + effects().managerMorale;

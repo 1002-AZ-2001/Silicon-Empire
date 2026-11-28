@@ -9,7 +9,7 @@ import { ITEM_ART } from '../art/items';
 import { useI18n } from '../i18n';
 import { Dialog, gameTime } from './shared';
 import type { RegionId, SubsidiaryDestination, SubsidiaryProduct, TransportMode } from '@silicon-empire/game-data';
-import type { AbroadContext, CareerState, Subsidiary, SubsidiarySettings, World } from '@silicon-empire/simulation';
+import type { AbroadContext, CareerState, Place, Subsidiary, SubsidiarySettings, World } from '@silicon-empire/simulation';
 import type { WorkshopControls } from '../game/controls';
 
 /** Simplified continents, in percent of the map (x from the west, y from the north). */
@@ -143,6 +143,7 @@ export function WorldPanel({ world, career, controls, onClose }: {
   const subsidiary = career.abroad.subsidiaries.find(candidate => candidate.region === selected);
   const context: AbroadContext = { era: career.era, behind: erasBehind(career) };
   const licensed = career.technologies.includes('global');
+  const placeName = (place: Place) => place === 'home' ? t.sites.home : t.world.regions[place];
   const error = state === 'open' ? checkFactory(world, selected) : null;
   return (
     <Dialog wide title={t.world.title} onDismiss={onClose}
@@ -215,6 +216,22 @@ export function WorldPanel({ world, career, controls, onClose }: {
           </ul>
         )}
         <p className="placement-status">{t.world.totals(money(career.abroad.spentCents), money(career.abroad.revenueCents))}</p>
+      </section>
+
+      <section aria-label={t.routes.transfers}>
+        <h3>{t.routes.transfers}</h3>
+        {world.transfers.list.length === 0 ? <p className="placement-status">{t.routes.noTransfer}</p> : (
+          <ul className="stock-list">
+            {world.transfers.list.map(transfer => (
+              <li key={transfer.id}>
+                <img src={ITEM_ART[transfer.item]} alt="" />
+                <span>{transfer.units} × {t.items[transfer.item]} · {placeName(transfer.from)} → {placeName(transfer.to)}</span>
+                <strong>{t.world.eta(gameTime(Math.max(0, transfer.dueTick - world.tick)))}</strong>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="placement-status">{t.routes.freight(money(world.transfers.spentCents))}</p>
       </section>
     </Dialog>
   );

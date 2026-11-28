@@ -1,5 +1,5 @@
 import {
-  CONVEYOR, CONVEYOR_SPEEDS, ITEM_TYPES, MACHINES, MILESTONES, PRODUCTION, PURCHASE, isConveyor, marketOfModel, recipeOf,
+  CONVEYOR, CONVEYOR_SPEEDS, ITEM_TYPES, MACHINES, MILESTONES, PRODUCTION, PURCHASE, REGIONS, TRANSFER, isConveyor, marketOfModel, recipeOf,
 } from '@silicon-empire/game-data';
 import type { Direction, EraId, ItemType, PortDefinition, Recipe, SubsidiaryProduct } from '@silicon-empire/game-data';
 import { addItems, inputRoom, inventoryTotal, mergeInventories, mostStocked } from './inventory';
@@ -17,7 +17,8 @@ import { recordSale } from './competition';
 import { managerMorale, researchBoost, restockItem, salesBonusPercent, technicianRepairs } from './company';
 import { advanceStaff, assignBaseOperators, operatorOf, staffRequired } from './staff';
 import { advanceUtilities, brokenDown, monthlyPowerBill, powerRatio, productionTicks } from './power';
-import { regionalMaterialPercent, siteView, withSite } from './sites';
+import { regionalMaterialPercent, regionalPayroll, siteView, withSite } from './sites';
+import { placeOf, transferCost, transferTicks } from './transfers';
 import { plantMorale, poolSizeOf, rejectionFor, staffRested } from './rooms';
 import { ROUTER_SIDES, dockSpace, footprintOf, orderCost } from './world';
 import type { BeltItem, Ledger, Machine, Placement, ProductionState, RouterState, Tile, World } from './world';
@@ -265,6 +266,8 @@ export function canReceive(
   const machine = world.machines.find(candidate => candidate.id === id);
   if (!machine) return false;
   if (machine.type === 'headquarters') return stillNeeded(world.progress, item) > 0;
+  // A routed shipping dock gathers any unit for its next shipment.
+  if (machine.type === 'shipping' && machine.route) return TRANSFER.dockCapacity - inventoryTotal(world.stocks[id] ?? {}) > 0;
   if (machine.type === 'shipping') {
     return acceptsSale(world.sales, item) || (world.progress.career !== undefined && marketPrice(item) !== undefined);
   }
@@ -382,6 +385,8 @@ function stepLayout(world: World, company: boolean): World {
         delivered: { ...research.delivered, [active]: addItems(research.delivered[active] ?? {}, unit.item, 1) },
       };
       record({ delivered: addItems(ledger.delivered, unit.item, 1) });
+    } else if (machines.get(target.id)?.type === 'shipping' && machines.get(target.id)?.route) {
+      setStock(target.id, stock => addItems(stock, unit.item, 1));
     } else if (machines.get(target.id)?.type === 'shipping' && progress.career && !acceptsSale(sales, unit.item) && world.region) {
       // Abroad, a site sells to the local wholesaler at the local reference price.
       const price = localWholesalePrice(unit.item, world.region);
@@ -421,6 +426,46 @@ function stepLayout(world: World, company: boolean): World {
       record({ purchased: addItems(ledger.purchased, delivery.item, PURCHASE.lotSize) });
       return false;
     });
+  }
+
+  // Transfers between sites: arrivals at this layout's docks, then the daily departures of its routed docks.
+  let transfers = world.transfers;
+  const here = placeOf(world.region);
+  if (transfers.list.some(transfer => transfer.to === here && transfer.dueTick <= tick)) {
+    const list = [];
+    for (const transfer of transfers.list) {
+      if (transfer.to !== here || transfer.dueTick > tick) {
+        list.push(transfer);
+        continue;
+      }
+      const dock = machines.get(transfer.dockId);
+      if (dock?.type === 'receiving') {
+        if (dockSpace({ ...world, stocks, deliveries }, dock.id) >= transfer.units) setStock(dock.id, stock => addItems(stock, transfer.item, transfer.units));
+        else list.push({ ...transfer, dueTick: tick + TRANSFER.retryTicks });
+        continue;
+      }
+      // The dock was demolished on the way: the goods are lost.
+      record({ discarded: addItems(ledger.discarded, transfer.item, transfer.units) });
+    }
+    transfers = { ...transfers, list };
+  }
+  if (tick % TRANSFER.dispatchTicks === 0) {
+    for (const dock of world.machines) {
+      const stock = stocks[dock.id];
+      if (dock.type !== 'shipping' || !dock.route || !stock) continue;
+      const cost = transferCost(here, dock.route.to, dock.route.mode, stock);
+      if (capitalCents < cost) continue;
+      capitalCents -= cost;
+      const dueTick = tick + transferTicks(here, dock.route.to, dock.route.mode);
+      let { nextId } = transfers;
+      const sent = [];
+      for (const [item, units] of Object.entries(stock) as [ItemType, number][]) {
+        sent.push({ id: nextId, item, units, from: here, to: dock.route.to, dockId: dock.route.dockId, dueTick });
+        nextId += 1;
+      }
+      transfers = { list: [...transfers.list, ...sent], nextId, spentCents: transfers.spentCents + cost };
+      setStock(dock.id, () => ({}));
+    }
   }
 
   for (const { id, speed, target } of links.conveyors) {
@@ -607,7 +652,10 @@ function stepLayout(world: World, company: boolean): World {
   let utilities = world.utilities;
   if (company) {
     // One electricity bill for every site.
-    const siteBills = world.sites.reduce((total, site) => total + monthlyPowerBill({ ...siteView(world, site.region), utilities: { ...world.utilities, cut: false } }), 0);
+    // Each site pays the industrial electricity price of its region.
+    const siteBills = world.sites.reduce((total, site) => total + Math.ceil(
+      monthlyPowerBill({ ...siteView(world, site.region), utilities: { ...world.utilities, cut: false } }) * REGIONS[site.region].powerPercent / 100,
+    ), 0);
     const billed = advanceUtilities({ ...world, wear }, tick, capitalCents, siteBills);
     utilities = billed.utilities;
     capitalCents = billed.capitalCents;
@@ -636,12 +684,13 @@ function stepLayout(world: World, company: boolean): World {
 
     ({ staff, capitalCents } = advanceStaff(staff, tick, capitalCents, () => ({
       rested: staffRested({ ...world, staff }), poolSize: poolSizeOf(world), managerMorale: managerMorale({ ...world, staff }) + plantMorale(world),
+      payrollCents: regionalPayroll({ ...world, staff }),
     })));
   }
 
   return {
     ...world, tick, capitalCents, belts, stocks, routers, production, progress, sales, deliveries, research, staff, ledger, nextItemId,
-    wear, utilities,
+    wear, utilities, transfers,
   };
 }
 

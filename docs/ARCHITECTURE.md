@@ -65,6 +65,13 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - Les livraisons différées réservent la capacité du quai et débitent le capital à la commande. Elles entrent dans le stock et le registre des unités achetées au tick d’arrivée. Un quai qui attend des lots reste en place jusqu’à leur arrivée.
 - Le format v8 conserve les révisions, les délais et la réservation des stocks. Les commandes standard du format v7 gardent leurs conditions.
 
+## Transferts et coûts régionaux (v0.19.0)
+
+- `packages/simulation/src/transfers.ts` : `Route` (`machine.route` d’un quai d’expédition), `world.transfers` (liste, prochain identifiant, fret payé), `transferDays`, `transferCost`, `MAX_TRANSFER_TICKS`. Commande `set-route` (au niveau de l’entreprise, avec le site de départ ; `checkRoute`).
+- `stepLayout` : un quai relié garde les unités reçues ; chaque jour (`TRANSFER.dispatchTicks`), il les envoie si le fret peut être payé ; les transferts arrivés au terrain de destination entrent au quai, attendent s’il est plein ou sont mis au rebut si le quai a disparu. L’intégrité compte les unités en route et le fret.
+- `regionalPayroll` remplace la paie : chaque employé au taux de la région de sa machine (`placeOfMachine`). La facture d’un site est multipliée par `powerPercent`. `assign` et le contrôle du personnel cherchent les machines de tous les sites (`allMachines`).
+- Format v21 : `route` des machines, `transfers`.
+
 ## Sites constructibles (v0.18.0)
 
 - `packages/simulation/src/sites.ts` : `world.sites` (région, machines, stocks, convoyeurs, routeurs, production, sols, parcelles, câbles). `siteView(world, region)` donne le monde vu depuis un site (champ `region`), et `withSite` y remet le terrain et les données communes. Le moteur tourne inchangé sur ces vues.

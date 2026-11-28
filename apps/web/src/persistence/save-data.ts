@@ -8,7 +8,7 @@ import {
 import { z } from 'zod';
 import type { World } from '@silicon-empire/simulation';
 
-export const SAVE_VERSION = 20;
+export const SAVE_VERSION = 21;
 const OLD_MAP = 64;
 export const MAX_WORKSHOP_NAME = 40;
 
@@ -359,6 +359,7 @@ function migrateV9(value: unknown): unknown {
   const { staff } = withRequiredStaff({
     ...v9.data.world, staff: createStaff(v9.data.world.tick), floors: {}, parcels: [...LAND.initialParcels],
     utilities: { enabled: false, cut: false, nextBill: 1, spentCents: 0 }, cables: [], wear: {}, company: DEFAULT_COMPANY, sites: [],
+    transfers: { list: [], nextId: 1, spentCents: 0 },
   });
   // Roles arrive with v15: the v10 record keeps employees without one.
   const employees = staff.employees.map(employee => ({
@@ -755,7 +756,7 @@ const worldV19 = saveV19.shape.world.shape;
 
 /** Version 20 (v0.18.0): buildable sites abroad, one per factory. */
 const saveV20 = z.strictObject({
-  version: z.literal(SAVE_VERSION),
+  version: z.literal(20),
   ...header,
   world: z.strictObject({
     ...worldV19,
@@ -781,10 +782,48 @@ function migrateV19(value: unknown): z.input<typeof saveV20> | null {
   const sites = factories.map(factory => ({
     region: factory.region, machines: [], stocks: {}, belts: {}, routers: {}, production: {}, floors: {}, parcels: [...LAND.initialParcels], cables: [],
   }));
-  return { ...v19.data, version: SAVE_VERSION, world: { ...v19.data.world, sites } };
+  return { ...v19.data, version: 20, world: { ...v19.data.world, sites } };
 }
 
-const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9, migrateV10, migrateV11, migrateV12, migrateV13, migrateV14, migrateV15, migrateV16, migrateV17, migrateV18, migrateV19];
+const worldV20 = saveV20.shape.world.shape;
+const place = z.union([z.literal('home'), z.enum(REGION_IDS)]);
+const machineV21 = worldV20.machines.element.extend({
+  route: z.strictObject({ to: place, dockId: z.int().positive().max(Number.MAX_SAFE_INTEGER), mode: z.enum(TRANSPORT_MODES) }).optional(),
+});
+const machinesV21 = z.array(machineV21).max(WORKSHOP.columns * WORKSHOP.rows);
+
+/** Version 21 (v0.19.0): routed shipping docks and transfers between sites. */
+const saveV21 = z.strictObject({
+  version: z.literal(SAVE_VERSION),
+  ...header,
+  world: z.strictObject({
+    ...worldV20,
+    machines: machinesV21,
+    sites: z.array(worldV20.sites.element.extend({ machines: machinesV21 })).max(REGION_IDS.length),
+    transfers: z.strictObject({
+      list: z.array(z.strictObject({
+        id: z.int().positive().max(Number.MAX_SAFE_INTEGER),
+        item: z.enum(ITEM_TYPES),
+        units: z.int().positive().max(10_000),
+        from: place,
+        to: place,
+        dockId: z.int().positive().max(Number.MAX_SAFE_INTEGER),
+        dueTick: z.int().positive().max(Number.MAX_SAFE_INTEGER),
+      })).max(10_000),
+      nextId: z.int().positive().max(Number.MAX_SAFE_INTEGER),
+      spentCents: count0,
+    }),
+  }),
+});
+
+/** No transfer before v0.19.0. */
+function migrateV20(value: unknown): z.input<typeof saveV21> | null {
+  const v20 = saveV20.safeParse(value);
+  if (!v20.success) return null;
+  return { ...v20.data, version: SAVE_VERSION, world: { ...v20.data.world, transfers: { list: [], nextId: 1, spentCents: 0 } } };
+}
+
+const migrations = [migrateV1, migrateV2, migrateV3, migrateV4, migrateV5, migrateV6, migrateV7, migrateV8, migrateV9, migrateV10, migrateV11, migrateV12, migrateV13, migrateV14, migrateV15, migrateV16, migrateV17, migrateV18, migrateV19, migrateV20];
 
 function versionOf(value: unknown): unknown {
   return typeof value === 'object' && value !== null && 'version' in value ? value.version : undefined;
@@ -797,7 +836,7 @@ export function decodeSave(value: unknown): SaveRecord | null {
   if (typeof version === 'number' && Number.isInteger(version) && version >= 1) {
     for (const migrate of migrations.slice(version - 1)) current = migrate(current);
   }
-  const decoded = saveV20.safeParse(current);
+  const decoded = saveV21.safeParse(current);
   if (!decoded.success) return null;
 
   const { data } = decoded;

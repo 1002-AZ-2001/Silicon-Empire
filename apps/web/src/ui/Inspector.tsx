@@ -1,10 +1,10 @@
 import {
-  CONVEYOR, ITEMS, ITEM_TYPES, LAND, MACHINES, POWER_SOURCES, PRODUCTION, ROLE_EFFECTS, UPGRADE_COSTS, WEAR, PRODUCT_MODELS, PURCHASE, ROOMS, SUPPLIER_IDS, isConveyor, isFurniture,
+  CONVEYOR, ITEMS, ITEM_TYPES, LAND, REGIONS, TRANSFER, TRANSPORT_MODES, MACHINES, POWER_SOURCES, PRODUCTION, ROLE_EFFECTS, UPGRADE_COSTS, WEAR, PRODUCT_MODELS, PURCHASE, ROOMS, SUPPLIER_IDS, isConveyor, isFurniture,
   isLineType, recipeOf,
   isComponentMachine,
 } from '@silicon-empire/game-data';
 import {
-  ROUTER_SIDES, batchTicks, chipsOf, eraOf, monthlyPowerBill, nextLevel, powerOf, powerUse, productionTicks, repairCost, wearOf, beltStatus, beltTarget, checkBuild, checkFloor, checkLine, checkParcel, checkOrder, checkProductModel, footprintOf,
+  ROUTER_SIDES, batchTicks, checkRoute, chipsOf, eraOf, layoutAt, placeOf, transferDays, monthlyPowerBill, nextLevel, powerOf, powerUse, productionTicks, repairCost, wearOf, beltStatus, beltTarget, checkBuild, checkFloor, checkLine, checkParcel, checkOrder, checkProductModel, footprintOf,
   floorCost, inventoryTotal, lineCost, modelUnlocked, operatorOf, orderCost, orderableItems, portConnections, portsOf,
   parcelPrice, productionStatus, rejectionFor, upgradeCost, roomOfMachine, routerLinks,
   upgradeUnlocked,
@@ -19,8 +19,8 @@ import { MilestoneParts } from './ProgressionPanel';
 import { AnalysisProgress, ResearchParts } from './ResearchPanel';
 import { ShippingDetails } from './SalesPanel';
 import { Icon, gameTime } from './shared';
-import type { ItemType, LineType, ProductModel, SupplierId } from '@silicon-empire/game-data';
-import type { Inventory, Machine, Placement, RouterSide, World } from '@silicon-empire/simulation';
+import type { ItemType, LineType, ProductModel, SupplierId, TransportMode } from '@silicon-empire/game-data';
+import type { Inventory, Machine, Place, Placement, RouterSide, World } from '@silicon-empire/simulation';
 import type { Tool, WorkshopControls } from '../game/controls';
 
 const UNITS_PER_BELT = Math.ceil(CONVEYOR.lengthUnits / CONVEYOR.spacingUnits);
@@ -366,6 +366,63 @@ function StockList({ stock, label }: { stock: Inventory; label: string }) {
   );
 }
 
+/** Route of a shipping dock towards a receiving dock of another site of the company. */
+function RouteForm({ controls, company, world, dock }: { controls: WorkshopControls; company: World; world: World; dock: Machine }) {
+  const { t, money } = useI18n();
+  const here = placeOf(world.region);
+  const places = (['home', ...company.sites.map(site => site.region)] as Place[]).filter(place => place !== here);
+  const [to, setTo] = useState<Place>(dock.route?.to ?? places[0] ?? 'home');
+  const docks = layoutAt(company, to)?.machines.filter(machine => machine.type === 'receiving') ?? [];
+  const [chosenDock, setDock] = useState<number | null>(dock.route?.dockId ?? null);
+  const dockId = docks.some(candidate => candidate.id === chosenDock) ? chosenDock : docks[0]?.id ?? null;
+  const [mode, setMode] = useState<TransportMode>(dock.route?.mode ?? 'surface');
+  const placeName = (place: Place) => place === 'home' ? t.sites.home : t.world.regions[place];
+  const route = dockId === null ? null : { to, dockId, mode };
+  const error = route ? checkRoute(company, here, dock.id, route) : 'not-a-dock';
+  const gathered = inventoryTotal(world.stocks[dock.id] ?? {});
+  return (
+    <div className="room-details">
+      <h4 className="inspector-subtitle">{t.routes.title}</h4>
+      <p className="order-hint">{dock.route ? t.routes.current(placeName(dock.route.to), dock.route.dockId) : t.routes.none}</p>
+      {dock.route && <p className="placement-status">{t.routes.gathered(gathered, TRANSFER.dockCapacity)}</p>}
+      <label className="order-form">
+        <span>{t.routes.to}</span>
+        <select value={to} onChange={event => setTo(event.target.value as Place)}>
+          {places.map(place => <option key={place} value={place}>{placeName(place)}</option>)}
+        </select>
+      </label>
+      {docks.length === 0 ? <p className="order-hint text-error">{t.routes.noDock}</p> : (
+        <label className="order-form">
+          <span>{t.routes.dock}</span>
+          <select value={dockId ?? ''} onChange={event => setDock(Number(event.target.value))}>
+            {docks.map(candidate => <option key={candidate.id} value={candidate.id}>{t.world.dockName(candidate.id)}</option>)}
+          </select>
+        </label>
+      )}
+      <label className="order-form">
+        <span>{t.world.mode}</span>
+        <select value={mode} onChange={event => setMode(event.target.value as TransportMode)}>
+          {TRANSPORT_MODES.map(option => (
+            <option key={option} value={option}>
+              {t.routes.mode(t.world.modes[option === 'air' ? 'air' : 'surface'](transferDays(here, to, option), false),
+                money(Math.max(1, ...[here, to].map(place => place === 'home' ? 0 : REGIONS[place].freightCentsPerKg[option]))))}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="order-hint">{t.routes.hint}</p>
+      <button type="button" className="button button-primary" disabled={error !== null} onClick={() => route && controls.setRoute(here, dock.id, route)}>
+        {t.routes.apply}
+      </button>
+      {dock.route && (
+        <button type="button" className="button" disabled={gathered > 0} onClick={() => controls.setRoute(here, dock.id, null)}>
+          {t.routes.remove}
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** Storekeeper of a dock and the items they keep in stock. */
 function RestockForm({ controls, world, dock }: { controls: WorkshopControls; world: World; dock: Machine }) {
   const { t } = useI18n();
@@ -498,7 +555,8 @@ function Logistics({ world, machine, controls }: { world: World; machine: Machin
   );
 }
 
-export function Inspector({ controls, world }: { controls: WorkshopControls; world: World }) {
+/** `world` is the layout shown on the map; `company` the whole company, for what spans every site. */
+export function Inspector({ controls, world, company = world }: { controls: WorkshopControls; world: World; company?: World }) {
   const { tool, hover, rotation, selectedId, selectedParcel, feedback, line } = useStore(controls.store);
   const translator = useI18n();
   const { t, money } = translator;
@@ -551,6 +609,9 @@ export function Inspector({ controls, world }: { controls: WorkshopControls; wor
           {selected && isFurniture(selected.type) && <RoomDetails world={world} machine={selected} />}
           {selected && <PowerDetails world={world} machine={selected} controls={controls} />}
           {selected?.type === 'shipping' && <ShippingDetails world={world} controls={controls} />}
+          {selected?.type === 'shipping' && company.sites.length > 0 && (
+            <RouteForm key={selected.id} controls={controls} company={company} world={world} dock={selected} />
+          )}
         </div>
       ) : selectedParcel !== null && tool === 'inspect' ? (
         <ParcelDetails world={world} parcel={selectedParcel} controls={controls} />

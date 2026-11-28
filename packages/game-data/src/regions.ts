@@ -1,4 +1,5 @@
 import { CALENDAR } from './eras';
+import { ITEMS } from './items';
 import type { ItemType } from './items';
 
 /**
@@ -26,6 +27,8 @@ export interface Region {
   readonly materialPercent: number;
   /** Local selling price, in percent of the home price. */
   readonly marketPercent: number;
+  /** Industrial electricity price, in percent of Western Europe. */
+  readonly powerPercent: number;
   /** Days to the home dock: by sea (by road from Eastern Europe), then by air. */
   readonly days: Readonly<Record<TransportMode, number>>;
   /** Freight price per kilogram. */
@@ -36,35 +39,35 @@ export interface Region {
 
 export const REGIONS: Readonly<Record<RegionId, Region>> = {
   'western-europe': {
-    openYear: 0, factoryCostCents: 0, wagePercent: 100, materialPercent: 100, marketPercent: 100,
+    openYear: 0, factoryCostCents: 0, wagePercent: 100, materialPercent: 100, marketPercent: 100, powerPercent: 100,
     days: { surface: 0, air: 0 }, freightCentsPerKg: { surface: 0, air: 0 }, map: { x: 48, y: 30 },
   },
   'eastern-europe': {
-    openYear: 1990, factoryCostCents: 12_000_000, wagePercent: 30, materialPercent: 100, marketPercent: 75,
+    openYear: 1990, factoryCostCents: 12_000_000, wagePercent: 30, materialPercent: 100, marketPercent: 75, powerPercent: 100,
     days: { surface: 3, air: 1 }, freightCentsPerKg: { surface: 15, air: 150 }, map: { x: 56, y: 28 },
   },
   'north-america': {
-    openYear: 1975, factoryCostCents: 20_000_000, wagePercent: 85, materialPercent: 100, marketPercent: 105,
+    openYear: 1975, factoryCostCents: 20_000_000, wagePercent: 85, materialPercent: 100, marketPercent: 105, powerPercent: 55,
     days: { surface: 12, air: 2 }, freightCentsPerKg: { surface: 20, air: 300 }, map: { x: 22, y: 32 },
   },
   mexico: {
-    openYear: 1975, factoryCostCents: 10_000_000, wagePercent: 15, materialPercent: 95, marketPercent: 70,
+    openYear: 1975, factoryCostCents: 10_000_000, wagePercent: 15, materialPercent: 95, marketPercent: 70, powerPercent: 65,
     days: { surface: 18, air: 2 }, freightCentsPerKg: { surface: 25, air: 350 }, map: { x: 18, y: 46 },
   },
   brazil: {
-    openYear: 1975, factoryCostCents: 10_000_000, wagePercent: 20, materialPercent: 105, marketPercent: 70,
+    openYear: 1975, factoryCostCents: 10_000_000, wagePercent: 20, materialPercent: 105, marketPercent: 70, powerPercent: 85,
     days: { surface: 20, air: 2 }, freightCentsPerKg: { surface: 25, air: 350 }, map: { x: 32, y: 68 },
   },
   india: {
-    openYear: 1991, factoryCostCents: 10_000_000, wagePercent: 8, materialPercent: 95, marketPercent: 55,
+    openYear: 1991, factoryCostCents: 10_000_000, wagePercent: 8, materialPercent: 95, marketPercent: 55, powerPercent: 55,
     days: { surface: 25, air: 2 }, freightCentsPerKg: { surface: 25, air: 300 }, map: { x: 68, y: 46 },
   },
   china: {
-    openYear: 1980, factoryCostCents: 15_000_000, wagePercent: 20, materialPercent: 85, marketPercent: 65,
+    openYear: 1980, factoryCostCents: 15_000_000, wagePercent: 20, materialPercent: 85, marketPercent: 65, powerPercent: 67,
     days: { surface: 34, air: 3 }, freightCentsPerKg: { surface: 30, air: 350 }, map: { x: 77, y: 38 },
   },
   'east-asia': {
-    openYear: 1975, factoryCostCents: 25_000_000, wagePercent: 55, materialPercent: 90, marketPercent: 100,
+    openYear: 1975, factoryCostCents: 25_000_000, wagePercent: 55, materialPercent: 90, marketPercent: 100, powerPercent: 100,
     days: { surface: 36, air: 3 }, freightCentsPerKg: { surface: 30, air: 400 }, map: { x: 86, y: 34 },
   },
 };
@@ -99,6 +102,27 @@ export const ABROAD = {
   /** Shipments waiting for room at a dock try again every this many ticks. */
   retryTicks: 20,
 } as const;
+
+/** Transfers between the company's sites, from a shipping dock to a receiving dock of another site. */
+export const TRANSFER = {
+  /** Units a routed shipping dock gathers before they leave. */
+  dockCapacity: 40,
+  /** Gathered units leave once a day. */
+  dispatchTicks: CALENDAR.monthTicks / 30,
+  /** A shipment waiting for room at its dock tries again every this many ticks. */
+  retryTicks: 20,
+} as const;
+
+/** Weight of a unit, in kilograms, for freight: products and cases are heavy, chips and boards light. */
+export function weightOf(item: ItemType): number {
+  const line = (PRODUCT_LINES as Readonly<Partial<Record<ItemType, ProductLine>>>)[item];
+  if (line) return line.weightKg;
+  const { category } = ITEMS[item];
+  if (category === 'product') return 12;
+  if (category === 'case') return 6;
+  if (category === 'raw' || category === 'power-supply') return 2;
+  return 1;
+}
 
 /** Items that need materials of the career chain, at the price the factory pays for them locally. */
 export const PRODUCT_INPUTS: Readonly<Record<Exclude<SubsidiaryProduct, 'pc-office-packaged'>, Readonly<Partial<Record<ItemType, number>>>>> = {

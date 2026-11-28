@@ -363,7 +363,7 @@ export function Workshop({ session, onMenu }: { session: WorkshopSession; onMenu
         <Suspense fallback={<div className="map-panel map-loading" role="status">{t.workshop.loading}</div>}>
           <WorkshopViewport simulation={simulation} controls={controls} name={site ? `${session.name} · ${t.world.regions[site]}` : session.name} />
         </Suspense>
-        <Inspector controls={controls} world={view} />
+        <Inspector controls={controls} world={view} company={world} />
         {career && !tutorialHidden && !career.bankrupt && <TutorialCard world={world} onHide={() => setTutorialHidden(true)} />}
       </main>
 

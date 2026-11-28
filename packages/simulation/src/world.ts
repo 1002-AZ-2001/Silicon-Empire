@@ -17,7 +17,9 @@ import { assignBaseOperators, createStaff, postAccepts, severance, staffRequired
 import type { Employee, StaffState } from './staff';
 import type { Floors } from './rooms';
 import { regionOpen, validSubsidiarySettings } from './abroad';
-import { HOME_ONLY_MACHINES, createSite, regionalMaterialPercent, siteOf, siteView, withSite } from './sites';
+import { HOME_ONLY_MACHINES, allMachines, createSite, layoutAt, regionalMaterialPercent, siteOf, siteView, withSite } from './sites';
+import { NO_TRANSFERS, validRoute } from './transfers';
+import type { Place, Route, TransferState } from './transfers';
 import type { Site } from './sites';
 import type { Subsidiary } from './abroad';
 import { eraAdoptable, erasBehind, loanAvailable, payoff, retoolCost, techAvailable } from './career';
@@ -60,6 +62,8 @@ export interface Machine extends Placement {
   readonly level?: UpgradeLevel;
   /** Receiving docks: items its storekeeper keeps in stock, at most four. */
   readonly restock?: readonly ItemType[];
+  /** Shipping docks: sends what it gathers to a receiving dock of another site. */
+  readonly route?: Route;
 }
 
 /** Unit held by a splitter or merger, and the side it serves next. */
@@ -150,6 +154,8 @@ export interface World {
   readonly ledger: Ledger;
   /** Buildable factories abroad, in purchase order. */
   readonly sites: readonly Site[];
+  /** Goods on their way between the company's sites. */
+  readonly transfers: TransferState;
   /** Set only on the view of a site (`siteView`): the region whose layout this world shows. */
   readonly region?: RegionId;
 }
@@ -177,6 +183,7 @@ export type Command =
   | { readonly kind: 'buy-factory'; readonly region: RegionId }
   | { readonly kind: 'set-house-chips'; readonly chips: readonly HouseChip[] }
   | { readonly kind: 'at-site'; readonly region: RegionId; readonly command: SiteCommand }
+  | { readonly kind: 'set-route'; readonly from: Place; readonly id: number; readonly route: Route | null }
   | ({ readonly kind: 'set-subsidiary'; readonly region: RegionId } & SubsidiarySettings)
   | { readonly kind: 'select-milestone'; readonly milestone: MilestoneId | null }
   | { readonly kind: 'select-research'; readonly research: ResearchId | null }
@@ -274,6 +281,7 @@ export function createWorld(
     company: DEFAULT_COMPANY,
     ledger: EMPTY_LEDGER,
     sites: [],
+    transfers: NO_TRANSFERS,
   };
 }
 
@@ -542,6 +550,25 @@ type CareerCommand = Extract<Command, {
 /** Settings of a factory abroad chosen by the player. */
 export type SubsidiarySettings = Pick<Subsidiary, 'product' | 'destination' | 'mode' | 'dockId'>;
 
+/**
+ * A route sends a shipping dock's goods to a receiving dock of another site. It can be removed
+ * once the dock has sent everything it gathered.
+ */
+export function checkRoute(world: World, from: Place, id: number, route: Route | null): CommandError | null {
+  if (world.region) return 'region-unavailable';
+  const source = layoutAt(world, from);
+  if (!source) return 'region-unavailable';
+  const dock = source.machines.find(machine => machine.id === id);
+  if (!dock) return 'missing-machine';
+  if (dock.type !== 'shipping') return 'not-a-dock';
+  if (!route) return inventoryTotal(source.stocks[id] ?? {}) > 0 ? 'deliveries-pending' : null;
+  if (!validRoute(route) || route.to === from) return 'invalid-order';
+  const target = layoutAt(world, route.to);
+  if (!target) return 'region-unavailable';
+  if (!target.machines.some(machine => machine.id === route.dockId && machine.type === 'receiving')) return 'not-a-dock';
+  return null;
+}
+
 /** Chips a list allows: known, each once, in `HOUSE_CHIPS` order. */
 export function validHouseChips(chips: readonly HouseChip[]): boolean {
   return chips.every((chip, index) => HOUSE_CHIPS.includes(chip) &&
@@ -684,6 +711,21 @@ function applyCareer(world: World, command: CareerCommand): CommandResult {
 export function applyCommand(world: World, command: Command): CommandResult {
   // A bankrupt company is frozen: the game is over.
   if (world.progress.career?.bankrupt) return { ok: false, reason: 'bankrupt' };
+  if (command.kind === 'set-route') {
+    const error = checkRoute(world, command.from, command.id, command.route);
+    if (error) return { ok: false, reason: error };
+    const update = (machines: readonly Machine[]) => machines.map(machine => {
+      if (machine.id !== command.id) return machine;
+      if (command.route) return { ...machine, route: command.route };
+      const rest: Machine = { ...machine };
+      delete (rest as { route?: Route }).route;
+      return rest;
+    });
+    const updated = command.from === 'home'
+      ? { ...world, machines: update(world.machines) }
+      : { ...world, sites: world.sites.map(site => site.region === command.from ? { ...site, machines: update(site.machines) } : site) };
+    return { ok: true, machine: null, world: updated };
+  }
   if (command.kind === 'at-site') {
     // A site command runs on the view of the site, then the site takes the new layout.
     if (world.region || !siteOf(world, command.region)) return { ok: false, reason: 'region-unavailable' };
@@ -785,7 +827,8 @@ export function applyCommand(world: World, command: Command): CommandResult {
     const employee = staff.employees.find(person => person.id === command.employee);
     if (!employee) return { ok: false, reason: 'missing-employee' };
     if (command.machine !== null) {
-      const target = world.machines.find(candidate => candidate.id === command.machine);
+      // Employees can work at any site of the company.
+      const target = allMachines(world).find(candidate => candidate.id === command.machine);
       if (!target) return { ok: false, reason: 'missing-machine' };
       if (!postAccepts(employee.role, target.type)) return { ok: false, reason: 'not-staffed' };
     }

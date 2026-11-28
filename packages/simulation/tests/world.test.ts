@@ -35,6 +35,7 @@ describe('construction', () => {
         purchased: {}, discarded: {}, purchaseSpentCents: 0, produced: {}, consumed: {}, delivered: {},
       },
       sites: [],
+      transfers: { list: [], nextId: 1, spentCents: 0 },
     });
   });
 
