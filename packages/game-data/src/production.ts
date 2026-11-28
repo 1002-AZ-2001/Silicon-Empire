@@ -1,4 +1,6 @@
 import { designParts } from './design';
+import { eraAssembly } from './eras';
+import type { EraId } from './eras';
 import type { PublishedDesign } from './design';
 import type { MachineType } from './construction';
 import type { ItemType } from './items';
@@ -103,11 +105,22 @@ export function isComponentMachine(type: MachineType): type is ComponentMachine 
   return type in COMPONENT_RECIPES;
 }
 
+/**
+ * Recipe of a machine for a PC model. In a historical career era, the assembler takes the parts of the
+ * era and the models it cannot build have no recipe; testers and packagers are the same in every era.
+ */
 export function recipeOf(
-  type: MachineType, model: ProductModel = 'office', design?: PublishedDesign | null,
+  type: MachineType, model: ProductModel = 'office', design?: PublishedDesign | null, era: EraId = 'modern',
 ): Recipe | undefined {
   if (isComponentMachine(type)) return COMPONENT_RECIPES[type];
+  if (model !== 'custom' && era !== 'modern') {
+    const inputs = eraAssembly(era, model);
+    const recipe = recipes[model]?.[type];
+    if (!inputs || !recipe) return undefined;
+    return type === 'assembler' ? { ...recipe, inputs } : recipe;
+  }
   if (model !== 'custom') return recipes[model]?.[type];
+  if (era !== 'modern') return undefined;
   if (!design) return undefined;
   if (type === 'assembler') return { inputs: designParts(design.spec), output: 'pc-custom', ticks: 900 };
   if (type === 'tester') return { inputs: { 'pc-custom': 1 }, output: 'pc-custom-tested', ticks: 240 };

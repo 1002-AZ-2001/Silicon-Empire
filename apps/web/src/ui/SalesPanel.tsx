@@ -1,5 +1,7 @@
-import { CAREER, PRODUCT_MODELS, WORKSHOP, saleOffer } from '@silicon-empire/game-data';
-import { landSpent, modelUnlocked, rewardsEarned, salesAccounts, salesBonusPercent, techSpent } from '@silicon-empire/simulation';
+import { CAREER, PRODUCT_MODELS, WORKSHOP, obsolescence, saleOffer } from '@silicon-empire/game-data';
+import {
+  contractPrice, eraOf, erasBehind, landSpent, modelUnlocked, rewardsEarned, salesAccounts, salesBonusPercent, techSpent,
+} from '@silicon-empire/simulation';
 import { useI18n } from '../i18n';
 import { MarketPrices } from './CareerPanels';
 import { Dialog } from './shared';
@@ -36,9 +38,10 @@ export function SalesPanel({ world, controls }: { world: World; controls: Worksh
   const grants = rewardsEarned(world.progress);
   const purchases = world.ledger.purchaseSpentCents;
   const career = world.progress.career;
-  // Net construction: what is neither in the till nor spent on parts, wages, land, loans or licences.
-  const investment = (career ? CAREER.initialCapitalCents + career.borrowedCents + career.marketRevenueCents - career.repaidCents - techSpent(career)
-    : WORKSHOP.initialCapitalCents) + revenueCents + grants - purchases - world.staff.paidCents - landSpent(world) - world.capitalCents;
+  // Net construction: what is neither in the till nor spent on parts, wages, land, power, loans, licences or retooling.
+  const investment = (career ? CAREER.initialCapitalCents + career.borrowedCents + career.marketRevenueCents - career.repaidCents -
+    techSpent(career) - career.retoolCents : WORKSHOP.initialCapitalCents) + revenueCents + grants - purchases - world.staff.paidCents -
+    landSpent(world) - world.utilities.spentCents - world.capitalCents;
   const active = world.sales.active;
   const latest = world.sales.completed.at(-1);
   const dock = world.machines.some(machine => machine.type === 'shipping');
@@ -61,9 +64,13 @@ export function SalesPanel({ world, controls }: { world: World; controls: Worksh
           </div>
         ) : (
           <ul className="milestone-list">
+            {career && erasBehind(career) > 0 && (
+              <li className="order-hint text-error">{t.eras.obsolete(100 - obsolescence(erasBehind(career)))}</li>
+            )}
             {PRODUCT_MODELS.filter(model => modelUnlocked(world.progress, model)).map(model => {
-              const terms = saleOffer(model, world.design);
-              if (!terms) return null;
+              const offer = saleOffer(model, world.design, eraOf(world.progress));
+              if (!offer) return null;
+              const terms = { ...offer, unitPriceCents: contractPrice(world, offer.unitPriceCents) };
               const name = offerName(terms, t);
               return (
                 <li className="milestone" key={model} aria-label={name}>

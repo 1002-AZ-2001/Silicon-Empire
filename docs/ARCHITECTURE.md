@@ -65,6 +65,14 @@ Le format IndexedDB v1 (v0.1.0) enregistrait un atelier par identifiant avec son
 - Les livraisons différées réservent la capacité du quai et débitent le capital à la commande. Elles entrent dans le stock et le registre des unités achetées au tick d’arrivée. Un quai qui attend des lots reste en place jusqu’à leur arrivée.
 - Le format v8 conserve les révisions, les délais et la réservation des stocks. Les commandes standard du format v7 gardent leurs conditions.
 
+## Époques (v0.13.0)
+
+- `packages/game-data/src/eras.ts` : `ERA_IDS`, `ERAS` (année, prix du rééquipement, pièces, modèles), `START_YEARS`, `CALENDAR`, `dateAt`, `eraOfYear`, `obsolescence`, `eraAssembly`. `recipeOf(type, model, design, era)` prend les pièces de l’époque pour l’établi ; les autres machines gardent leur recette. `saleOffer(model, design, era)` calcule le coût des pièces de l’époque et marque `era` sur les contrats historiques.
+- `progress.career` ajoute `startYear`, `released` (dernière époque en vente, déduite du tick), `era` (époque équipée) et `retoolCents`. `advanceCareer` met `released` à jour ; sans licence Ordinateurs, `era` suit `released`. `eraOf(progress)` vaut `modern` hors carrière.
+- Commande `adopt-era` (`checkEra`) : époque en vente, plus récente, licence Ordinateurs, fonds, stock des établis compatible. Le capital engagé compte `retoolCents`. `contractPrice` applique bonus commercial et obsolescence ; `validSaleTerms` accepte un contrat historique jusqu’au plancher d’obsolescence.
+- `orderableItems` : en carrière, la licence Ordinateurs ouvre les pièces de toutes les époques en vente ; ailleurs, les pièces historiques (`ERA_ITEMS`) ne sont jamais proposées. Le cache des liaisons logistiques dépend aussi de l’époque.
+- Format v16 : champs d’époque de la carrière et `era` optionnel des contrats ; la migration v15 place les carrières en 2017, à l’époque moderne.
+
 ## Rôles et entreprise (v0.12.0)
 
 - `Person.role` (`ROLES`, `packages/game-data/src/staff.ts`). Les rôles des candidats viennent d’une suite pseudo-aléatoire distincte de celle des noms et niveaux, pondérée par `ROLE_WEIGHTS`, avec un opérateur au premier rang. Les identifiants et noms des viviers ne changent donc pas.

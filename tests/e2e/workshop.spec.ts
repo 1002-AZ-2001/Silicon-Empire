@@ -1105,3 +1105,40 @@ test('personnalise l’entreprise et confie le réassort d’un quai à un magas
   await expect(capital(page)).not.toHaveText(before, { timeout: 15_000 });
   await expect(inspector(page).getByRole('list', { name: 'Contenu du stock' })).toContainText('Processeur 8 cœurs K8');
 });
+
+test('choisit l’année de départ d’une carrière et consulte les époques et leurs pièces', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Nom de l’atelier').fill('Atelier 1985');
+  await page.getByRole('radio', { name: /^Classique/ }).check();
+  await expect(page.getByLabel('Année de départ (Carrière)')).toBeHidden();
+  await page.getByRole('radio', { name: /^Carrière/ }).check();
+  await page.getByLabel('Année de départ (Carrière)').selectOption('1985');
+  await page.getByRole('button', { name: 'Nouvelle partie' }).click();
+  await page.getByRole('button', { name: 'Démarrer avec cette spécialité' }).first().click();
+  await expect(page.getByLabel('Date', { exact: true })).toHaveText(/janvier 1985/i);
+
+  await page.getByRole('button', { name: 'Époques', exact: true }).click();
+  const eras = page.getByRole('dialog', { name: 'Époques' });
+  await expect(eras.getByRole('listitem', { name: 'PC 16 bits' })).toContainText('Équipée');
+  await expect(eras.getByRole('listitem', { name: 'PC 16 bits' })).toContainText('Disque dur 10 Mo');
+  await expect(eras.getByRole('listitem', { name: 'Multimédia et 3D' })).toContainText('Dans 12 ans');
+  await expect(eras.getByRole('listitem', { name: 'Micro-ordinateurs 8 bits' })).toHaveCount(0);
+  await expect(eras.getByText('suit gratuitement chaque nouvelle époque')).toBeVisible();
+  await eras.getByRole('button', { name: 'Fermer' }).click();
+
+  await page.getByRole('button', { name: 'Boutique', exact: true }).click();
+  const shop = page.getByRole('dialog', { name: 'Boutique de composants' });
+  await shop.getByLabel('Rechercher').fill('disque dur');
+  await expect(shop.getByRole('listitem', { name: 'Disque dur 10 Mo' })).toContainText('Nécessite la licence Ordinateurs');
+  await expect(shop.getByRole('listitem', { name: 'Disque dur 250 Go' })).toBeVisible();
+});
+
+test('n’affiche pas les pièces historiques hors carrière', async ({ page }) => {
+  await page.goto('/');
+  await startWorkshop(page, 'Atelier moderne');
+  await page.getByRole('button', { name: 'Boutique', exact: true }).click();
+  const shop = page.getByRole('dialog', { name: 'Boutique de composants' });
+  await shop.getByLabel('Rechercher').fill('processeur');
+  await expect(shop.getByRole('listitem', { name: /^Processeur/ })).toHaveCount(1);
+  await expect(page.getByLabel('Date', { exact: true })).toHaveCount(0);
+});

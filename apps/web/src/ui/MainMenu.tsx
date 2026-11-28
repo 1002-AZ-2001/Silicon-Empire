@@ -1,10 +1,11 @@
-import { LAND, WORKSHOP } from '@silicon-empire/game-data';
+import { LAND, START_YEARS, WORKSHOP, eraOfYear } from '@silicon-empire/game-data';
 import { useEffect, useRef, useState } from 'react';
 import workshopArt from '../art/workshop-menu.webp';
 import { BACKUP_LIMIT_BYTES, downloadBackup, parseBackup } from '../persistence/backup';
 import { addSave, listSaves, loadSave, removeSave } from '../persistence/indexed-saves';
 import { MAX_WORKSHOP_NAME, createSaveId } from '../persistence/save-data';
 import { CURRENCIES, LOCALES, LOCALE_NAMES, resolveCurrency, setCurrency, setLocale, useCurrencyChoice, useI18n } from '../i18n';
+import type { StartYear } from '@silicon-empire/game-data';
 import type { GameMode } from '@silicon-empire/simulation';
 import type { CurrencyChoice } from '../i18n';
 import { Dialog, Icon } from './shared';
@@ -12,7 +13,7 @@ import { UpdatePanel } from './UpdatePanel';
 import type { SaveRecord } from '../persistence/save-data';
 
 export function MainMenu({ onNewGame, onResume }: {
-  onNewGame: (name: string, mode: GameMode) => void;
+  onNewGame: (name: string, mode: GameMode, startYear: StartYear) => void;
   onResume: (save: SaveRecord) => void;
 }) {
   const [saves, setSaves] = useState<SaveRecord[] | null>(null);
@@ -141,9 +142,11 @@ export function MainMenu({ onNewGame, onResume }: {
             const form = new FormData(event.currentTarget);
             const name = form.get('name');
             const mode = form.get('mode');
+            const year = START_YEARS.find(option => String(option) === form.get('startYear')) ?? START_YEARS[0];
             onNewGame(
               typeof name === 'string' && name.trim() ? name.trim() : t.menu.defaultName,
               mode === 'sandbox' || mode === 'progression' ? mode : 'career',
+              year,
             );
           }}>
             <label htmlFor="workshop-name">{t.menu.nameLabel}</label>
@@ -157,6 +160,15 @@ export function MainMenu({ onNewGame, onResume }: {
                 </label>
               ))}
             </fieldset>
+            <label className="start-year">
+              <span>{t.menu.startYear}</span>
+              <select name="startYear" defaultValue={START_YEARS[0]} disabled={busy}>
+                {START_YEARS.map(year => (
+                  <option key={year} value={year}>{t.menu.startYearOption(year, t.eras.names[eraOfYear(year)])}</option>
+                ))}
+              </select>
+              <small>{t.menu.startYearHint}</small>
+            </label>
             <button className="button button-primary new-game-button" disabled={busy}>
               {t.menu.newGame} <Icon name="arrow" />
             </button>

@@ -1,6 +1,6 @@
 import { FLOOR_TYPES, LOANS, MACHINE_TYPES, PURCHASE, isLineType } from '@silicon-empire/game-data';
 import type {
-  FloorType, LineType, LoanId, MilestoneId, ResearchId, PcDesign, ProductModel, Specialty, SupplierId, TechId,
+  EraId, FloorType, LineType, LoanId, MilestoneId, ResearchId, PcDesign, ProductModel, Specialty, SupplierId, TechId,
 } from '@silicon-empire/game-data';
 import {
   FixedStepClock, cableChanges, cableCost, floorCost, lineCost, machineAt, repairCost, ownsTile, parcelOf, parcelPrice, payoff, purchaseCost, turnClockwise,
@@ -75,6 +75,7 @@ interface WorkshopUi {
   companyOpen: boolean;
   bankOpen: boolean;
   techOpen: boolean;
+  eraOpen: boolean;
   cart: Cart;
 }
 
@@ -124,6 +125,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     companyOpen: false,
     bankOpen: false,
     techOpen: false,
+    eraOpen: false,
     cart: EMPTY_CART,
   }));
   const clock = new FixedStepClock();
@@ -303,6 +305,8 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
     career({ kind: 'take-loan', offer }, ({ t, money }) => t.feedback.loanTaken(money(LOANS[offer].principalCents)));
   const buyTech = (tech: TechId) =>
     career({ kind: 'buy-tech', tech }, ({ t }) => t.feedback.techBought(t.career.tech.names[tech]));
+  const adoptEra = (era: EraId) =>
+    career({ kind: 'adopt-era', era }, ({ t }) => t.feedback.eraAdopted(t.eras.names[era]));
   function repayLoan(offer: LoanId) {
     const loan = simulation.getSnapshot().progress.career?.loans.find(candidate => candidate.offer === offer);
     const cost = loan ? payoff(loan) : 0;
@@ -455,7 +459,7 @@ export function createWorkshopControls(simulation: Simulation, initialSpeed: Spe
   }
 
   return {
-    store, clock, setSpeed, togglePause, order, checkout, setCartLots, buyParcel, hire, fire, assign, chooseSpecialty, takeLoan, repayLoan, buyTech, repair, setRestock, brand, configure, selectMilestone, selectResearch, upgrade, setProductModel,
+    store, clock, setSpeed, togglePause, order, checkout, setCartLots, buyParcel, hire, fire, assign, chooseSpecialty, takeLoan, repayLoan, buyTech, adoptEra, repair, setRestock, brand, configure, selectMilestone, selectResearch, upgrade, setProductModel,
     startSale: (model: ProductModel) => changeSale(model), cancelSale: () => changeSale(),
     publishDesign,
     startLine, extendLine, cancelLine, finishLine,

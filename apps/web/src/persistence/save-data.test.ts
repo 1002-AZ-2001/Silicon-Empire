@@ -462,3 +462,24 @@ describe('rôles et entreprise dans la sauvegarde', () => {
     expect(migrated?.world.company).toEqual({ color: 'lime', emblem: 'chip' });
   });
 });
+
+describe('époques dans la sauvegarde', () => {
+  it('restaure l’année de départ et l’époque, et place les carrières v15 en 2017', () => {
+    let world = run(createWorld('career', { startYear: 1985 }), { kind: 'choose-specialty', specialty: 'pcb' });
+    const saved: SaveRecord = { ...record, world };
+    expect(decodeSave(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+    const career = world.progress.career;
+    if (!career) throw new Error('carrière absente');
+    expect(career).toMatchObject({ startYear: 1985, released: '16bit', era: '16bit' });
+    const forge = (patch: Record<string, unknown>) => ({ ...saved, world: { ...world, progress: { ...world.progress, career: { ...career, ...patch } } } });
+    expect(decodeSave(forge({ startYear: 1990 }))).toBeNull();
+    expect(decodeSave(forge({ released: '32bit' }))).toBeNull();
+    expect(decodeSave(forge({ era: 'steam' }))).toBeNull();
+    world = createWorld('career');
+    const v15 = JSON.parse(JSON.stringify({ ...record, version: 15, world }));
+    for (const key of ['startYear', 'released', 'era', 'retoolCents']) delete v15.world.progress.career[key];
+    expect(decodeSave(v15)).toEqual({ ...record, world });
+    expect(decodeSave(JSON.parse(JSON.stringify({ ...record, version: 15 })))).toEqual(record);
+    expect(SAVE_VERSION).toBe(16);
+  });
+});

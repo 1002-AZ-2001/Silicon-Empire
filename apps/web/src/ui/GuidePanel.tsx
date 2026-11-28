@@ -1,13 +1,14 @@
 import { PRODUCT_MODELS, recipeOf } from '@silicon-empire/game-data';
 import { useI18n } from '../i18n';
 import { Dialog } from './shared';
+import { eraOf } from '@silicon-empire/simulation';
 import type { World } from '@silicon-empire/simulation';
 
 export function GuidePanel({ world, onClose }: { world: World; onClose: () => void }) {
   const { t } = useI18n();
   const boughtParts = world.ledger.purchaseSpentCents > 0;
   const packagingStarted = PRODUCT_MODELS.some(model => {
-    const recipe = recipeOf('packager', model, world.design);
+    const recipe = recipeOf('packager', model, world.design, eraOf(world.progress));
     return recipe && (world.ledger.produced[recipe.output] ?? 0) > 0;
   });
   const sold = world.sales.completed.length > 0;

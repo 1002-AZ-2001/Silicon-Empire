@@ -1,8 +1,8 @@
 import {
-  ITEMS, ITEM_CATEGORIES, ITEM_TYPES, MILESTONE_IDS, MILESTONES, PURCHASE, SUPPLIERS, SUPPLIER_IDS,
+  ERA_ITEMS, ITEMS, ITEM_CATEGORIES, ITEM_TYPES, MILESTONE_IDS, MILESTONES, PURCHASE, SUPPLIERS, SUPPLIER_IDS, eraOfYear,
 } from '@silicon-empire/game-data';
 import {
-  checkPurchase, dockSpace, orderCost, orderableItems, purchaseCost, purchaseLineCost, volumeDiscount,
+  checkPurchase, dockSpace, isPcPart, orderCost, orderableItems, partYear, partsBetween, purchaseCost, purchaseLineCost, volumeDiscount,
 } from '@silicon-empire/simulation';
 import { useState } from 'react';
 import { useStore } from 'zustand';
@@ -22,9 +22,10 @@ function fold(text: string): string {
   return text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 }
 
-/** Components that can be bought at all, whether or not they are unlocked yet. */
-const CATALOGUE = ITEM_TYPES.filter(item => ITEMS[item].unitCostCents !== null);
-const CATEGORIES = ITEM_CATEGORIES.filter(category => CATALOGUE.some(item => ITEMS[item].category === category));
+/** Components that can be bought at all, whether or not they are unlocked yet. Historical parts only exist in careers. */
+const FULL_CATALOGUE = ITEM_TYPES.filter(item => ITEMS[item].unitCostCents !== null);
+const MODERN_CATALOGUE = FULL_CATALOGUE.filter(item => !(ERA_ITEMS as readonly ItemType[]).includes(item));
+const CATEGORIES = ITEM_CATEGORIES.filter(category => FULL_CATALOGUE.some(item => ITEMS[item].category === category));
 
 function unlockingMilestone(item: ItemType): MilestoneId | undefined {
   return MILESTONE_IDS.find(id => MILESTONES[id].unlocks.items.includes(item));
@@ -52,13 +53,20 @@ export function ShopPanel({ world, controls, onClose }: { world: World; controls
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<ShopSort>('category');
   const search = fold(query.trim());
-  const shown = CATALOGUE
+  const career = world.progress.career;
+  // A career shows the PC parts of the eras from its start year on.
+  const catalogue = career
+    ? FULL_CATALOGUE.filter(item => !isPcPart(item) || partsBetween(eraOfYear(career.startYear), 'modern').includes(item))
+    : MODERN_CATALOGUE;
+  const year = (item: ItemType) => career && isPcPart(item) ? partYear(item) : undefined;
+  const shown = catalogue
     .filter(item => category === 'all' || ITEMS[item].category === category)
     .filter(item => search === '' || fold(`${t.items[item]} ${ITEMS[item].manufacturer}`).includes(search))
     .sort((a, b) => sort === 'name' ? t.items[a].localeCompare(t.items[b], locale)
       : sort === 'priceAsc' ? (ITEMS[a].unitCostCents ?? 0) - (ITEMS[b].unitCostCents ?? 0)
         : sort === 'priceDesc' ? (ITEMS[b].unitCostCents ?? 0) - (ITEMS[a].unitCostCents ?? 0)
-          : ITEM_CATEGORIES.indexOf(ITEMS[a].category) - ITEM_CATEGORIES.indexOf(ITEMS[b].category));
+          : ITEM_CATEGORIES.indexOf(ITEMS[a].category) - ITEM_CATEGORIES.indexOf(ITEMS[b].category) ||
+            (year(a) ?? 0) - (year(b) ?? 0));
 
   return (
     <Dialog
@@ -125,7 +133,13 @@ export function ShopPanel({ world, controls, onClose }: { world: World; controls
                   <span>{t.shop.lotPrice(PURCHASE.lotSize, money(orderCost(item, cart.supplier)))}</span>
                 </div>
                 {locked
-                  ? <p className="order-hint">{milestone ? t.shop.unlockedBy(t.progression.milestones[milestone]) : t.errors.locked}</p>
+                  ? (
+                    <p className="order-hint">
+                      {career && year(item) !== undefined
+                        ? career.technologies.includes('computers') ? t.shop.onSaleIn(year(item) ?? 0) : t.shop.needsComputers
+                        : milestone ? t.shop.unlockedBy(t.progression.milestones[milestone]) : t.errors.locked}
+                    </p>
+                  )
                   : (
                     <button
                       type="button"
